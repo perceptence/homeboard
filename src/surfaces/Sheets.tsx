@@ -3,44 +3,16 @@
 import clsx from "clsx";
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Icon, type IconName } from "@/components/Icons";
+import { Icon } from "@/components/Icons";
 import { Avatar, Button, Card, Check, Choice, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
 import { smooth, spring } from "@/lib/motion";
 import { addDays, ago, badge, clockLabel, dayLabel, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
+import { taskGlyph } from "@/lib/glyphs";
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
 import type { MemberId, Priority, ShopCategory, Task } from "@/lib/types";
 import { ROLE_NEEDS } from "@/lib/types";
-
-/**
- * The glyph that stands for a task — so a task's detail wears an icon tile in its
- * title the same way an event's does (events carry an explicit `icon`; tasks are
- * read from what they are). Title keywords first, then the source domain, then a
- * generic checklist. Keeps "Take out the trash" and the "Trash night" event
- * showing the SAME trash glyph — the two used to look like different species.
- */
-const TASK_GLYPHS: [RegExp, IconName][] = [
-  [/trash|bin|rubbish|recycl/i, "trash"],
-  [/plant|water|garden/i, "plant"],
-  [/pick ?up|school run|drop ?off/i, "kid"],
-  [/homework|study/i, "grad"],
-  [/laundry|fold|wash/i, "spark"],
-  [/mow|lawn|hedge|leaves/i, "plant"],
-  [/cook|dinner|meal|table|groc/i, "cart"],
-  [/vacuum|clean|dust|tidy|sweep/i, "spark"],
-  [/hvac|filter|boiler|service|repair|fix/i, "wrench"],
-  [/bill|insurance|rent|renew/i, "bill"],
-];
-const SOURCE_GLYPHS: Record<string, IconName> = {
-  Automation: "bolt", Meals: "cart", "Home maintenance": "wrench", "Home care": "plant",
-  Cleaning: "spark", Laundry: "spark", Kids: "kid", Bills: "bill", Calendar: "cal",
-};
-function taskGlyph(t: Task): IconName {
-  for (const [re, name] of TASK_GLYPHS) if (re.test(t.title)) return name;
-  return (t.source ? SOURCE_GLYPHS[t.source] : undefined) ?? "tasks";
-}
-
 
 /** All sheets for both surfaces. Phone gets a bottom sheet; iPad gets a centred modal. */
 export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
@@ -128,9 +100,35 @@ function TaskSheet({ id }: { id: number }) {
         </div>
       )}
 
-      <Button tone={task.done ? "outline" : "dark"} size="lg" className="mt-5 w-full" onClick={() => s.toggleTask(id)}>
-        {task.done ? "Mark not done" : "Mark done"}
-      </Button>
+      {/* THE SAME VERBS AS THE NOTIFICATION. A journey task leads with "On my
+          way" (starts the live trip — arrival completes it by itself); every
+          task keeps Done, and "Remind me" is the quiet path to the island. */}
+      {task.done ? (
+        <Button tone="outline" size="lg" className="mt-5 w-full" onClick={() => s.toggleTask(id)}>
+          Mark not done
+        </Button>
+      ) : (
+        <>
+          <div className="mt-5 flex gap-2">
+            {task.journey && (
+              <Button tone="dark" size="lg" className="flex-1" onClick={() => s.onWay(task.id)}>
+                <Icon name="arrow" size={16} /> On my way
+              </Button>
+            )}
+            <Button
+              tone={task.journey ? "outline" : "dark"}
+              size="lg"
+              className="flex-1"
+              onClick={() => s.toggleTask(id)}
+            >
+              <Icon name="check" size={16} /> Done
+            </Button>
+          </div>
+          <Button tone="outline" size="lg" className="mt-2 w-full" onClick={() => s.remindForTask(task.id)}>
+            <Icon name="bell" size={16} /> Remind me
+          </Button>
+        </>
+      )}
     </>
   );
 }
@@ -233,10 +231,29 @@ function ShopSheet() {
     setText("");
   };
 
-  // Grouped by aisle, so the list reads like the shop is laid out — and the
-  // category stops repeating down the right edge of every row.
+  /**
+   * Grouped by aisle, and each group ORDERS ITSELF like a person shops:
+   * what the house is running out of first, then the rest, then what's already
+   * crossed off — kept in its group (not exiled to a far section) so un-checking
+   * a fat-thumbed tap is one glance away. A group that's ENTIRELY crossed has
+   * nothing left to ask of you, so it sinks to the bottom of the list whole.
+   */
   const CATS: ShopCategory[] = ["Groceries", "Supplies", "Pet"];
-  const groups = CATS.map((cat) => ({ cat, items: open.filter((i) => i.category === cat) })).filter((g) => g.items.length);
+  const groups = CATS
+    .map((cat) => {
+      const items = list.filter((i) => i.category === cat);
+      return {
+        cat,
+        allDone: items.length > 0 && items.every((i) => i.done),
+        items: [
+          ...items.filter((i) => !i.done && i.low),
+          ...items.filter((i) => !i.done && !i.low),
+          ...items.filter((i) => i.done),
+        ],
+      };
+    })
+    .filter((g) => g.items.length)
+    .sort((a, b) => Number(a.allDone) - Number(b.allDone));
 
   const Row = (i: (typeof list)[number]) => (
     <div key={i.id} className="flex min-h-touch items-center gap-3 py-1.5">
@@ -261,9 +278,21 @@ function ShopSheet() {
         {open.length ? `${open.length} to get · shared with everyone` : "All bought — nice work"}
       </p>
 
-      {/* Add row: a leading plus and a filled lemon commit, so the field reads as
-          "drop something in" rather than a bare search box. */}
-      <label className="mt-4 flex items-center gap-2 rounded-pill border border-ink/[.08] bg-card py-1 pl-4 pr-1.5 transition-colors focus-within:border-ink">
+      <div className="mt-4 space-y-5">
+        {groups.map((g) => (
+          <div key={g.cat}>
+            <Eyebrow className={clsx(g.allDone && "opacity-50")}>
+              {g.cat}{g.allDone && " · all bought"}
+            </Eyebrow>
+            <div className="mt-1">{g.items.map(Row)}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* The add row lives at the BOTTOM — under the list it feeds, where the
+          next blank line of a paper list would be. Adding keeps the sheet open:
+          people add three things, not one. */}
+      <label className="mt-5 flex items-center gap-2 rounded-pill border border-ink/[.08] bg-card py-1 pl-4 pr-1.5 transition-colors focus-within:border-ink">
         <Icon name="plus" size={18} className="shrink-0 text-sub" />
         <span className="sr-only">Add an item</span>
         <input
@@ -277,23 +306,6 @@ function ShopSheet() {
           <button onClick={add} className="shrink-0 rounded-pill bg-lemon px-4 py-2 text-caption font-semibold text-ink">Add</button>
         )}
       </label>
-
-      <div className="mt-5 space-y-5">
-        {groups.map((g) => (
-          <div key={g.cat}>
-            <Eyebrow>{g.cat}</Eyebrow>
-            <div className="mt-1">{g.items.map(Row)}</div>
-          </div>
-        ))}
-        {/* Bought things sink here — kept, not deleted, so a fat thumb mid-aisle
-            can un-check. */}
-        {done.length > 0 && (
-          <div>
-            <Eyebrow>In the cart · {done.length}</Eyebrow>
-            <div className="mt-1">{done.map(Row)}</div>
-          </div>
-        )}
-      </div>
     </>
   );
 }
@@ -484,13 +496,28 @@ function HandoffSheet({ id }: { id?: number }) {
                   aria-expanded={isOpen}
                   className="flex min-h-touch w-full items-center gap-3 px-3 py-3 text-left"
                 >
-                  {/* A glyph per row — the task list on the phone shows one, so the
-                      hand-off list shouldn't strip it. onTint reads on the grey row. */}
-                  <IconTile name={taskGlyph(t)} tone="onTint" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-h2">{t.title}</div>
-                    <div className="text-caption text-sub">{clockLabel(t.when)}</div>
-                  </div>
+                  {/* THE STANDARD CARD GRAMMAR — the same trio every task card
+                      wears (eyebrow · title · when + priority), with the task's
+                      own glyph in a lemon tile. This list is a set of tasks; it
+                      should read like one, not like a settings menu. */}
+                  <IconTile name={taskGlyph(t)} tone="lemon" />
+                  <TitleBlock
+                    className="flex-1"
+                    eyebrow={t.source ?? (t.recurring ? "Routine" : "Added by you")}
+                    title={t.title}
+                    subtext={
+                      <>
+                        {clockLabel(t.when)}
+                        {t.recurring && (
+                          <>
+                            <Icon name="repeat" size={14} />
+                            {t.recurring}
+                          </>
+                        )}
+                        <PriorityPill priority={t.priority} />
+                      </>
+                    }
+                  />
                   <motion.span animate={{ rotate: isOpen ? 90 : 0 }} transition={smooth} className="shrink-0 text-sub">
                     <Icon name="fwd" size={16} />
                   </motion.span>
@@ -1100,12 +1127,17 @@ function ActivitySheet() {
 
   return (
     <>
-      <TitleBlock
-        eyebrow="Activity"
-        size="page"
-        title={today.length ? `${today.length} ${today.length === 1 ? "thing" : "things"} so far today` : "Quiet so far today"}
-        subtext={subtext}
-      />
+      {/* Same header family as every other sheet: lemon tile, ink glyph, title,
+          then the reading of the day as the subtitle. This was the one overlay
+          still opening with a bare TitleBlock. */}
+      <span className="flex items-center gap-3">
+        <IconTile name="feed" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">Activity</h2>
+      </span>
+      <p className="mt-1.5 text-bodysm text-sub">
+        {today.length ? `${today.length} ${today.length === 1 ? "thing" : "things"} so far today` : "Quiet so far today"}
+        {subtext && ` · ${subtext}`}
+      </p>
 
       {all.length === 0 && (
         <p className="py-12 text-center font-medium text-sub">

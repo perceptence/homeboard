@@ -36,11 +36,16 @@ export const seedMembers: Record<MemberId, Member> = {
 };
 
 export const seedTasks: Task[] = [
-  { id: 1, title: "Take out the trash", owner: "sam", when: "Tonight", due: d(0), done: false, priority: "med", recurring: "Weekly", minAge: 8, source: "Automation" },
+  /* ONE trash entry. It used to exist twice — this task AND a "Trash night"
+     calendar event — which read as being asked to do the job twice. One thing,
+     both provenances in the eyebrow. */
+  { id: 1, title: "Take out the trash", owner: "sam", when: "8:00 PM", due: d(0), done: false, priority: "med", recurring: "Weekly", minAge: 8, source: "Automation · Calendar" },
   { id: 2, title: "Pick dinner & cook", owner: "maya", when: "6:30 PM", due: d(0), done: false, priority: "med", requires: "full", source: "Meals" },
   { id: 3, title: "Water the plants", owner: "leo", when: "After school", due: d(0), done: false, priority: "low", recurring: "Every 3 days", minAge: 5, source: "Home care" },
-  /* "Pick up the kids" moved to seedEvents (e9) — a pickup is a journey you show
-     up to, not a checkbox chore, and it's where "On my way" earns its place. */
+  /* A JOURNEY task — "On my way" and the live trip hang off it. It IS a task
+     (it briefly lived as a calendar event; wrong — it's a job someone holds),
+     it just happens somewhere else. */
+  { id: 4, title: "Pick up the kids", owner: "sam", when: "3:15 PM", due: d(0), done: false, priority: "high", requires: "full", source: "Calendar", journey: true, where: "School", icon: "kid" },
   { id: 5, title: "Mow the lawn", owner: null, suggest: "sam", when: "Morning", due: d(2), done: false, priority: "low", recurring: "Seasonal", requires: "full", source: "Home maintenance" },
   { id: 6, title: "Fold the laundry", owner: "maya", when: "Morning", due: d(0), done: true, priority: "low", minAge: 6, source: "Laundry" },
   { id: 7, title: "Set the table", owner: "ada", when: "6:00 PM", due: d(0), done: true, priority: "low", minAge: 4, source: "Meals" },
@@ -91,18 +96,16 @@ export const seedMaint: MaintItem[] = [
 /**
  * `journey` splits these in two. A journey is somewhere you GO, with someone at
  * the far end who cares that you're coming — it earns "On my way" and a live
- * trip. The rest happen where you already are (Trash night, WFH), so their only
- * honest actions are Done and snooze. `icon` is what the notification shows in
- * place of the tasked person's own face.
+ * trip. The rest happen where you already are (WFH), so their only honest
+ * actions are Done and snooze. `icon` is what the notification shows in place
+ * of the tasked person's own face.
  *
- * "Pick up the kids" (e9) used to be a Task — but a pickup is a show-up thing,
- * not a checkbox, and it's the canonical journey: Sam gets the nudge, taps "On
- * my way", and the trip to School goes live for the household to watch.
+ * No trash here, no pickup here — both are TASKS (jobs someone holds), not
+ * calendar entries; duplicating them across the two lists asked Sam to do the
+ * same job twice.
  */
 export const seedEvents: HouseEvent[] = [
   { id: "e1", due: d(0), title: "Dentist", time: "4:00 PM", who: "leo", journey: true, where: "The dental clinic", icon: "care" },
-  { id: "e2", due: d(0), title: "Trash night", time: "8:00 PM", who: "sam", recurring: "Weekly", icon: "trash" },
-  { id: "e9", due: d(0), title: "Pick up the kids", time: "3:15 PM", who: "sam", journey: true, where: "School", icon: "kid" },
   { id: "e3", due: d(1), title: "WFH", time: "all day", who: "sam", recurring: "Every Mon", icon: "house" },
   { id: "e4", due: d(2), title: "Recital", time: "5:30 PM", who: "ada", journey: true, where: "The auditorium", icon: "music" },
   { id: "e5", due: d(3), title: "Grocery run", time: "10:00 AM", who: "maya", recurring: "Weekly", journey: true, where: "The market", icon: "cart" },

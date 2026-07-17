@@ -550,8 +550,35 @@ function PhoneToday() {
   // "for today" on today; "for Saturday" on a day you've scrolled to.
   const dayWord = onSel ? "today" : selDate.toLocaleDateString("en-GB", { weekday: "long" });
 
+  /**
+   * EDGE SWIPES — the page itself pages through days. A horizontal drag that
+   * STARTS at the screen's left or right edge (the gutter, where no card
+   * competes for the touch) steps the selected day: from the left edge, swipe
+   * right → yesterday; from the right edge, swipe left → tomorrow. Same model
+   * as flipping through a book, and it keeps the strip and the page in lockstep
+   * because both are just `sel`.
+   */
+  const swipe = useRef<{ x: number; y: number; } | null>(null);
+  const onEdgeDown = (e: React.PointerEvent) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const relX = e.clientX - r.left;
+    swipe.current = relX < 28 || relX > r.width - 28 ? { x: e.clientX, y: e.clientY } : null;
+  };
+  const onEdgeUp = (e: React.PointerEvent) => {
+    const from = swipe.current;
+    swipe.current = null;
+    if (!from) return;
+    const dx = e.clientX - from.x;
+    // A deliberate horizontal stroke, not a wobbly vertical scroll.
+    if (Math.abs(dx) < 48 || Math.abs(e.clientY - from.y) > 40) return;
+    setSel(iso(addDays(selDate, dx < 0 ? 1 : -1)));
+  };
+
   return (
-    <>
+    // A real box (not `contents`): the edge-swipe needs a rect to measure
+    // "started at the edge" against. Reproduces the parent's column-and-gap so
+    // the cards sit exactly as before.
+    <div className="flex flex-col gap-tile" onPointerDown={onEdgeDown} onPointerUp={onEdgeUp}>
       {/* THE DAY RULER — scroll it, tap a day, and the page below repaints for
           that day. The date it points at lives in `sel`. */}
       <motion.div variants={listItem}>
@@ -563,11 +590,12 @@ function PhoneToday() {
         <Card tone="lemon">
           <div className="flex items-center">
             {/* The date used to sit here ("17 Fri") — but the ruler above now says
-                which day this is, and saying it twice was just noise. So the tile
-                names what the CARD is (tasks), not what day it is. `onTint` is the
-                well built for tinted cards: a flat ink wash that reads dark-on-light
-                on lemon, where the white `neutral` well goes muddy. */}
-            <IconTile name="tasks" tone="onTint" />
+                which day this is, and saying it twice was just noise. The glyph is
+                the SAME one the Today tab wears in the nav — this card is that
+                tab's headline, so they share a mark. `onTint` is the well built
+                for tinted cards: a flat ink wash that reads dark-on-light on
+                lemon, where the white `neutral` well goes muddy. */}
+            <IconTile name="feed" tone="onTint" />
             <div className="ml-auto flex items-center gap-2">
               <ActionButton
                 name="handoff" label="Hand off" tone="light"
@@ -640,10 +668,11 @@ function PhoneToday() {
                 {shopOpen ? <><Em>{shopOpen}</Em> to get</> : "All bought"}
               </Sentence>
             </div>
-            {/* A GO chip, not a caret — a filled affordance that reads as "opens",
-                the way the whole card behaves, rather than a thin list chevron. */}
+            {/* An UP-chevron, not an arrow: the list opens as a sheet rising from
+                the bottom of this same screen. A forward arrow promised a page
+                somewhere else; this says "lifts open, right here". */}
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-ink text-white">
-              <Icon name="arrow" size={18} />
+              <Icon name="chevUp" size={18} />
             </span>
           </div>
         </Card>
@@ -683,7 +712,7 @@ function PhoneToday() {
           <EventCard event={e} />
         </motion.div>
       ))}
-    </>
+    </div>
   );
 }
 
@@ -785,13 +814,21 @@ function DateStrip({ selected, onPick, busy }: { selected: string; onPick: (d: D
   const start = addDays(startOfWeek(new Date()), -7);
   const days = Array.from({ length: 42 }, (_, i) => addDays(start, i));
   const scroller = useRef<HTMLDivElement>(null);
-  const todayRef = useRef<HTMLButtonElement>(null);
-  // Open on today, not on the range's first (a week ago). Left-align it with a
-  // small breath so the days after it read as "the week ahead".
+  const selRef = useRef<HTMLButtonElement>(null);
+  const firstCentre = useRef(true);
+  /**
+   * THE DAY YOU'RE READING SITS DEAD CENTRE. Wherever the selection moves — a
+   * tap, an edge swipe — the strip glides so that day is the strip's midpoint,
+   * with its neighbours flanking it. Instant on mount (no opening cinematics),
+   * smooth after.
+   */
   useLayoutEffect(() => {
-    const c = scroller.current, t = todayRef.current;
-    if (c && t) c.scrollLeft = t.offsetLeft - 20;
-  }, []);
+    const c = scroller.current, t = selRef.current;
+    if (!c || !t) return;
+    const left = t.offsetLeft - (c.clientWidth - t.offsetWidth) / 2;
+    c.scrollTo({ left, behavior: firstCentre.current ? "auto" : "smooth" });
+    firstCentre.current = false;
+  }, [selected]);
   return (
     // -mx-screen px-screen: bleed to the body's own gutter so the row scrolls
     // edge to edge under the greeting.
@@ -804,7 +841,7 @@ function DateStrip({ selected, onPick, busy }: { selected: string; onPick: (d: D
         return (
           <button
             key={di}
-            ref={isToday ? todayRef : undefined}
+            ref={isSel ? selRef : undefined}
             onClick={() => onPick(d)}
             aria-label={d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
             aria-current={isToday ? "date" : isSel ? "true" : undefined}
@@ -1210,9 +1247,9 @@ function PhoneYou() {
           {/* Icon on its own line, then the eyebrow/title pair, then the data —
               the progress card's shape, applied across the whole profile so every
               card on this tab opens the same way. */}
-          <IconTile name="scale" />
+          <IconTile name="scale" tone="lemon" />
           {/* No subtext: the stat block IS the detail, and it says its own unit. */}
-          <TitleBlock className="mt-4" eyebrow="Your load" title={headline} />
+          <TitleBlock className="mt-6" eyebrow="Your load" title={headline} />
 
           {/* THE HOUSE, AS PEOPLE. Not a chart of any kind.
               ─────────────────────────────────────────────────────────────────
@@ -1324,9 +1361,9 @@ function PhoneYou() {
               that lists the settings you haven't touched is an inventory, not a
               summary. Unset, the control behind Adjust is the only mention —
               which is the right weight for something nobody's chosen yet. */}
-          <IconTile name="pin" />
+          <IconTile name="pin" tone="lemon" />
           <TitleBlock
-            className="mt-4"
+            className="mt-6"
             eyebrow="Where you are"
             title={PRESENCE_TITLE[presence]}
             subtext={
@@ -1476,9 +1513,9 @@ function PhoneYou() {
           {/* The title truncates rather than wraps, and that's safe HERE
               specifically: the pills below name every domain in full, so a long
               patch loses nothing to the ellipsis. */}
-          <IconTile name="grid" />
+          <IconTile name="grid" tone="lemon" />
           <TitleBlock
-            className="mt-4"
+            className="mt-6"
             eyebrow="Your patch"
             title={jobs.length
               ? `You look after ${listOf(me.responsibility?.domains.length
@@ -1508,14 +1545,14 @@ function PhoneYou() {
           {/* Icon on line one, with the star tally riding the far end (like the
               progress card's toggle); the eyebrow/title pair sits below. */}
           <div className="flex items-center">
-            <IconTile name="key" />
+            <IconTile name="key" tone="lemon" />
             {/* Stars belong to the guided surface — see the role model. */}
             {me.role === "guided" && (
               <span className="ml-auto shrink-0 font-tight text-h1 tabular-nums text-star">★ {me.stars ?? 0}</span>
             )}
           </div>
           <TitleBlock
-            className="mt-4"
+            className="mt-6"
             eyebrow="Your access"
             title={ROLE_LABEL[me.role]}
             subtext={ROLE_HINT[me.role]}

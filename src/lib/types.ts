@@ -303,6 +303,18 @@ export interface Task {
   minAge?: number;
 
   /**
+   * A JOURNEY task — you GO somewhere to do it (a pickup, an appointment run),
+   * and someone at the far end cares that you're coming. Earns "On my way" and
+   * the live trip, exactly as journey events do. "Pick up the kids" IS a task —
+   * it just also happens somewhere else.
+   */
+  journey?: boolean;
+  /** WHERE the journey goes ("School"). Only meaningful with `journey`. */
+  where?: string;
+  /** Explicit glyph override. Most tasks derive theirs from title/source. */
+  icon?: IconName;
+
+  /**
    * Someone doing this ONCE, because `owner` can't. Cover, not a transfer.
    *
    * ── Why this is a field and not just `owner = sam` ──────────────────────
@@ -440,7 +452,10 @@ export interface Reminder {
   /** The event this reminds about — lets the island's actions (open, done, on my
    *  way) reach the real thing, not just a copy of its text. */
   eventId?: string;
-  /** Snapshotted from the event so the island is self-contained: which glyph to
+  /** …or the task, when the thing being reminded about is a Task. One of the
+   *  two, never both. */
+  taskId?: number;
+  /** Snapshotted from the source so the island is self-contained: which glyph to
    *  show, whether this is a journey (→ offer "On my way"), and where it goes. */
   icon?: IconName;
   journey?: boolean;
@@ -468,6 +483,8 @@ export interface IslandNote {
   mode: "expanded" | "collapsed";
   /** The event behind it, for the action buttons. */
   eventId?: string;
+  /** …or the task behind it — journeys and reminders work for both. */
+  taskId?: number;
   /** The glyph for the thing — an icon in place of the tasked person's avatar. */
   icon?: IconName;
   /** This reminder is for a journey → the island offers "On my way". */

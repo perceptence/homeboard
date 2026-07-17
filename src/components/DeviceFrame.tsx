@@ -290,6 +290,18 @@ function DynamicIsland() {
     if (island?.mode === "collapsed" && (arrived || atDestination)) setMode("expanded");
   }, [arrived, atDestination, island?.mode, setMode]);
 
+  /**
+   * AUTO-ARRIVAL. On a real phone the trip ends because the phone ARRIVES —
+   * location services, not a button. The ETA landing is our stand-in for that
+   * signal: show "Arriving now" for a beat, then the trip completes itself
+   * (marks the thing handled, tells the house). No "Arrived" button anywhere.
+   */
+  useEffect(() => {
+    if (!atDestination) return;
+    const t = setTimeout(arrive, 1600);
+    return () => clearTimeout(t);
+  }, [atDestination, arrive]);
+
   const expanded = island?.mode === "expanded";
   /** Something still live has somewhere to retreat TO — a counting reminder, or a
    *  trip still under way. Collapsed is "still going, out of your way." */
@@ -439,8 +451,12 @@ function DynamicIsland() {
         // TRUE BLACK — a real Dynamic Island is the black of the display switched
         // off, seamless with the camera hardware. Lime glow ONLY when expanded.
         background: island ? "#040405" : "#0b0c09",
+        // ALWAYS a concrete value, never undefined: framer keeps animating the
+        // last box-shadow it was given, so `undefined` after a dismissal left
+        // the idle pill wearing the lime glow of the notification it no longer
+        // had. "none" actually turns it off.
         boxShadow: !island
-          ? undefined
+          ? "none"
           : expanded
             ? "0 0 0 1px rgba(244,255,122,0.14), 0 0 28px rgba(244,255,122,0.22), 0 22px 55px rgba(0,0,0,0.75)"
             : "0 10px 30px rgba(0,0,0,0.6)",
@@ -533,12 +549,12 @@ function DynamicIsland() {
                   <Icon name="pin" size={13} className="shrink-0 text-lemon" />
                 </div>
 
+                {/* NO "Arrived" button — arrival is the trip's own event (real
+                    location services would fire it); the ETA landing calls
+                    arrive() itself. The only human verb left is bailing out. */}
                 <div className="flex gap-1.5">
-                  <IslandButton onClick={(e) => { e.stopPropagation(); arrive(); }} tone="solid">
-                    <Icon name="check" size={14} /> Arrived
-                  </IslandButton>
                   <IslandButton onClick={(e) => { e.stopPropagation(); dismiss(); }}>
-                    Cancel
+                    Cancel trip
                   </IslandButton>
                 </div>
               </div>
@@ -547,8 +563,10 @@ function DynamicIsland() {
                 <div className="flex items-center gap-2.5">
                   {/* THE THING'S GLYPH, not the person's face. The notification is
                       already the tasked person's — showing their own avatar back
-                      to them says nothing. An icon for the task does the work. */}
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
+                      to them says nothing. Lime fill, ink glyph — the same tile
+                      grammar as the sheets, at the island's compact 32/16 (the
+                      same 1:2 glyph-to-well ratio as the app's 40/20 tiles). */}
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-lemon text-ink">
                     <Icon name={glyph} size={16} />
                   </span>
                   <span className="min-w-0 flex-1">

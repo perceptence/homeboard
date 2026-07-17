@@ -9,6 +9,7 @@ import type {
 } from "./types";
 import { ROLE_RANK, ROLE_SET } from "./types";
 import type { IconName } from "@/components/Icons";
+import { taskGlyph } from "./glyphs";
 import {
   seedAutomations, seedBills, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
 } from "./seed";
@@ -251,10 +252,12 @@ interface HouseholdState {
   openSheet: (s: Sheet) => void;
   closeSheet: () => void;
   notify: (msg: string | null) => void;
-  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; timeLabel?: string; targetAt?: number; eventId?: string; icon?: IconName; journey?: boolean; where?: string }) => void;
+  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; timeLabel?: string; targetAt?: number; eventId?: string; taskId?: number; icon?: IconName; journey?: boolean; where?: string }) => void;
   /** "Remind me" for an event — BOTH doors (the card and the sheet) call this,
    *  so there is exactly one notion of what that button promises. */
   remindForEvent: (id: string) => void;
+  /** The same promise, for a task — journey tasks carry the island too. */
+  remindForTask: (id: number) => void;
   dismissIsland: () => void;
   setIslandMode: (mode: "expanded" | "collapsed") => void;
   /** Put the island away, bring it back in `mins` (countdown target preserved). */
@@ -266,11 +269,12 @@ interface HouseholdState {
   /**
    * Announce a departure and start a LIVE JOURNEY — the island becomes an Uber-
    * style trip (origin → destination, ticking ETA) the household can watch.
-   * Works from anywhere: the island's own button, or an event's detail sheet.
-   * `id` defaults to the island's current event.
+   * Works from anywhere: the island's own button, an event's sheet (string id),
+   * or a journey TASK's sheet (number id). Defaults to the island's current thing.
    */
-  onWay: (id?: string) => void;
-  /** Arrived — end the live trip, mark the event handled, dismiss. */
+  onWay: (id?: string | number) => void;
+  /** Arrival — end the live trip, mark the thing handled, dismiss. Fired by the
+   *  trip itself when the ETA lands (stand-in for real location); no button. */
   arrive: () => void;
   /** Tap-through — open the event's detail in the app, dismiss the island. */
   islandOpen: () => void;
@@ -377,9 +381,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   closeSheet: () => set({ sheet: null }),
   notify: (toast) => set({ toast, toastWho: null }),
 
-  scheduleReminder: ({ at, text, who, title, timeLabel, targetAt, eventId, icon, journey, where }) =>
+  scheduleReminder: ({ at, text, who, title, timeLabel, targetAt, eventId, taskId, icon, journey, where }) =>
     set((s) => ({
-      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, timeLabel, targetAt, eventId, icon, journey, where }],
+      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, timeLabel, targetAt, eventId, taskId, icon, journey, where }],
       toast: at - Date.now() < 60_000
         ? "Reminder set — any moment now"
         : `Reminder set for ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
@@ -420,6 +424,25 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     });
   },
 
+  remindForTask: (id) => {
+    const s = get();
+    const t = s.tasks.find((x) => x.id === id);
+    const who = t && holder(t);
+    if (!t || !who) return;
+    s.scheduleReminder({
+      at: Date.now() + 1500,
+      text: `${t.title}${t.when ? ` at ${t.when}` : ""}`,
+      title: t.title,
+      timeLabel: t.when,
+      targetAt: Date.now() + 1500 + 5 * 60_000,
+      who,
+      taskId: t.id,
+      icon: taskGlyph(t),
+      journey: t.journey,
+      where: t.where,
+    });
+  },
+
   dismissIsland: () => set({ island: null }),
   setIslandMode: (mode) => set((s) => (s.island ? { island: { ...s.island, mode } } : {})),
 
@@ -443,6 +466,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       targetAt: i.targetAt,
       who: i.who ?? Object.keys(s.members)[0],
       eventId: i.eventId,
+      taskId: i.taskId,
       icon: i.icon,
       journey: i.journey,
       where: i.where,
@@ -461,8 +485,10 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     }),
 
   islandDone: () => {
-    const { island } = get();
+    const { island, tasks } = get();
     if (island?.eventId) get().completeEvent(island.eventId);
+    const t = island?.taskId != null ? tasks.find((x) => x.id === island.taskId) : undefined;
+    if (t && !t.done) get().toggleTask(t.id);
     set({ island: null, toast: "Nice — handled" });
   },
 
@@ -479,15 +505,21 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
    * trip.
    */
   onWay: (id) => {
-    const { island, members, events } = get();
-    const eventId = id ?? island?.eventId;
+    const { island, members, events, tasks } = get();
+    // Three doors, one trip: a task id (number), an event id (string), or
+    // whatever the island is currently showing.
+    const taskId = typeof id === "number" ? id : island?.taskId;
+    const eventId = typeof id === "string" ? id : taskId == null ? island?.eventId : undefined;
+    const t = taskId != null ? tasks.find((x) => x.id === taskId) : undefined;
     const e = eventId ? events.find((x) => x.id === eventId) : undefined;
-    const who = e?.who ?? island?.who ?? null;
+    const who = (t && holder(t)) ?? e?.who ?? island?.who ?? null;
     const name = who ? members[who]?.name : "Someone";
-    const title = e?.title ?? island?.title ?? "";
-    const where = e?.where ?? island?.where;
+    const title = t?.title ?? e?.title ?? island?.title ?? "";
+    const where = t?.where ?? e?.where ?? island?.where;
     const now = Date.now();
     // A real-feeling ETA: eight minutes out, so the household sees it tick.
+    // Arrival is the trip's own event (location would fire it for real) — the
+    // island auto-arrives when this lands; there is no "Arrived" button.
     const etaAt = now + 8 * 60_000;
     set((s) => ({
       sheet: null,
@@ -497,8 +529,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         mode: "expanded" as const,
         phase: "journey" as const,
         where,
-        icon: (e?.icon ?? island?.icon) as IconName | undefined,
+        icon: (t ? taskGlyph(t) : e?.icon ?? island?.icon) as IconName | undefined,
         eventId,
+        taskId,
         startAt: now,
         etaAt,
       },
@@ -509,16 +542,23 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   },
 
   arrive: () => {
-    const { island } = get();
-    if (island?.eventId) get().completeEvent(island.eventId);
-    set({ island: null, toast: "Arrived — nice" });
+    const { island, tasks } = get();
+    if (!island) return;
+    if (island.eventId) get().completeEvent(island.eventId);
+    // toggleTask carries the whole completion (stamp, stars, log) — guarded so
+    // arrival can never UN-do a task someone already ticked off.
+    const t = island.taskId != null ? tasks.find((x) => x.id === island.taskId) : undefined;
+    if (t && !t.done) get().toggleTask(t.id);
+    set({ island: null, toast: island.where ? `Arrived at ${island.where}` : "Arrived" });
   },
 
   islandOpen: () => {
     const { island } = get();
     set({
       island: null,
-      sheet: island?.eventId ? { type: "event", id: island.eventId } : null,
+      sheet: island?.taskId != null ? { type: "task", id: island.taskId }
+        : island?.eventId ? { type: "event", id: island.eventId }
+        : null,
     });
   },
 
@@ -560,6 +600,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
           held: due.held,
           mode: "expanded" as const,
           eventId: due.eventId,
+          taskId: due.taskId,
           icon: due.icon,
           journey: due.journey,
           where: due.where,
@@ -669,7 +710,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   addShopItem: (title, category) =>
     set((s) => ({
       shopping: [{ id: `s${++nextId}`, title, category, low: false, done: false }, ...s.shopping],
-      sheet: null,
+      // The sheet STAYS OPEN — people add three things, not one. (It used to
+      // set `sheet: null` here, which slammed the list shut on every Add.)
       toast: "Added to shopping",
     })),
 
@@ -1017,7 +1059,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // re-seeds — the honest way to ship a data change with no backend to migrate.
   // 3: events gained journey/where/icon and a "Pick up the kids" event (e9)
   // replaced the task of the same name; re-seed so both land.
-  version: 3,
+  // 4: the trash pair merged into one dual-sourced task; pickup went back to
+  // being a TASK (a journey one). Re-seed.
+  version: 4,
   storage: createJSONStorage(() => localStorage),
   skipHydration: true,
   /**
