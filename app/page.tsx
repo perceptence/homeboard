@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { Icon } from "@/components/Icons";
 import { DeviceFrame } from "@/components/DeviceFrame";
 import { Splash } from "@/components/Splash";
@@ -37,6 +37,11 @@ export default function Page() {
 
   // Onboarding is an owner flow — always shown on the tablet.
   const kind = isPhone && !onboarding ? "phone" : "tablet";
+
+  // Stable identity, deliberately. Toast's timer effect re-runs when onDone
+  // changes — an inline arrow here is a new function every render, so every
+  // unrelated rerender restarted the 2.4s countdown from zero.
+  const clearToast = useCallback(() => useHousehold.getState().notify(null), []);
 
   return (
     <main
@@ -82,7 +87,7 @@ export default function Page() {
             <Sheets variant={isPhone ? "phone" : "ipad"} />
           </>
         )}
-        <Toast message={s.toast} who={s.toastWho ? s.members[s.toastWho] : undefined} onDone={() => s.notify(null)} />
+        <Toast message={s.toast} who={s.toastWho ? s.members[s.toastWho] : undefined} onDone={clearToast} />
       </DeviceFrame>
     </main>
   );

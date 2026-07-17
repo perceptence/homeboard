@@ -208,12 +208,10 @@ function DynamicIsland() {
   const members = useHousehold((s) => s.members);
   const dismiss = useHousehold((s) => s.dismissIsland);
 
-  useEffect(() => {
-    if (!island) return;
-    const t = setTimeout(dismiss, 4500);
-    return () => clearTimeout(t);
-  }, [island, dismiss]);
-
+  // NO auto-dismiss. A reminder is the app interrupting a person — the person
+  // decides when it's been heard. Tap puts it away; until then it stays, exactly
+  // like the platform it's imitating. (It self-dismissed after 4.5s at first,
+  // which made every reminder a race to read.)
   const who = island?.who ? members[island.who] : undefined;
 
   return (
@@ -227,9 +225,15 @@ function DynamicIsland() {
       // translate you put in className — the pill drifted half its width right
       // and sat on the battery. The screenshot caught it; the DOM probe didn't,
       // because the element's size was correct and only its x was wrong.
+      // OPEN ≠ CLOSED SURFACE. Closed it's hardware — true black, invisible
+      // against the ink header, exactly right. Open it's a NOTIFICATION and has
+      // to read against that same near-black: lifted charcoal, a hairline ring,
+      // and a real drop shadow. Black-on-ink was a 2% contrast whisper.
       className={
-        "absolute inset-x-0 top-[14px] z-[95] mx-auto overflow-hidden bg-[#0b0c09] text-left " +
-        (island ? "shadow-[0_12px_32px_rgba(0,0,0,0.45)]" : "pointer-events-none")
+        "absolute inset-x-0 top-[14px] z-[95] mx-auto overflow-hidden text-left " +
+        (island
+          ? "bg-[#1c1d22] shadow-[0_18px_48px_rgba(0,0,0,0.65)] ring-1 ring-white/[.16]"
+          : "pointer-events-none bg-[#0b0c09]")
       }
       style={{
         width: island ? 340 : 120,

@@ -395,7 +395,15 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
    * quiet hours can change between the promise and the appointed time, and the
    * setting that exists when the reminder comes due is the one that governs.
    */
-  tick: () =>
+  tick: () => {
+    /**
+     * BAIL BEFORE set(). `set({})` still builds a fresh state object, so every
+     * subscriber re-rendered once a second — and that 1Hz heartbeat reset the
+     * Toast's dismiss timer each beat (new onDone identity → effect re-run →
+     * new setTimeout), which is why "Reminder set" never left the screen.
+     * The clock may only touch the store when it has something to say.
+     */
+    if (!get().reminders.some((r) => r.at <= Date.now())) return;
     set((s) => {
       const now = Date.now();
       const due = s.reminders.find((r) => r.at <= now);
@@ -418,7 +426,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         },
         ...logged(s, due.text, due.who),
       };
-    }),
+    });
+  },
   setQuery: (query) => set({ query }),
   markRead: () => set({ unread: 0 }),
 
