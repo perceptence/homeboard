@@ -1,8 +1,10 @@
 "use client";
 
 import clsx from "clsx";
+import { useEffect } from "react";
 import { Icon } from "@/components/Icons";
 import { DeviceFrame } from "@/components/DeviceFrame";
+import { Splash } from "@/components/Splash";
 import { Avatar, Toast } from "@/components/ui";
 import { doers, useHousehold } from "@/lib/store";
 import { Onboarding } from "@/surfaces/Onboarding";
@@ -18,6 +20,17 @@ import { PhoneShell } from "@/surfaces/phone/PhoneShell";
  */
 export default function Page() {
   const s = useHousehold();
+
+  useEffect(() => {
+    // Rehydrate AFTER React has hydrated — persist's default (rehydrate on
+    // module load) races SSR: server HTML holds the seed, client state holds
+    // yesterday, React sees two different trees and tears the page down.
+    useHousehold.persist.rehydrate();
+    // The reminder clock. One second is the island's resolution, not the CPU's
+    // concern — tick() is a find() over a near-empty array.
+    const t = setInterval(() => useHousehold.getState().tick(), 1000);
+    return () => clearInterval(t);
+  }, []);
   const isPhone = s.persona !== "ipad";
   const onboarding = !s.setupComplete;
   const people = doers(s);
@@ -31,6 +44,7 @@ export default function Page() {
         "flex h-screen flex-col items-center overflow-hidden bg-room px-4 pb-2 pt-2",
       )}
     >
+      <Splash />
       {!onboarding && (
         <div className="mb-2 flex shrink-0 flex-wrap items-center justify-center gap-1 rounded-pill bg-ink/90 p-1.5 shadow-e3 backdrop-blur">
           <span className="px-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">
