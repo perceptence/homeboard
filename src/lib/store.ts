@@ -250,7 +250,7 @@ interface HouseholdState {
   openSheet: (s: Sheet) => void;
   closeSheet: () => void;
   notify: (msg: string | null) => void;
-  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; targetAt?: number }) => void;
+  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; timeLabel?: string; targetAt?: number }) => void;
   /** "Remind me" for an event — BOTH doors (the card and the sheet) call this,
    *  so there is exactly one notion of what that button promises. */
   remindForEvent: (id: string) => void;
@@ -357,9 +357,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   closeSheet: () => set({ sheet: null }),
   notify: (toast) => set({ toast, toastWho: null }),
 
-  scheduleReminder: ({ at, text, who, title, targetAt }) =>
+  scheduleReminder: ({ at, text, who, title, timeLabel, targetAt }) =>
     set((s) => ({
-      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, targetAt }],
+      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, timeLabel, targetAt }],
       toast: at - Date.now() < 60_000
         ? "Reminder set — any moment now"
         : `Reminder set for ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
@@ -371,23 +371,29 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     const e = s.events.find((x) => x.id === id);
     if (!e) return;
     /**
-     * 30 minutes before the event. Seed times are bare ("4:00"), so household
-     * hours are assumed: 1–7 reads PM, 8–12 reads AM. Unparseable ("all day") or
-     * already past → an 8-second demo fuse; this is a portfolio piece, and
-     * "come back at 3:30 to see it" is not a demo.
+     * FIVE MINUTES' NOTICE, ANCHORED TO NOW — not to the event's clock time.
+     *
+     * The old version parsed the event's bare time ("8:00") and counted down
+     * to THAT, minus 30 minutes. It broke on the most common case: with no
+     * real backend, "now" is just Date.now(), and a seeded event's bare time
+     * is almost always already behind it — so `targetAt` was born in the
+     * past, the countdown read "Now" on arrival, and nothing ever ticked.
+     * A live countdown that's dead on arrival isn't live.
+     *
+     * "Remind me" promises five minutes' notice. This gives it literally:
+     * the island opens in a moment and counts that real five minutes down to
+     * zero, live, no matter what the event's label says. The event's own
+     * time still shows ("at 8:00") for context — it's just no longer what
+     * the clock is racing toward.
      */
-    const m = e.time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-    let at = Date.now() + 8_000;
-    let targetAt: number | undefined;
-    if (m) {
-      let h = Number(m[1]) % 12;
-      if (m[3] ? /pm/i.test(m[3]) : h >= 1 && h <= 7) h += 12;
-      const target = new Date(); target.setHours(h, Number(m[2]), 0, 0);
-      targetAt = +target;
-      const thirtyBefore = +target - 30 * 60_000;
-      if (thirtyBefore > Date.now()) at = thirtyBefore;
-    }
-    s.scheduleReminder({ at, text: `${e.title} at ${e.time}`, title: e.title, targetAt, who: e.who });
+    s.scheduleReminder({
+      at: Date.now() + 1500,
+      text: `${e.title} at ${e.time}`,
+      title: e.title,
+      timeLabel: e.time,
+      targetAt: Date.now() + 1500 + 5 * 60_000,
+      who: e.who,
+    });
   },
 
   dismissIsland: () => set({ island: null }),
@@ -425,9 +431,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         reminders: s.reminders.filter((r) => r.id !== due.id),
         island: {
           title: due.title ?? due.text,
-          timeLabel: due.targetAt
-            ? new Date(due.targetAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-            : undefined,
+          timeLabel: due.timeLabel,
           targetAt: due.targetAt,
           who: due.who,
           held: due.held,

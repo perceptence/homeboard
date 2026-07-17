@@ -228,38 +228,77 @@ function DynamicIsland() {
 
   const who = island?.who ? members[island.who] : undefined;
   const expanded = island?.mode === "expanded";
+  /** Only a live, unarrived countdown has anywhere to retreat TO — collapsed
+   *  is "still counting, out of your way," not "done, out of your way." */
+  const canTuck = expanded && !!island?.targetAt && !arrived;
 
-  /** "2h 14m" → "42m" → "58s" → "Now". */
+  /** "4:32" → "0:58" → "0:00". Fixed mm:ss once inside the five minutes, so the
+   *  numbers hold their width and don't jitter the layout every digit change. */
   const countdown = (() => {
     if (!island?.targetAt) return null;
-    const left = island.targetAt - now;
-    if (left <= 0) return "Now";
-    const sec = Math.ceil(left / 1000);
-    if (sec < 60) return `${sec}s`;
-    const min = Math.round(sec / 60);
-    if (min < 60) return `${min}m`;
-    return `${Math.floor(min / 60)}h ${min % 60}m`;
+    const left = Math.max(0, island.targetAt - now);
+    const totalSec = Math.floor(left / 1000);
+    return `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, "0")}`;
   })();
 
-  /** Tap: expanded + still counting → tuck into the status bar and keep counting.
-   *  Expanded + arrived (or no clock at all) → it has said everything; dismiss.
-   *  Collapsed → bring it back. */
+  /* ── drag-up-to-tuck ───────────────────────────────────────────────────
+     RAW POINTER EVENTS, not framer's `drag` prop. `drag` writes to the same
+     `transform` that `layout` uses to animate width/height/position — the two
+     fighting over one CSS property is exactly what drifted this pill onto the
+     battery the first time it shipped. Tracking the pointer by hand and only
+     ever setting a small `pull` offset on an INNER span sidesteps the conflict
+     entirely; the outer button's transform stays layout's alone. */
+  const [pull, setPull] = useState(0);
+  const dragFrom = useRef<number | null>(null);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!canTuck) return;
+    dragFrom.current = e.clientY;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (dragFrom.current === null) return;
+    // Elastic: the first 40px of pull follow the finger 1:1, past that it
+    // drags through honey — a hint that the gesture has somewhere to land,
+    // not a rubber band that snaps you back at the edge of the world.
+    const raw = Math.min(0, e.clientY - dragFrom.current);
+    setPull(raw > -40 ? raw : -40 - (-raw - 40) * 0.25);
+  };
+  const endDrag = (committed: boolean) => {
+    if (dragFrom.current === null) return;
+    dragFrom.current = null;
+    setPull(0);
+    if (committed) setMode("collapsed");
+  };
+  const onPointerUp = () => endDrag(pull < -22);
+  const onPointerCancel = () => endDrag(false);
+
+  /** A true tap (no meaningful pointer travel) still does its old jobs:
+   *  bring a tucked pill back, or dismiss a finished one. Swiping up is the
+   *  ONLY way to tuck a live one now — there's nothing left for a tap to do
+   *  while it's still counting. */
   const onTap = () => {
-    if (!island) return;
+    if (!island || canTuck) return;
     if (!expanded) return setMode("expanded");
-    if (island.targetAt && !arrived) return setMode("collapsed");
     dismiss();
   };
 
   return (
     <motion.button
       layout
-      onClick={island ? onTap : undefined}
-      transition={{ type: "spring", stiffness: 380, damping: 32 }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onClick={onTap}
+      // A touch heavier and a touch less bouncy than a UI spring — Apple's own
+      // island moves with real inertia, not a rubber-band snap. mass slows the
+      // settle just enough to read as smooth rather than a pop.
+      transition={{ type: "spring", stiffness: 340, damping: 34, mass: 1.1 }}
       // Centred by MARGINS (inset-x-0 mx-auto), never transform — framer's
       // `layout` owns transform and drifts the pill onto the battery.
       className={
-        "absolute inset-x-0 top-[14px] z-[95] mx-auto overflow-hidden text-left " +
+        "absolute inset-x-0 top-[14px] z-[95] mx-auto overflow-hidden text-left touch-none " +
         (island
           ? "bg-[#1c1d22] shadow-[0_18px_48px_rgba(0,0,0,0.65)] ring-1 ring-white/[.16]"
           : "pointer-events-none bg-[#0b0c09]")
@@ -273,13 +312,17 @@ function DynamicIsland() {
         borderRadius: !island || !expanded ? 20 : 38,
       }}
     >
-      <AnimatePresence mode="wait">
+      <AnimatePresence initial={false}>
         {island && expanded && (
           <motion.span
             key="open"
+            // A crossfade, not a cut-then-fade: no `mode="wait"` above, so the
+            // outgoing tucked content and this are briefly both in the DOM and
+            // dissolve into one another WHILE the box resizes around them,
+            // instead of the box finishing its move into empty space first.
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { delay: 0.1 } }}
-            exit={{ opacity: 0, transition: { duration: 0.1 } }}
+            animate={{ opacity: 1, y: pull, transition: { opacity: { duration: 0.22 }, y: { type: "spring", stiffness: 500, damping: 40 } } }}
+            exit={{ opacity: 0, transition: { duration: 0.16 } }}
             className="flex h-full items-center gap-3 px-4"
           >
             {who ? (
@@ -305,14 +348,19 @@ function DynamicIsland() {
                 {!arrived && <span className="mt-0.5 block text-[10px] uppercase tracking-[0.1em] text-white/40">to go</span>}
               </span>
             )}
+            {/* The grabber — the one visual hint that this thing swipes. Sheets
+                across the app use the same mark for the same reason. */}
+            {canTuck && (
+              <span aria-hidden className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-pill bg-white/25" />
+            )}
           </motion.span>
         )}
         {island && !expanded && (
           <motion.span
             key="tucked"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { delay: 0.1 } }}
-            exit={{ opacity: 0, transition: { duration: 0.1 } }}
+            animate={{ opacity: 1, transition: { duration: 0.22, delay: 0.05 } }}
+            exit={{ opacity: 0, transition: { duration: 0.16 } }}
             className="flex h-full items-center gap-2 pl-1.5 pr-3"
           >
             {who && <Avatar member={who} size={26} />}

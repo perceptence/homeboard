@@ -402,9 +402,13 @@ export interface Reminder {
   text: string;
   /** The thing itself, for the island ("Pick up the kids"). Falls back to text. */
   title?: string;
-  /** The moment the reminder is ABOUT — the event's time, not the fire time.
-   *  This is what the island counts down to. A reminder fires 30 minutes early;
-   *  counting to the fire time would hit zero as the island opened. */
+  /** How the person hears the event's time said aloud ("8:00 PM") — shown
+   *  beside the countdown. NOT derived from targetAt; the two serve different
+   *  jobs (see targetAt) and a bare 5-minute countdown is not what time it is. */
+  timeLabel?: string;
+  /** What the island counts down to. Five minutes out from the moment the
+   *  reminder was SET — see remindForEvent for why it isn't the real event
+   *  clock time. */
   targetAt?: number;
   /** Whose reminder it is — whose quiet hours apply, whose phone it lands on. */
   who: MemberId;
