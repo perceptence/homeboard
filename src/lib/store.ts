@@ -256,6 +256,8 @@ interface HouseholdState {
   remindForEvent: (id: string) => void;
   dismissIsland: () => void;
   setIslandMode: (mode: "expanded" | "collapsed") => void;
+  /** Put the island away, bring it back in `mins` (countdown target preserved). */
+  snoozeIsland: (mins: number) => void;
   /** The clock. Called every second by <Ticker/>; fires what's due, holds what's quiet. */
   tick: () => void;
   setQuery: (q: string) => void;
@@ -398,6 +400,29 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
 
   dismissIsland: () => set({ island: null }),
   setIslandMode: (mode) => set((s) => (s.island ? { island: { ...s.island, mode } } : {})),
+
+  /**
+   * Snooze — put the island away and bring it back in `mins`.
+   *
+   * The countdown TARGET is preserved, not restarted: the island was counting to
+   * an actual moment (an event 5 min out), so snoozing two minutes should bring
+   * it back showing ~3:00, not a fresh 2:00. It re-nudges you sooner; it doesn't
+   * move the thing you're being nudged about.
+   */
+  snoozeIsland: (mins) => {
+    const s = get();
+    const i = s.island;
+    if (!i) return;
+    s.scheduleReminder({
+      at: Date.now() + mins * 60_000,
+      text: i.title,
+      title: i.title,
+      timeLabel: i.timeLabel,
+      targetAt: i.targetAt,
+      who: i.who ?? Object.keys(s.members)[0],
+    });
+    set({ island: null });
+  },
 
   /**
    * Delivery. One reminder per tick — the island is a mouth, not a queue — and

@@ -209,6 +209,7 @@ function DynamicIsland() {
   const members = useHousehold((s) => s.members);
   const dismiss = useHousehold((s) => s.dismissIsland);
   const setMode = useHousehold((s) => s.setIslandMode);
+  const snooze = useHousehold((s) => s.snoozeIsland);
   /** Whose phone we're looking at. The island is phone-only, so the persona is
    *  always a member id here. */
   const viewingId = useHousehold((s) => s.persona);
@@ -342,8 +343,12 @@ function DynamicIsland() {
   };
 
   return (
-    <motion.button
+    <motion.div
       layout
+      // A DIV, not a button — the expanded state holds its own <button>s (Done,
+      // +2 min), and a button inside a button is invalid HTML. The tap-to-expand
+      // and swipe-to-tuck live here as handlers instead.
+      role={island && !expanded ? "button" : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -357,72 +362,90 @@ function DynamicIsland() {
       // `layout` owns transform and drifts the pill onto the battery.
       className={
         "absolute inset-x-0 top-[14px] z-[95] mx-auto overflow-hidden text-left touch-none " +
-        (island
-          // The ring existed to buy contrast against the ink header before the
-          // surface itself was lifted off true black. Now that #1c1d22 carries
-          // its own separation, the hairline was just a second, redundant edge.
-          ? "bg-[#1c1d22] shadow-[0_18px_48px_rgba(0,0,0,0.65)]"
-          : "pointer-events-none bg-[#0b0c09]")
+        (island ? "cursor-default" : "pointer-events-none")
       }
       style={{
-        // Three silhouettes: hardware 120×34 · collapsed live pill 196×34
-        // (status-bar height) · expanded 380×76 (edge to edge less the 11px iOS
-        // margin). 196 was 244 — wide enough that its right edge sat on the wifi
-        // and battery glyphs. Centred, it now clears the clock on the left and
-        // the status icons on the right, the way a real live pill sits between.
-        width: !island ? 120 : expanded ? 380 : 196,
-        height: !island || !expanded ? 34 : 76,
-        borderRadius: !island || !expanded ? 20 : 38,
+        // TRUE BLACK now, not charcoal — a real Dynamic Island is the black of the
+        // display switched off, seamless with the camera hardware. Lime glow ONLY
+        // when expanded: a full notification earns the bloom; a status-bar pill
+        // shouldn't blast colour across the header.
+        background: island ? "#040405" : "#0b0c09",
+        boxShadow: !island
+          ? undefined
+          : expanded
+            ? "0 0 0 1px rgba(244,255,122,0.14), 0 0 28px rgba(244,255,122,0.22), 0 22px 55px rgba(0,0,0,0.75)"
+            : "0 10px 30px rgba(0,0,0,0.6)",
+        // Four silhouettes now. Expanded grew to 384×118 to seat two rows around
+        // the camera. Real Dynamic Island expands to ~371pt wide on a 393pt screen
+        // (≈full width less an 11pt margin each side) and up to ~160pt tall — 384
+        // on our 402pt screen, 118 for two comfortable rows, sits right in that box.
+        width: !island ? 120 : expanded ? 384 : 196,
+        height: !island ? 34 : expanded ? 118 : 34,
+        borderRadius: !island || !expanded ? 20 : 42,
       }}
     >
       <AnimatePresence initial={false}>
         {island && expanded && (
-          <motion.span
+          <motion.div
             key="open"
             // A crossfade, not a cut-then-fade: no `mode="wait"` above, so the
             // outgoing tucked content and this are briefly both in the DOM and
-            // dissolve into one another WHILE the box resizes around them,
-            // instead of the box finishing its move into empty space first.
+            // dissolve into one another WHILE the box resizes around them.
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, y: pull, transition: { opacity: { duration: 0.22 }, y: { type: "spring", stiffness: 500, damping: 40 } } }}
             exit={{ opacity: 0, transition: { duration: 0.16 } }}
-            className="flex h-full items-center gap-3 px-4"
+            className="flex h-full flex-col justify-center gap-2.5 px-4 py-3"
           >
-            {who ? (
-              <Avatar member={who} size={40} />
-            ) : (
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
-                <Icon name="bell" size={18} />
-              </span>
-            )}
-            <span className="min-w-0 flex-1">
-              {/* 16px, not 15 — the app has no 15px; body is 16. */}
-              <span className="block truncate text-[16px] font-semibold leading-tight text-white">{island.title}</span>
-              <span className="block text-[12px] leading-tight text-white/55">
-                {island.held ? "Held during quiet hours"
-                  : island.timeLabel ? `at ${clockLabel(island.timeLabel)}`
-                  : "Reminder"}
-              </span>
-            </span>
-            {countdown && (
-              <span className="shrink-0 text-right">
-                {/* Lemon throughout, not just on arrival — the countdown is the
-                    one number on this whole card worth a colour, the whole time
-                    it's counting. 18px/bold: 24 was oversized for a two-line
-                    card, and a heavier weight holds the read at the smaller size. */}
-                <span className="block text-[18px] font-bold leading-none tabular-nums text-lemon">
-                  {countdown}
+            {/* TOP ROW — flanks the camera. A 3-column grid keeps the centre
+                column dead-centre on the ISLAND, which is centred on screen, which
+                is exactly where the TrueDepth camera sits. Content wraps around it
+                (leading | camera | trailing), the way a real Live Activity does —
+                the middle is hardware, so nothing lives there. */}
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+              <div className="flex min-w-0 items-center gap-2.5 pr-2">
+                {who ? (
+                  <Avatar member={who} size={36} />
+                ) : (
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
+                    <Icon name="bell" size={16} />
+                  </span>
+                )}
+                <span className="min-w-0">
+                  <span className="block truncate text-[16px] font-semibold leading-tight text-white">{island.title}</span>
+                  <span className="block truncate text-[12px] leading-tight text-white/55">
+                    {island.held ? "Held during quiet hours"
+                      : island.timeLabel ? `at ${clockLabel(island.timeLabel)}`
+                      : "Reminder"}
+                  </span>
                 </span>
-                {!arrived && <span className="mt-0.5 block text-[10px] uppercase tracking-[0.1em] text-white/40">to go</span>}
+              </div>
+
+              {/* The camera. Two dark sensors in the dead zone — a quiet nod to
+                  the hardware that owns this strip. */}
+              <span aria-hidden className="flex shrink-0 items-center gap-1.5 px-2">
+                <span className="h-2 w-2 rounded-pill bg-white/[.08]" />
+                <span className="h-[7px] w-[7px] rounded-pill bg-white/[.05]" />
               </span>
-            )}
-            {/* The grabber — the one visual hint that this thing swipes. At the
-                BOTTOM edge: you grab the bottom lip and push up to tuck it, so
-                the handle belongs where the gesture starts. */}
-            {canTuck && (
-              <span aria-hidden className="absolute bottom-1.5 left-1/2 h-1 w-9 -translate-x-1/2 rounded-pill bg-white/25" />
-            )}
-          </motion.span>
+
+              {countdown && (
+                <span className="flex flex-col items-end pl-2">
+                  <span className="text-[18px] font-bold leading-none tabular-nums text-lemon">{countdown}</span>
+                  {!arrived && <span className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-white/40">to go</span>}
+                </span>
+              )}
+            </div>
+
+            {/* BOTTOM ROW — the actions. `stopPropagation` so a button press
+                never reads as a body tap or the start of a tuck swipe. */}
+            <div className="flex gap-2">
+              <IslandButton onClick={(e) => { e.stopPropagation(); dismiss(); }} tone="solid">
+                <Icon name="check" size={15} /> Done
+              </IslandButton>
+              <IslandButton onClick={(e) => { e.stopPropagation(); snooze(2); }}>
+                <Icon name="clock" size={15} /> +2 min
+              </IslandButton>
+            </div>
+          </motion.div>
         )}
         {island && !expanded && (
           <motion.span
@@ -442,7 +465,27 @@ function DynamicIsland() {
           </motion.span>
         )}
       </AnimatePresence>
-    </motion.button>
+    </motion.div>
+  );
+}
+
+/** A pill button for the island's action row. Solid = the primary act (Done);
+ *  the default subtle fill is the secondary (snooze). Both read on true black. */
+function IslandButton({
+  onClick, tone = "subtle", children,
+}: { onClick: (e: React.MouseEvent) => void; tone?: "solid" | "subtle"; children: ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-pill text-[13px] font-semibold transition-colors " +
+        (tone === "solid"
+          ? "bg-white/[.16] text-white hover:bg-white/25"
+          : "bg-white/[.06] text-white/75 hover:bg-white/[.12] hover:text-white")
+      }
+    >
+      {children}
+    </button>
   );
 }
 
