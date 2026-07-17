@@ -115,7 +115,7 @@ export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean 
  * its place on the shared iPad, where the household sees one screen.
  */
 export function EventCard({ event, showOwner }: { event: HouseEvent; showOwner?: boolean }) {
-  const { members, notify, openSheet } = useHousehold();
+  const { members, remindForEvent, openSheet } = useHousehold();
   const who = members[event.who];
   const d = badge(event.due);
 
@@ -146,7 +146,10 @@ export function EventCard({ event, showOwner }: { event: HouseEvent; showOwner?:
                 slot where a task carries "Done" carries the only action an event has.
                 A disabled button here would occupy the card's most prominent position
                 purely to refuse the tap. */}
-            <Button tone="outline" onClick={() => notify(`We'll remind you before ${event.title}`)}>
+            {/* A real promise: schedules via the reminder engine (quiet hours
+                apply at delivery). This used to toast "we'll remind you" and
+                remind no one — while the sheet's identical button was real. */}
+            <Button tone="outline" onClick={() => remindForEvent(event.id)}>
               <Icon name="bell" size={14} /> Remind me
             </Button>
           </>

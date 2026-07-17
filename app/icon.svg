@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Homeboard mark: the board. Four rounded cells on ink, one lit lemon —
+       a home where one thing, at a time, asks for you. Same grid glyph the
+       You tab's "Your patch" card wears; the brand is the app's own language. -->
+  <rect width="512" height="512" rx="116" fill="#0E0E10"/>
+  <rect x="118" y="118" width="128" height="128" rx="40" fill="#F4FF7A"/>
+  <rect x="266" y="118" width="128" height="128" rx="40" fill="#F5F4F8" opacity=".32"/>
+  <rect x="118" y="266" width="128" height="128" rx="40" fill="#F5F4F8" opacity=".32"/>
+  <rect x="266" y="266" width="128" height="128" rx="40" fill="#C9C8F0" opacity=".9"/>
+</svg>

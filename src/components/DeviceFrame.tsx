@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Avatar } from "@/components/ui";
+import { Icon } from "@/components/Icons";
+import { useHousehold } from "@/lib/store";
 
 /**
  * Real device geometry, in logical points.
@@ -179,15 +183,85 @@ function PhoneChrome({ children, chromeGap }: { children: ReactNode; chromeGap: 
         >
           {children}
           <PhoneStatus />
-          {/* Dynamic Island — sits ABOVE the status bar, physically occluding it. */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-[14px] z-[95] h-[34px] w-[120px]
-                       -translate-x-1/2 rounded-[20px] bg-[#0b0c09]"
-          />
+          <DynamicIsland />
         </div>
       </div>
     </div>
+  );
+}
+
+
+/**
+ * The Dynamic Island — no longer scenery.
+ *
+ * It was a static black pill drawn for realism. Now it's where reminders land:
+ * the pill blooms open (framer layout animation on width/height), speaks, and
+ * closes. The hardware IS the notification surface — no card sliding over the
+ * app pretending to be iOS.
+ *
+ * One at a time, self-dismissing after 4.5s; tap dismisses early (it's the
+ * expected iOS gesture, and a notification you can't silence is a smoke alarm).
+ * The activity feed keeps the record — the island is a mouth, not an inbox.
+ */
+function DynamicIsland() {
+  const island = useHousehold((s) => s.island);
+  const members = useHousehold((s) => s.members);
+  const dismiss = useHousehold((s) => s.dismissIsland);
+
+  useEffect(() => {
+    if (!island) return;
+    const t = setTimeout(dismiss, 4500);
+    return () => clearTimeout(t);
+  }, [island, dismiss]);
+
+  const who = island?.who ? members[island.who] : undefined;
+
+  return (
+    <motion.button
+      layout
+      aria-live="polite"
+      onClick={island ? dismiss : undefined}
+      transition={{ type: "spring", stiffness: 380, damping: 32 }}
+      // Centred by MARGINS (left-0 right-0 mx-auto), never by transform:
+      // framer's `layout` animates via transform and silently overwrites any
+      // translate you put in className — the pill drifted half its width right
+      // and sat on the battery. The screenshot caught it; the DOM probe didn't,
+      // because the element's size was correct and only its x was wrong.
+      className={
+        "absolute inset-x-0 top-[14px] z-[95] mx-auto overflow-hidden bg-[#0b0c09] text-left " +
+        (island ? "shadow-[0_12px_32px_rgba(0,0,0,0.45)]" : "pointer-events-none")
+      }
+      style={{
+        width: island ? 340 : 120,
+        height: island ? 64 : 34,
+        borderRadius: island ? 32 : 20,
+      }}
+    >
+      <AnimatePresence>
+        {island && (
+          <motion.span
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { delay: 0.12 } }}
+            exit={{ opacity: 0 }}
+            className="flex h-full items-center gap-3 px-4"
+          >
+            {who ? (
+              <Avatar member={who} size={36} />
+            ) : (
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
+                <Icon name="bell" size={18} />
+              </span>
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-semibold leading-tight text-white">{island.title}</span>
+              {island.body && (
+                <span className="block truncate text-[12px] leading-tight text-white/60">{island.body}</span>
+              )}
+            </span>
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </motion.button>
   );
 }
 

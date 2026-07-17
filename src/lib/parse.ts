@@ -65,8 +65,10 @@ const NEEDS_FULL = new RegExp(
       // regulated
       "alcohol", "wine", "beer", "spirits", "vodka", "whisk(e)?y", "booze",
       "prescription", "medicine", "pharmacy", "chemist", "cigarettes?",
-      // hazard
+      // hazard — height, current, blades. "Clean the gutters" was reaching a
+      // ten-year-old because the list knew "ladder" but not the jobs that imply one.
       "bleach", "boiler", "gas", "chainsaw", "ladder", "power tools?", "chemicals?",
+      "gutters?", "roof", "chimney", "electrical?", "wiring", "fuse box", "mains",
       // licensed
       "driv(e|ing)", "car service", "mot",
     ].join("|") +
