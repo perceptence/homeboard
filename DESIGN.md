@@ -275,8 +275,18 @@ yet professional. iOS-inspired but more contemporary.
 
 **Room gradient** (behind the device): `#C9C8F0 → #F5F4F8`.
 
-> **Only three card tones exist:** Primary (lemon), Secondary (white), Progress (lavender).
-> **DO NOT** use bright, saturated colour.
+> **Four card tones, each with ONE meaning — not a palette to decorate with:**
+> Primary (lemon = the day's hero), Secondary (white = individual items), Progress
+> (lavender = your reflection), Shared (mint = the household's collective list).
+> **DO NOT** use bright, saturated colour, and **DO NOT** add a fifth tone to make
+> something "pop" — a tone is a meaning, not a highlighter.
+
+> ⚠️ **Mint is "ours", the way lemon/lavender are "yours".** A member's phone is
+> almost entirely personal — your day, your tasks, your progress. The shopping list
+> is the one thing everyone shares, so it gets the one tone that isn't yours. Pitched
+> at the lavender's lightness (`#C4E8D3` vs `#C9C8F0`) so the two read as siblings on
+> one screen, never as a jarring new brand colour. It is NOT "green because
+> groceries" — reserve it for genuinely shared/household surfaces.
 
 > ⚠️ **Glass over a SCROLLING list must read its backdrop and invert.** The floating
 > nav is `bg-white/10` over the feed — so it sits on ink at the top and on a white card

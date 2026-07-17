@@ -16,13 +16,16 @@ import type { Member, Priority } from "@/lib/types";
    Progress (lavender).
    ============================================================ */
 
-export type CardTone = "white" | "lemon" | "lavender";
+export type CardTone = "white" | "lemon" | "lavender" | "mint";
 export type Pad = "none" | "md" | "lg";
 
 const toneClass: Record<CardTone, string> = {
   white: "bg-card text-ink shadow-e2",
   lemon: "bg-lemon text-ink shadow-e2",
   lavender: "bg-lavender text-ink shadow-e2",
+  // The shared-list card — see the mint token. Reserved for the household's
+  // collective surfaces; not a general-purpose fourth colour.
+  mint: "bg-mint text-ink shadow-e2",
 };
 
 const padClass: Record<Pad, string> = {

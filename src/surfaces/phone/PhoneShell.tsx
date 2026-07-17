@@ -241,25 +241,11 @@ export function PhoneShell() {
             )}
           </div>
           <div className="flex shrink-0 items-center">
-            {/* SHOPPING'S DOOR. The 3-tab reduction orphaned a whole domain: the
-                store derives shoppingList(), the iPad has a full screen, and a
-                member's phone had NO way to see it — you'd stand in the shop
-                looking at an app that knows the list and won't say. It's a sheet,
-                not a fourth tab: the axis is now → later → me, and a shopping
-                list is a thing you consult, not a place you live. */}
-            <button
-              onClick={() => s.openSheet({ type: "shop" })}
-              aria-label="Shopping list"
-              className="relative grid h-touch w-touch place-items-center rounded-pill text-white"
-            >
-              <Icon name="cart" size={23} />
-              {shoppingList(s).filter((i) => !i.done).length > 0 && (
-                <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-pill bg-lemon px-1 text-[10px] font-bold leading-none text-ink">
-                  {shoppingList(s).filter((i) => !i.done).length}
-                </span>
-              )}
-            </button>
-            {/* Profile lives in the tab bar — it doesn't need a second door. */}
+            {/* Just the bell now. The shopping cart used to sit here and it was
+                crowding the greeting off the edge — a shared-list door doesn't
+                belong in a row of personal chrome anyway. It's a card on Today
+                now (see PhoneToday), which is where a thing everyone shares
+                should announce itself. */}
             <button
               // Open ONLY — markRead moved into the sheet itself. Calling it here
               // burned the evidence before the sheet could render: `unread` is
@@ -516,6 +502,12 @@ function PhoneToday() {
   const mine = s.tasks.filter((t) => holder(t) === meId && !t.done && isToday(t.due)).sort((a, b) => a.due.localeCompare(b.due));
   const events = s.events.filter((e) => e.who === meId && isToday(e.due));
 
+  /** The shared list, summarised for the card. `low` items are the ones the
+   *  house asked for (inventory ran out), worth calling out separately. */
+  const shop = shoppingList(s);
+  const shopOpen = shop.filter((i) => !i.done).length;
+  const shopLow = shop.filter((i) => !i.done && i.low).length;
+
   /**
    * HONEST PROGRESS, at last. This card used to lie three ways at once: the
    * Weekly/Monthly toggle animated and changed nothing (`span` was read by no
@@ -612,6 +604,31 @@ function PhoneToday() {
               <Icon name="high" size={14} /> {highCount} {highCount === 1 ? "is" : "are"} high
             </p>
           )}
+        </Card>
+      </motion.div>
+
+      {/* THE SHARED LIST (mint) — the one collective thing on a personal phone.
+          It was a cart in the header crowding the greeting; a thing everyone
+          shares shouldn't hide in a corner of personal chrome. As a card it can
+          say what's on it, and tapping opens the full list. Mint (not lavender)
+          so it doesn't twin with the progress card two rows down. */}
+      <motion.div variants={listItem}>
+        <Card tone="mint" onClick={() => s.openSheet({ type: "shop" })}>
+          <div className="flex items-center gap-3">
+            <IconTile name="cart" tone="onTint" />
+            <div className="min-w-0 flex-1">
+              <Eyebrow>Shared list</Eyebrow>
+              <div className="mt-hair text-h2">
+                {shopOpen
+                  ? `${shopOpen} to get`
+                  : "All bought"}
+              </div>
+            </div>
+            {/* The house-flagged items get a word — an item nobody remembers
+                adding otherwise reads as a glitch. */}
+            {shopLow > 0 && <Pill tone="light">{shopLow} running low</Pill>}
+            <Icon name="fwd" size={20} className="shrink-0 text-ink/35" />
+          </div>
         </Card>
       </motion.div>
 

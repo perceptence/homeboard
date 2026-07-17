@@ -13,6 +13,10 @@ const config: Config = {
         ink: "#0E0E10",          // Primary — also the app screen backdrop
         lavender: "#C9C8F0",     // Progress / secondary cards
         lemon: "#F4FF7A",        // Primary card
+        // The shared-list tone. Pitched at the lavender's lightness so the two
+        // read as siblings, not a new brand shout. Lemon = the day (yours),
+        // lavender = progress (yours), mint = the one thing that's OURS.
+        mint: "#C4E8D3",
         surface: "#F5F4F8",      // light neutral fill inside light cards
         accent: "#D1D0F5",
         progress: "#C7C6F0",
