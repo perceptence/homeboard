@@ -261,7 +261,11 @@ export function PhoneShell() {
             </button>
             {/* Profile lives in the tab bar — it doesn't need a second door. */}
             <button
-              onClick={() => { s.openSheet({ type: "activity" }); s.markRead(); }}
+              // Open ONLY — markRead moved into the sheet itself. Calling it here
+              // burned the evidence before the sheet could render: `unread` is
+              // the only record of where "new to you" ends, and it was zeroed a
+              // frame before anything could read it.
+              onClick={() => s.openSheet({ type: "activity" })}
               aria-label={s.unread ? `Activity, ${s.unread} unread` : "Activity"}
               className="relative grid h-touch w-touch place-items-center rounded-pill text-white"
             >

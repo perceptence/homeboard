@@ -135,7 +135,11 @@ export function IpadShell() {
               name="bell"
               label="Activity"
               dot={s.unread > 0}
-              onClick={() => { s.openSheet({ type: "activity" }); s.markRead(); }}
+              // Open ONLY — markRead moved into the sheet itself. Calling it here
+              // burned the evidence before the sheet could render: `unread` is
+              // the only record of where "new to you" ends, and it was zeroed a
+              // frame before anything could read it.
+              onClick={() => s.openSheet({ type: "activity" })}
             />
             <Button
               onClick={() => s.openSheet({ type: "newTask", draft: { title: "", owner: "maya", when: "Today", priority: "med" } })}

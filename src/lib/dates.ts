@@ -176,3 +176,26 @@ export function weekLabel(key: string): string {
   if (weeks === -1) return "Last week";
   return periodLabel("Week", mine);
 }
+
+/* ── epoch helpers, for the activity feed ─────────────────────────────────
+   Everything above speaks ISO dates; activity speaks MOMENTS. */
+
+/** "just now" · "5m ago" · "3h ago" · "Tuesday" · "3 Jul" */
+export const ago = (at: number): string => {
+  const sec = Math.round((Date.now() - at) / 1000);
+  if (sec < 60) return "just now";
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return dayLabel(at);
+};
+
+/** Which diary page a moment belongs to. */
+export const dayLabel = (at: number): string => {
+  const d = new Date(at);
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const diff = Math.round((+day(new Date()) - +day(d)) / 86_400_000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff < 7) return fmt(d, { weekday: "long" });
+  return fmt(d, { day: "numeric", month: "short" });
+};

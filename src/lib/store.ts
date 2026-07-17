@@ -306,7 +306,9 @@ let nextId = 1000;
 /** Every action that logs activity also bumps the unread count for the bell.
  *  `who` is whose doing it was — omit it for things the HOUSE did, not a person. */
 const logged = (s: HouseholdState, text: string, who?: MemberId) => ({
-  activity: [{ text, at: Date.now(), who }, ...s.activity].slice(0, 12),
+  // 80, not 12. Twelve entries was a ticker; now that state persists this is
+  // the household's short-term memory, and a week of family life fits in 80.
+  activity: [{ text, at: Date.now(), who }, ...s.activity].slice(0, 80),
   unread: s.unread + 1,
 });
 

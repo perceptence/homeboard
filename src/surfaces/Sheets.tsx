@@ -4,9 +4,9 @@ import clsx from "clsx";
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/Icons";
-import { Avatar, Button, Card, Check, Choice, Eyebrow, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet } from "@/components/ui";
+import { Avatar, Button, Card, Check, Choice, Eyebrow, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
 import { smooth, spring } from "@/lib/motion";
-import { addDays, badge, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
+import { addDays, ago, badge, dayLabel, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
@@ -945,25 +945,130 @@ function NewTaskSheet({
   );
 }
 
+/**
+ * Activity — the household's short-term memory, read out loud.
+ *
+ * This was a bare list of twelve strings. No faces, no times, no shape — a
+ * ticker, not a memory. The rebuild follows the app's own rules:
+ *
+ *   VERDICT FIRST. The header states what the feed would make you count:
+ *   how much happened today, who carried it, and how much the house itself
+ *   handled — that last number being the whole thesis (the Kernel is an
+ *   attributable actor, and its work should be visible work).
+ *
+ *   NEW BEFORE OLD. "Since you looked" is the one question a bell answers.
+ *   `unread` is captured AT MOUNT (before markRead zeroes it) and splits the
+ *   feed; the "You're caught up" line is the exhale between the two.
+ *
+ *   THEN A DIARY. Today / Yesterday / weekday — the same page-per-day shape
+ *   Ahead uses, because the feed is Ahead's mirror: one looks forward, this
+ *   looks back.
+ *
+ * Rows lead with the face (the app's identity language); the house's own acts
+ * wear the spark. The name is bolded INSIDE the sentence rather than repeated
+ * beside the avatar — "Sam · Sam completed" said everything twice.
+ */
 function ActivitySheet() {
   const s = useHousehold();
+  /** How many entries were new when this sheet OPENED — captured before
+   *  markRead resets the counter, which is why the bell no longer calls it. */
+  const [newCount] = useState(() => Math.min(useHousehold.getState().unread, useHousehold.getState().activity.length));
+  useEffect(() => { s.markRead(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const all = s.activity;
+  const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+  const today = all.filter((a) => a.at >= +startOfDay);
+  const byHouse = today.filter((a) => !a.who).length;
+
+  /** Who did most today — only claimed when someone clearly did. */
+  const tally = new Map<string, number>();
+  today.forEach((a) => a.who && tally.set(a.who, (tally.get(a.who) ?? 0) + 1));
+  const ranked = [...tally.entries()].sort((a, b) => b[1] - a[1]);
+  const top = ranked[0] && (!ranked[1] || ranked[0][1] > ranked[1][1]) && ranked[0][1] >= 2
+    ? s.members[ranked[0][0]] : undefined;
+
+  const subtext = today.length
+    ? [top && `Most of it ${top.name}`, byHouse > 0 && `${byHouse} by the house itself`]
+        .filter(Boolean).join(" · ") || undefined
+    : all.length ? `Last thing ${ago(all[0].at)}` : undefined;
+
+  const fresh = all.slice(0, newCount);
+  const rest = all.slice(newCount);
+
+  /** The diary: consecutive runs of one day, newest first. */
+  const groups: { label: string; items: typeof all }[] = [];
+  for (const a of rest) {
+    const label = dayLabel(a.at);
+    const g = groups[groups.length - 1];
+    if (g && g.label === label) g.items.push(a);
+    else groups.push({ label, items: [a] });
+  }
+
   return (
     <>
-      <h2 className="font-tight text-h1">Activity</h2>
-      <Card pad="none" className="mt-4 px-4">
-        {s.activity.length ? (
-          s.activity.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 border-t border-black/[.05] py-3 first:border-t-0">
-              <span className="text-sm font-medium">{a.text}</span>
+      <TitleBlock
+        eyebrow="Activity"
+        size="page"
+        title={today.length ? `${today.length} ${today.length === 1 ? "thing" : "things"} so far today` : "Quiet so far today"}
+        subtext={subtext}
+      />
+
+      {all.length === 0 && (
+        <p className="py-12 text-center font-medium text-sub">
+          Nothing yet — the first thing anyone does will show up here.
+        </p>
+      )}
+
+      {fresh.length > 0 && (
+        <div className="mt-5">
+          <Eyebrow>Since you looked</Eyebrow>
+          <div className="mt-1">
+            {fresh.map((a, i) => <ActivityRow key={`n${i}`} a={a} />)}
+          </div>
+          {rest.length > 0 && (
+            <div className="mt-3 flex items-center gap-3" aria-hidden>
+              <span className="h-px flex-1 bg-ink/[.08]" />
+              <span className="text-caption text-sub">You&rsquo;re caught up</span>
+              <span className="h-px flex-1 bg-ink/[.08]" />
             </div>
-          ))
-        ) : (
-          <p className="py-10 text-center font-medium text-sub">Nothing yet — start completing things!</p>
-        )}
-      </Card>
-      <div className="mt-2">
-        <Pill tone="tag">Shared across every device</Pill>
-      </div>
+          )}
+        </div>
+      )}
+
+      {groups.map((g) => (
+        <div key={g.label} className="mt-5">
+          <Eyebrow>{g.label}</Eyebrow>
+          <div className="mt-1">
+            {g.items.map((a, i) => <ActivityRow key={i} a={a} />)}
+          </div>
+        </div>
+      ))}
     </>
+  );
+}
+
+/** One thing that happened: who, what, when-ago. */
+function ActivityRow({ a }: { a: { text: string; at: number; who?: MemberId } }) {
+  const members = useHousehold((s) => s.members);
+  const m = a.who ? members[a.who] : undefined;
+  /** The sentence already starts with the name — bold it instead of repeating
+   *  it beside the face. When it doesn't (or the member left), show as-is. */
+  const rest = m && a.text.startsWith(m.name) ? a.text.slice(m.name.length) : null;
+
+  return (
+    <div className="flex min-h-touch items-center gap-3 border-t border-ink/[.06] py-2.5 first:border-t-0">
+      {m ? (
+        <Avatar member={m} size={28} />
+      ) : (
+        /* The house's own doing — the Kernel is an actor and wears its mark. */
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-pill bg-lemon text-ink">
+          <Icon name="spark" size={14} />
+        </span>
+      )}
+      <span className="min-w-0 flex-1 text-bodysm">
+        {rest !== null ? <><b className="font-medium">{m!.name}</b>{rest}</> : a.text}
+      </span>
+      <span className="shrink-0 text-caption tabular-nums text-sub">{ago(a.at)}</span>
+    </div>
   );
 }
