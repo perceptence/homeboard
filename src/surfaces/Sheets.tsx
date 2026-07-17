@@ -9,7 +9,7 @@ import { smooth, spring } from "@/lib/motion";
 import { addDays, badge, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
-import { doers, pendingFor, previewRebalance, recall, suggestTaker, useHousehold, whyNot } from "@/lib/store";
+import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
 import type { MemberId, Priority, Task } from "@/lib/types";
 import { ROLE_NEEDS } from "@/lib/types";
 
@@ -32,6 +32,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
         {sheet?.type === "assign" && <AssignSheet id={sheet.id as number} />}
         {sheet?.type === "handoff" && <HandoffSheet id={sheet.id as number | undefined} />}
         {sheet?.type === "rebalance" && <RebalanceSheet />}
+        {sheet?.type === "shop" && <ShopSheet />}
         {sheet?.type === "activity" && <ActivitySheet />}
       </Sheet>
 
@@ -176,6 +177,69 @@ function RebalanceSheet() {
   );
 }
 
+
+/**
+ * The shopping list, on the phone — the domain the 3-tab reduction orphaned.
+ *
+ * Grouped by category because that is how a shop is walked; auto-added low-stock
+ * items keep their "low" tag so it's clear the HOUSE asked for them, not a
+ * person. Checked items sink but stay — mid-aisle you un-check things, and a
+ * list that deletes on tap punishes a fat thumb.
+ */
+function ShopSheet() {
+  const s = useHousehold();
+  const [text, setText] = useState("");
+  const list = shoppingList(s);
+  const open = list.filter((i) => !i.done);
+  const done = list.filter((i) => i.done);
+
+  const add = () => {
+    const t = text.trim();
+    if (!t) return;
+    s.addShopItem(t, "Groceries");
+    setText("");
+  };
+
+  return (
+    <>
+      <h2 className="font-tight text-h1">Shopping</h2>
+      <p className="mt-1.5 text-bodysm text-sub">
+        {open.length ? `${open.length} to get — shared with everyone` : "All bought — nice work"}
+      </p>
+
+      <label className="mt-4 flex items-center rounded-pill border border-ink/[.08] bg-card px-4 focus-within:border-ink">
+        <span className="sr-only">Add an item</span>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+          placeholder="Add an item…"
+          className="min-w-0 flex-1 bg-transparent py-3 text-bodysm font-medium outline-none placeholder:text-sub"
+        />
+        {text.trim() && (
+          <button onClick={add} className="shrink-0 text-caption font-semibold text-ink">Add</button>
+        )}
+      </label>
+
+      <div className="mt-2">
+        {[...open, ...done].map((i) => (
+          <div key={i.id} className="flex min-h-touch items-center gap-3 border-t border-ink/[.06] py-2 first:border-t-0">
+            <Check done={i.done} onClick={() => s.toggleShopItem(i.id)} />
+            <span className={clsx("min-w-0 flex-1 text-bodysm font-medium", i.done && "text-sub line-through")}>
+              {i.title}
+            </span>
+            {/* The house asked, not a person — inventory ran low and the
+                automation put it here. Worth a word: an item nobody remembers
+                adding looks like a glitch. */}
+            {i.low && !i.done && <Pill tone="tag">Running low</Pill>}
+            <span className="shrink-0 text-caption text-sub">{i.category}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 /** One labelled fact in the detail row. Equal column, hugging its own label. */
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -225,11 +289,12 @@ function EventSheet({ id }: { id: string }) {
         </p>
       )}
 
+      {/* Same action as the card's button — one notion of the promise. */}
       <Button
         tone="dark"
         size="lg"
         className="mt-5 w-full"
-        onClick={() => s.notify(`We'll remind you before ${e.title}`)}
+        onClick={() => s.remindForEvent(e.id)}
       >
         <Icon name="bell" size={16} /> Remind me
       </Button>
