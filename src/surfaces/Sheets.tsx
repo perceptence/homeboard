@@ -313,11 +313,14 @@ function ShopSheet() {
         </p>
       )}
 
-      {/* Each aisle is a soft card with its glyph and its own count — the list
-          reads like the shop is laid out, not like one long receipt. */}
-      <div className="mt-4 space-y-3">
+      {/* Each aisle: its glyph, its name, its own count — FLUSH with the sheet's
+          gutter. These wore grey wells with 16px padding; on the sheet's own
+          grey the well was invisible, so all it did was indent every row 16px
+          out of line with the title and the add field. The grouping is carried
+          by the headers and the space between, not by a box. */}
+      <div className="mt-4 space-y-5">
         {groups.map((g) => (
-          <div key={g.cat} className={clsx("rounded-card bg-surface p-4", g.allDone && "opacity-60")}>
+          <div key={g.cat} className={clsx(g.allDone && "opacity-60")}>
             <div className="flex items-center gap-2">
               <Icon name={g.glyph} size={16} className="text-sub" />
               <Eyebrow>{g.cat}</Eyebrow>
@@ -325,7 +328,7 @@ function ShopSheet() {
                 {g.allDone ? "all bought" : `${g.left} to get`}
               </span>
             </div>
-            <div className="mt-2">{g.items.map(Row)}</div>
+            <div className="mt-1">{g.items.map(Row)}</div>
           </div>
         ))}
       </div>
@@ -531,9 +534,10 @@ function HandoffSheet({ id }: { id?: number }) {
               <div
                 key={t.id}
                 className={clsx(
-                  // A grey WELL on the white sheet (bg-card is white — on white it
-                  // vanished, which is most of why this list read as generic).
-                  "overflow-hidden rounded-card bg-surface ring-1 transition-shadow duration-300 ease-out",
+                  // WHITE cards — the sheet body is bg-surface (grey), so white
+                  // is the tone that actually reads on it. (A surface-toned well
+                  // here was grey-on-grey: invisible.)
+                  "overflow-hidden rounded-card bg-card ring-1 transition-shadow duration-300 ease-out",
                   isOpen ? "ring-ink" : "ring-transparent",
                 )}
               >
@@ -599,15 +603,15 @@ function HandoffSheet({ id }: { id?: number }) {
                                   title={blocked ?? undefined}
                                   onClick={() => setTaker(m.id)}
                                   className={clsx(
-                                    // WHITE chips (bg-card) on the grey well —
-                                    // they were white-on-white before the well
-                                    // existed, which is why they didn't read.
+                                    // GREY chips (bg-surface) on the white card
+                                    // — the inverse of the card-on-sheet pairing,
+                                    // so each layer reads against the one under it.
                                     "flex h-touch items-center gap-2 rounded-pill border px-3 text-bodysm font-medium transition-colors duration-300 ease-out",
                                     blocked
-                                      ? "cursor-not-allowed border-ink/[.06] bg-card text-sub opacity-45"
+                                      ? "cursor-not-allowed border-ink/[.06] bg-surface text-sub opacity-45"
                                       : sel
                                         ? "border-ink bg-ink text-white"
-                                        : "border-transparent bg-card text-ink shadow-e1 hover:shadow-e2",
+                                        : "border-transparent bg-surface text-ink hover:bg-ink/[.08]",
                                   )}
                                 >
                                   <Avatar member={m} size={22} />

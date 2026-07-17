@@ -145,7 +145,10 @@ export function PhoneShell() {
         }}
         onPointerDown={() => navOpen && setNavOpen(false)}
         // `relative` so the groups' offsetTop is measured from THIS box.
-        className="no-scrollbar relative min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        // overflow-x-clip: the Today pager slides whole day-columns through ±104%
+        // of their width — clip (not hidden) discards that overflow without
+        // creating a second scroll axis.
+        className="no-scrollbar relative min-h-0 flex-1 overflow-y-auto overflow-x-clip overscroll-contain"
       >
         {/* The header is the only thing on the backdrop — it gets room to breathe.
             px-5 (20px) = the 4px page gutter + the cards' 16px padding, so the
@@ -499,6 +502,19 @@ function PhoneToday() {
   /** The day the strip is pointed at — drives everything below the greeting.
    *  Starts on today; tapping the ruler moves it. */
   const [sel, setSel] = useState<string>(() => todayIso());
+  /**
+   * Which way the page TRAVELS when the day changes: +1 forward in time (new
+   * day slides in from the right), -1 backward. ISO strings compare in date
+   * order, so the sign falls straight out of a string comparison. Every door —
+   * ruler tap, swipe — goes through goDay so the slide always knows its
+   * direction.
+   */
+  const [dir, setDir] = useState(0);
+  const goDay = (next: string) => {
+    if (next === sel) return;
+    setDir(next > sel ? 1 : -1);
+    setSel(next);
+  };
   const s = useHousehold();
   const meId = currentMember(s);
   const me = s.members[meId];
@@ -595,7 +611,7 @@ function PhoneToday() {
     if (Math.abs(dy) > 48) { swipe.current = null; return; } // it's a scroll
     if (Math.abs(dx) >= 56) {
       g.spent = true; // one page-turn per gesture
-      setSel(iso(addDays(selDate, dx < 0 ? 1 : -1)));
+      goDay(iso(addDays(selDate, dx < 0 ? 1 : -1)));
     }
   };
   const onSwipeEnd = () => { swipe.current = null; };
@@ -604,20 +620,40 @@ function PhoneToday() {
     // A real box (not `contents`) so the gesture has a surface; reproduces the
     // parent's column-and-gap so the cards sit exactly as before.
     <div
-      className="flex touch-pan-y flex-col gap-tile"
+      className="relative flex touch-pan-y flex-col gap-tile"
       onPointerDown={onSwipeDown}
       onPointerMove={onSwipeMove}
       onPointerUp={onSwipeEnd}
       onPointerCancel={onSwipeEnd}
     >
       {/* THE DAY RULER — scroll it, tap a day, and the page below repaints for
-          that day. The date it points at lives in `sel`. */}
+          that day. The date it points at lives in `sel`. It sits OUTSIDE the
+          pager below: the ruler is the map, the page is the territory — the map
+          glides its highlight while the territory slides whole. */}
       <motion.div variants={listItem}>
-        <DateStrip selected={sel} busy={busy} onPick={(d) => setSel(iso(d))} />
+        <DateStrip selected={sel} busy={busy} onPick={(d) => goDay(iso(d))} />
       </motion.div>
 
+      {/* THE PAGER. One column of cards per day, keyed by the day, so changing
+          `sel` mounts the new day's column and retires the old one — and the
+          retirement is a SLIDE: the whole view exits the way you pushed it and
+          the next day arrives from the opposite wing, like turning a page.
+          `popLayout` lifts the leaving column out of flow (else the two stack
+          vertically for a frame); `initial={false}` keeps the first mount
+          still. The strip above doesn't move — anchors don't travel. */}
+      <AnimatePresence initial={false} custom={dir} mode="popLayout">
+      <motion.div
+        key={sel}
+        custom={dir}
+        variants={DAY_PAGE}
+        initial="enter"
+        animate="center"
+        exit="exit"
+        transition={{ duration: 0.34, ease: [0.32, 0.72, 0, 1] }}
+        className="flex flex-col gap-tile"
+      >
       {/* PRIMARY CARD (lemon) — the day, said out loud */}
-      <motion.div variants={listItem}>
+      <div>
         <Card tone="lemon">
           <div className="flex items-center">
             {/* The date used to sit here ("17 Fri") — but the ruler above now says
@@ -681,14 +717,12 @@ function PhoneToday() {
             </button>
           )}
         </Card>
-      </motion.div>
+      </div>
 
       {/* WITHIN THE NEXT TWO HOURS — the pressing things ride directly under the
           hero, ahead of the house-keeping cards. One thing, one card. */}
       {soon.map((c) => (
-        <motion.div key={c.key} variants={listItem}>
-          {c.el}
-        </motion.div>
+        <div key={c.key}>{c.el}</div>
       ))}
 
       {/* THE SHARED LIST (mint) — the one collective thing on a personal phone.
@@ -696,7 +730,7 @@ function PhoneToday() {
           shares shouldn't hide in a corner of personal chrome. As a card it can
           say what's on it, and tapping opens the full list. Mint (not lavender)
           so it doesn't twin with the progress card two rows down. */}
-      <motion.div variants={listItem}>
+      <div>
         <Card tone="mint" onClick={() => s.openSheet({ type: "shop" })}>
           {/* SAME SHAPE AS 'YOUR PROGRESS' — line one is the icon tile with a
               status chip riding the far end; line two is the eyebrow/figure pair
@@ -724,10 +758,10 @@ function PhoneToday() {
             </span>
           </div>
         </Card>
-      </motion.div>
+      </div>
 
       {/* PROGRESS CARD (lavender) */}
-      <motion.div variants={listItem}>
+      <div>
         <Card tone="lavender">
           <div className="flex items-center">
             {/* The component, not a hand-rolled span. This well predates IconTile
@@ -746,18 +780,30 @@ function PhoneToday() {
             <span className="shrink-0 font-tight text-display leading-none tabular-nums"><Em>{pct}</Em>%</span>
           </div>
         </Card>
-      </motion.div>
+      </div>
 
       {/* THE REST OF THE DAY — everything past the two-hour horizon (and the
           whole day, when you're reading a day that isn't today). */}
       {later.map((c) => (
-        <motion.div key={c.key} variants={listItem}>
-          {c.el}
-        </motion.div>
+        <div key={c.key}>{c.el}</div>
       ))}
+      </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
+
+/**
+ * The day-pager's travel. Direction rides in as `custom` (+1 = forward in
+ * time): the new day enters from the wing you pushed toward and the old one
+ * leaves through the opposite — 104% so a page fully clears its own width
+ * (plus a breath) before the corner radius could peek back in.
+ */
+const DAY_PAGE = {
+  enter: (d: number) => ({ x: d >= 0 ? "104%" : "-104%" }),
+  center: { x: "0%" },
+  exit: (d: number) => ({ x: d >= 0 ? "-104%" : "104%" }),
+};
 
 /**
  * The period label, doubling as the scope control.
