@@ -1,0 +1,904 @@
+"use client";
+
+import clsx from "clsx";
+import { useEffect, useState, type ReactNode } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Icon } from "@/components/Icons";
+import { Avatar, Button, Card, Check, Choice, Eyebrow, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet } from "@/components/ui";
+import { smooth, spring } from "@/lib/motion";
+import { addDays, badge, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
+import { parseTask } from "@/lib/parse";
+import { useDictation } from "@/lib/useDictation";
+import { doers, pendingFor, previewRebalance, recall, suggestTaker, useHousehold, whyNot } from "@/lib/store";
+import type { MemberId, Priority, Task } from "@/lib/types";
+import { ROLE_NEEDS } from "@/lib/types";
+
+
+/** All sheets for both surfaces. Phone gets a bottom sheet; iPad gets a centred modal. */
+export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
+  const s = useHousehold();
+  const sheet = s.sheet;
+  const close = s.closeSheet;
+
+  return (
+    <>
+      <Sheet open={!!sheet && sheet.type !== "newTask"} onClose={close} variant={variant}>
+        {sheet?.type === "task" && <TaskSheet id={sheet.id as number} />}
+        {/* Events and upkeep wear the same card as a task, so they must open like
+            one. Until now only tasks had a sheet, and the other two silently
+            refused the tap — same affordance, different behaviour. */}
+        {sheet?.type === "event" && <EventSheet id={sheet.id as string} />}
+        {sheet?.type === "maint" && <MaintSheet id={sheet.id as string} />}
+        {sheet?.type === "assign" && <AssignSheet id={sheet.id as number} />}
+        {sheet?.type === "handoff" && <HandoffSheet id={sheet.id as number | undefined} />}
+        {sheet?.type === "rebalance" && <RebalanceSheet />}
+        {sheet?.type === "activity" && <ActivitySheet />}
+      </Sheet>
+
+      {/* New Task renders its OWN Sheet: its pinned title and footer are part of
+          its chrome, and the footer's label reads state that lives inside it.
+          Kept mounted while closed so the dismiss still animates. */}
+      <NewTaskSheet open={sheet?.type === "newTask"} variant={variant} onClose={close} />
+    </>
+  );
+}
+
+function TaskSheet({ id }: { id: number }) {
+  const s = useHousehold();
+  const task = s.tasks.find((t) => t.id === id);
+  if (!task) return null;
+  const owner = task.owner ? s.members[task.owner] : undefined;
+
+  return (
+    <>
+      <h2 className="font-tight text-h1">{task.title}</h2>
+
+      {/* Three facts, one row, equal columns. `flex-wrap gap-5` sized each to its
+          own content, so the row's rhythm changed with the length of a name. */}
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <Fact label="Assigned">
+          <button
+            onClick={() => s.openSheet({ type: "assign", id })}
+            className="flex items-center gap-2 text-bodysm font-medium"
+          >
+            <Avatar member={owner} size={22} />
+            <span className="truncate">{owner?.name ?? "Anyone"}</span>
+          </button>
+        </Fact>
+        <Fact label="When">
+          <span className="text-bodysm font-medium">{task.when || "Any time"}</span>
+        </Fact>
+        <Fact label="Priority">
+          <span className={clsx("flex items-center gap-1 text-bodysm font-medium",
+            task.priority === "high" ? "text-danger" : "text-ink")}>
+            {PRIORITY_LABEL[task.priority]}
+            {task.priority === "high" && <Icon name="high" size={12} />}
+          </span>
+        </Fact>
+      </div>
+
+      {/* THE RECEIPT.
+          The title on the card is our cleanup of a sentence — "Leo water plants
+          tonight" became "Water plants", and the date, time and owner beside it
+          are all things we DECIDED that sentence meant. That's interpretation,
+          and interpretation has to be checkable: if we read "tonight" as a date
+          when it was part of the name, this is the only place you could tell.
+          Quiet, and only when it differs from the title. */}
+      {task.said && (
+        <div className="mt-5">
+          <span className="text-caption font-medium uppercase tracking-wide text-sub">You said</span>
+          <p className="mt-1.5 flex items-start gap-2 text-bodysm text-sub">
+            <Icon name="mic" size={14} className="mt-0.5 shrink-0" />
+            <span className="italic">&ldquo;{task.said}&rdquo;</span>
+          </p>
+        </div>
+      )}
+
+      <Button tone={task.done ? "outline" : "dark"} size="lg" className="mt-5 w-full" onClick={() => s.toggleTask(id)}>
+        {task.done ? "Mark not done" : "Mark done"}
+      </Button>
+    </>
+  );
+}
+
+/**
+ * "Even it out" — the move, before it happens.
+ *
+ * The Balancer moves someone else's work. It used to do that on tap and report it
+ * in a toast, which is gone in three seconds: you couldn't see what would change
+ * before it changed, and afterwards you couldn't see what had. That's a lot of
+ * authority for a button to take on its own.
+ *
+ * So it shows its working and asks. `previewRebalance` decides; this displays the
+ * exact same decision `rebalance()` will apply — one function, so the sheet
+ * cannot promise a move the store then makes differently.
+ */
+function RebalanceSheet() {
+  const s = useHousehold();
+  const move = previewRebalance(s);
+
+  if (!move) {
+    return (
+      <>
+        <h2 className="font-tight text-h1">Already even</h2>
+        <p className="mt-1.5 text-bodysm text-sub">
+          Nothing worth moving — the work is shared out about as fairly as it goes.
+        </p>
+        <Button tone="dark" size="lg" className="mt-5 w-full" onClick={s.closeSheet}>Close</Button>
+      </>
+    );
+  }
+
+  const { task, from, to } = move;
+  return (
+    <>
+      <h2 className="font-tight text-h1">Even it out</h2>
+      <p className="mt-1.5 text-bodysm text-sub">One move, and the house is level again.</p>
+
+      {/* The task, named. "Move a task" is not a thing anyone can agree to. */}
+      <div className="mt-4 rounded-card bg-card p-card-pad">
+        <b className="block text-body">{task.title}</b>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-caption text-sub">
+          {task.source && <span className="text-ink">{task.source}</span>}
+          <span>{relative(task.due)}</span>
+          {task.when !== "Any time" && <>· <span>{task.when}</span></>}
+        </div>
+
+        {/* Both faces, and the direction. Who LOSES it matters as much as who
+            gains it — this is the app rearranging someone's day. */}
+        <div className="mt-4 flex items-center gap-3">
+          <span className="flex min-w-0 items-center gap-2">
+            <Avatar member={from} size={28} />
+            <span className="truncate text-bodysm font-medium">{from.name}</span>
+            <span className="shrink-0 text-caption text-sub">{pendingFor(s, from.id)}</span>
+          </span>
+          <Icon name="arrow" size={16} className="shrink-0 text-sub" />
+          <span className="flex min-w-0 items-center gap-2">
+            <Avatar member={to} size={28} />
+            <span className="truncate text-bodysm font-medium">{to.name}</span>
+            <span className="shrink-0 text-caption text-sub">{pendingFor(s, to.id)}</span>
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-5 flex gap-2">
+        <Button tone="outline" size="lg" className="flex-1" onClick={s.closeSheet}>Not now</Button>
+        <Button
+          tone="dark"
+          size="lg"
+          className="flex-1"
+          onClick={() => { s.rebalance(); s.closeSheet(); }}
+        >
+          Move it
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/** One labelled fact in the detail row. Equal column, hugging its own label. */
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-caption font-medium uppercase tracking-wide text-sub">{label}</div>
+      <div className="mt-1.5">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * An event's detail — the same three-fact row as a task, because it wears the
+ * same card.
+ *
+ * What it deliberately does NOT have is "Mark done". An event is something you
+ * show up to, not something you finish; the card already makes that call by
+ * putting "Remind me" where a task keeps "Done".
+ */
+function EventSheet({ id }: { id: string }) {
+  const s = useHousehold();
+  const e = s.events.find((x) => x.id === id);
+  if (!e) return null;
+  const who = s.members[e.who];
+
+  return (
+    <>
+      <h2 className="font-tight text-h1">{e.title}</h2>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <Fact label="Who">
+          <span className="flex items-center gap-2 text-bodysm font-medium">
+            <Avatar member={who} size={22} />
+            <span className="truncate">{who?.name ?? "—"}</span>
+          </span>
+        </Fact>
+        <Fact label="When">
+          <span className="text-bodysm font-medium">{relative(e.due)}</span>
+        </Fact>
+        <Fact label="Time">
+          <span className="text-bodysm font-medium">{e.time}</span>
+        </Fact>
+      </div>
+
+      {e.recurring && (
+        <p className="mt-4 flex items-center gap-1.5 text-caption text-sub">
+          <Icon name="repeat" size={14} /> Repeats {e.recurring.toLowerCase()}
+        </p>
+      )}
+
+      <Button
+        tone="dark"
+        size="lg"
+        className="mt-5 w-full"
+        onClick={() => s.notify(`We'll remind you before ${e.title}`)}
+      >
+        <Icon name="bell" size={16} /> Remind me
+      </Button>
+    </>
+  );
+}
+
+/** Upkeep's detail. Its action is to SCHEDULE it — turning a standing obligation
+ *  into a dated job someone holds. */
+function MaintSheet({ id }: { id: string }) {
+  const s = useHousehold();
+  const m = s.maint.find((x) => x.id === id);
+  if (!m) return null;
+  const over = m.status === "over";
+
+  return (
+    <>
+      <h2 className="font-tight text-h1">{m.title}</h2>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <Fact label="Asset">
+          <span className="truncate text-bodysm font-medium">{m.asset}</span>
+        </Fact>
+        <Fact label="Due">
+          <span className={clsx("text-bodysm font-medium", over && "text-danger")}>{relative(m.due)}</span>
+        </Fact>
+        <Fact label="Every">
+          <span className="truncate text-bodysm font-medium">{m.cadence}</span>
+        </Fact>
+      </div>
+
+      {over && (
+        <p className="mt-4 flex items-center gap-1.5 text-caption text-danger">
+          <Icon name="high" size={14} /> This one&rsquo;s overdue.
+        </p>
+      )}
+
+      <Button tone="dark" size="lg" className="mt-5 w-full" onClick={() => s.scheduleMaint(m.id)}>
+        Schedule it
+      </Button>
+    </>
+  );
+}
+
+/**
+ * Hand off — one screen, no navigation.
+ *
+ * The hero card summarises the whole day, so it can't know which task you mean; it
+ * used to guess (`mine[0]`) and open on whatever sorted first. Now it asks — but the
+ * asking happens IN PLACE: picking a task expands it like an accordion, the people
+ * appear underneath, and you confirm without ever leaving the list. You can always
+ * see which task you're moving, because it's right there above the choice.
+ */
+function HandoffSheet({ id }: { id?: number }) {
+  const s = useHousehold();
+  const meId = s.persona !== "ipad" ? s.persona : doers(s)[0]?.id;
+  const mine = s.tasks.filter((t) => t.owner === meId && !t.done);
+
+  const [openId, setOpenId] = useState<number | undefined>(id);
+  const [taker, setTaker] = useState<MemberId | null>(null);
+
+  const openTask = mine.find((t) => t.id === openId);
+  const suggestion = openTask ? suggestTaker(s, openTask) : null;
+  // The suggestion is a DEFAULT, not a decision — it's pre-selected, and overridable.
+  const chosen = taker ?? suggestion?.id ?? null;
+
+  const open = (t: Task) => {
+    const next = openId === t.id ? undefined : t.id;
+    setOpenId(next);
+    setTaker(null); // a new task means a new suggestion; don't carry the old pick over
+  };
+
+  return (
+    <>
+      <h2 className="font-tight text-h1">Hand off</h2>
+      <p className="mt-1 text-body text-sub">Which one should someone else take?</p>
+
+      {mine.length === 0 ? (
+        <p className="py-10 text-center text-body text-sub">Nothing to hand off.</p>
+      ) : (
+        <div className="mt-4 flex flex-col gap-2">
+          {mine.map((t) => {
+            const isOpen = openId === t.id;
+            return (
+              <motion.div
+                key={t.id}
+                layout
+                transition={spring}
+                className={clsx(
+                  "overflow-hidden rounded-2xl border bg-card transition-colors duration-300 ease-out",
+                  isOpen ? "border-ink" : "border-ink/[.08]",
+                )}
+              >
+                <button
+                  onClick={() => open(t)}
+                  aria-expanded={isOpen}
+                  className="flex min-h-touch w-full items-center gap-3 px-4 py-3 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-h2">{t.title}</div>
+                    <div className="text-caption text-sub">{t.when}</div>
+                  </div>
+                  <motion.span animate={{ rotate: isOpen ? 90 : 0 }} transition={smooth} className="shrink-0 text-sub">
+                    <Icon name="fwd" size={16} />
+                  </motion.span>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={smooth}
+                    >
+                      <div className="border-t border-ink/[.08] px-4 pb-4 pt-3">
+                        <Eyebrow>Hand to</Eyebrow>
+
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {doers(s)
+                            .filter((m) => m.id !== t.owner)
+                            .map((m) => {
+                              const blocked = whyNot(m, t);
+                              const sel = chosen === m.id;
+                              return (
+                                <button
+                                  key={m.id}
+                                  disabled={!!blocked}
+                                  title={blocked ?? undefined}
+                                  onClick={() => setTaker(m.id)}
+                                  className={clsx(
+                                    "flex h-touch items-center gap-2 rounded-pill border px-3 text-bodysm font-medium transition-colors duration-300 ease-out",
+                                    blocked
+                                      ? "cursor-not-allowed border-ink/[.08] bg-card text-sub opacity-45"
+                                      : sel
+                                        ? "border-ink bg-ink text-white"
+                                        : "border-ink/[.08] bg-card text-sub hover:text-ink",
+                                  )}
+                                >
+                                  <Avatar member={m} size={22} />
+                                  {m.name}
+                                  {blocked
+                                    /* Not red — see the assign sheet. Nothing failed. */
+                                    ? <span className="text-caption text-sub">{blocked}</span>
+                                    : <span className="text-caption opacity-60">({pendingFor(s, m.id)})</span>}
+                                </button>
+                              );
+                            })}
+                        </div>
+
+                        {/* The WHY — shown WHETHER OR NOT you take the advice. A
+                            recommendation that vanishes the moment you disagree with
+                            it can't be weighed against your own choice; it just makes
+                            the app look like it was never wrong. */}
+                        {suggestion && (
+                          <p className="mt-3 flex items-center gap-1.5 text-caption text-sub">
+                            <Icon name="spark" size={14} className="shrink-0" />
+                            <span>
+                              {chosen === suggestion.id ? "" : "Suggested: "}
+                              <b className="font-medium text-ink">{s.members[suggestion.id].name}</b>
+                              {" — "}{suggestion.reason}
+                            </span>
+                          </p>
+                        )}
+
+                        <Button
+                          tone="dark"
+                          size="lg"
+                          disabled={!chosen}
+                          className="mt-4 w-full"
+                          onClick={() => chosen && s.setOwner(t.id, chosen)}
+                        >
+                          {chosen ? `Hand to ${s.members[chosen].name}` : "Pick someone"}
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+function AssignSheet({ id, handoff }: { id: number; handoff?: boolean }) {
+  const s = useHousehold();
+  const task = s.tasks.find((t) => t.id === id);
+
+  return (
+    <>
+      <h2 className="font-tight text-h1">{handoff ? "Hand off" : "Assign task"}</h2>
+      <p className="mt-1 font-medium text-sub">{task?.title}</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {doers(s)
+          .filter((m) => !handoff || m.id !== task?.owner)
+          .map((m) => {
+            const blocked = task ? whyNot(m, task) : null;
+            return (
+              <button
+                key={m.id}
+                disabled={!!blocked}
+                title={blocked ?? undefined}
+                onClick={() => !blocked && s.setOwner(id, m.id)}
+                className={clsx(
+                  "flex items-center gap-2 rounded-pill border border-black/[.08] px-3 py-2 font-medium",
+                  blocked
+                    ? "cursor-not-allowed bg-card opacity-45"
+                    : task?.owner === m.id
+                      ? "bg-ink text-white"
+                      : "bg-card",
+                )}
+              >
+                <Avatar member={m} size={24} /> {m.name}
+                {blocked ? (
+                  /* `text-sub`, NOT `text-danger`. Nothing has gone wrong here —
+                     a ten-year-old not being offered the insurance renewal is the
+                     app working. Red is for "High ↗" (DESIGN §2) and it turned a
+                     kind sentence into an alarm: warm words in error paint still
+                     read as an error. The row is already dimmed; that's the whole
+                     signal it needs. */
+                  <span className="text-xs font-medium text-sub">{blocked}</span>
+                ) : (
+                  <span className="text-xs font-medium opacity-60">({pendingFor(s, m.id)})</span>
+                )}
+              </button>
+            );
+          })}
+      </div>
+      {/* Say what the TASK needs, not what people are. "This one stays with the
+          grown-ups" was the old model talking: it made a statement about the
+          people in the room when the only real constraint is on the work. */}
+      {task?.requires && (
+        <p className="mt-3 text-sm font-medium text-sub">
+          This one involves {ROLE_NEEDS[task.requires]}.
+        </p>
+      )}
+    </>
+  );
+}
+
+/** The date chips. Relative, because that's how people say dates out loud —
+ *  and every one resolves to a REAL date, so the card can never contradict itself. */
+const DATE_CHIPS: { label: string; due: () => string }[] = [
+  { label: "Today", due: () => todayIso() },
+  { label: "Tomorrow", due: () => iso(addDays(new Date(), 1)) },
+  { label: "Weekend", due: () => iso(addDays(startOfWeek(new Date()), 5)) },
+  { label: "Next week", due: () => iso(addDays(startOfWeek(new Date()), 7)) },
+];
+
+const TIMES = ["Any time", "Morning", "Afternoon", "Evening"];
+
+/**
+ * The chip that reveals OUR picker.
+ *
+ * It used to be a hidden `<input type="date">` + `showPicker()`. That worked, but
+ * the thing it popped is browser chrome — Chrome's blue calendar, Safari's grey
+ * wheel — and CSS cannot reach inside it. Two generic OS widgets in the middle of
+ * a designed sheet. So the calendar is ours.
+ *
+ * It EXPANDS INLINE rather than floating. A popover was the obvious move and it
+ * was wrong twice: the sheet's middle is `overflow-y-auto`, so an absolutely
+ * positioned panel got sliced off at the scroll edge — and a floating layer
+ * inside a bottom sheet is two competing surfaces anyway. Expanding in flow is
+ * the same accordion language "Adjust" already speaks, and it can't be clipped.
+ */
+
+/**
+ * Say it, check it, done.
+ *
+ * The last version had five field-groups on screen and called itself easy. It
+ * wasn't — it was a form with a parser bolted on. This one leads with the
+ * fastest input a phone has (your voice), runs it through the SAME engine the
+ * typed field uses, and shows ONE line of readback. The chips still exist, but
+ * they're folded away behind "Adjust" — there to correct a wrong guess, not to
+ * be filled in.
+ *
+ * The default path is: tap mic → talk → read one line → Add. No fields at all.
+ */
+function NewTaskSheet({
+  open, variant, onClose,
+}: { open: boolean; variant: "phone" | "ipad"; onClose: () => void }) {
+  const s = useHousehold();
+  const [raw, setRaw] = useState("");
+  const [adjusting, setAdjusting] = useState(false);
+  const [ownerPick, setOwnerPick] = useState<MemberId | null | undefined>(undefined);
+  const [pickedDue, setPickedDue] = useState<string | null>(null);
+  const [pickedWhen, setPickedWhen] = useState<string | null>(null);
+  const [pickedPri, setPickedPri] = useState<Priority | null>(null);
+  const [dateOpen, setDateOpen] = useState(false);
+  const [timeOpen, setTimeOpen] = useState(false);
+
+  // The sheet stays mounted so it can animate out — so it must forget the last
+  // task when it opens again, or you'd reopen onto someone else's sentence.
+  useEffect(() => {
+    if (!open) return;
+    setRaw("");
+    setAdjusting(false);
+    setOwnerPick(undefined);
+    setPickedDue(null);
+    setPickedWhen(null);
+    setPickedPri(null);
+    setDateOpen(false);
+    setTimeOpen(false);
+  }, [open]);
+
+  const people = doers(s);
+  const dictation = useDictation((text) => setRaw(text));
+
+  // ONE engine, two doors: speech and typing both land here.
+  const parsed = parseTask(raw, people);
+  // The POLISHED name — "Leo water plants tonight" -> "Water plants". A list of
+  // raw utterances is a mess to scan, so the card gets a clean title. But the
+  // cleaning is an interpretation, so we keep the receipt: `said` is the verbatim
+  // input, stored only when it differs, and shown in the task's detail.
+  const title = parsed.title;
+  const said = raw.trim().toLowerCase() !== title.toLowerCase() ? raw.trim() : undefined;
+  const due = pickedDue ?? parsed.due ?? todayIso();
+  const when = pickedWhen ?? parsed.when ?? "Any time";
+  const priority = pickedPri ?? parsed.priority ?? "med";
+  const ready = title.length > 0;
+
+  // The suggestion waits for you to STOP TYPING.
+  //
+  // It used to recompute on every keystroke, so "Suggested Ada" appeared at the
+  // first letter and then swapped to Leo three words later — the app guessing out
+  // loud while you were still talking. A name you TYPE is deterministic and lands
+  // instantly; only the guess is debounced.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    setSettled(false);
+    const t = setTimeout(() => setSettled(true), 450);
+    return () => clearTimeout(t);
+  }, [raw]);
+
+  // A fragment is not a task. "Pick" is one word and could be picking up milk or
+  // picking up a prescription — guessing an owner from it is the app talking over
+  // someone mid-sentence. Two words is the cheapest honest threshold.
+  const substantive = title.split(/\s+/).filter(Boolean).length >= 2;
+
+  /**
+   * REMEMBER BEFORE GUESSING.
+   *
+   * The household has done things before, and knows whose patch is whose. That
+   * beats both the keyword list (frozen) and the load-balancer (blind) — and it
+   * carries the VETTING with it: a precedent's requires/minAge come along, so
+   * work assessed once is never re-assessed by a regex.
+   */
+  const known = ready && settled && substantive ? recall(s, title) : null;
+  const requires = parsed.requires ?? known?.requires;
+  const minAge = known?.minAge;
+  const source = known?.source;
+
+  // Four readings, strongest first: what you tapped > who you named > what this
+  // house already does > who's free. Each is more certain than the next.
+  const owner = ownerPick !== undefined ? ownerPick : parsed.owner ?? known?.owner ?? null;
+  // WHICH of them actually decided it. Without this the sheet explained an owner
+  // it didn't choose: type "Sam water plants" and it assigned Sam, then said
+  // "Leo usually does this" — the precedent's reason attached to someone else's
+  // name. A reason may only be shown by whoever supplied the answer.
+  const ownerFrom = ownerPick !== undefined ? "picked" : parsed.owner ? "named" : known?.owner ? "known" : null;
+
+  const gate = { due, priority, requires, minAge } as Task;
+  /**
+   * The recommendation is about the TASK, not about who currently holds it — so
+   * it stands whether or not you've overridden it.
+   *
+   * It used to be gated on `!owner`, which meant tapping anyone erased it: the
+   * app quietly withdrew its opinion the moment you disagreed. That's the one
+   * moment the opinion is worth reading — you're choosing between people, and
+   * "we'd have said Maya, because lightest load" is exactly the context that
+   * makes the choice informed rather than blind.
+   *
+   * `gate` deliberately carries no owner, so suggestTaker ranks everyone and
+   * doesn't exclude whoever is currently picked.
+   */
+  const nominee = ready && settled && substantive ? suggestTaker(s, gate) : null;
+
+  /**
+   * WHO ACTUALLY GETS IT — including the Balancer's pick.
+   *
+   * The nominee used to be advice the sheet showed and the store ignored: it
+   * displayed "Maya (suggested)", then saved `owner: null` with the name tucked
+   * into `suggest`. Two things went wrong at once. The readback lied — it
+   * promised a person nobody was recorded as holding. And every phone list
+   * filters `owner === me`, so a task with no owner belonged to no one's lens:
+   * you'd add it and watch it vanish.
+   *
+   * The readback IS the confirmation. It names who'll get it and why, before you
+   * commit, and Adjust is right there to change it. Tapping Add is agreement, so
+   * the pick becomes the owner. `suggest` still exists — it's for tasks that lose
+   * an owner later (a role change strands work; rebalance moves it).
+   */
+  const assignee = owner ?? nominee?.id ?? null;
+  /**
+   * Only whoever supplied the answer may explain it — the readback line sits
+   * under the assignee's name, so a reason about someone else would read as
+   * being about them. When you override, the recommendation moves to the badge
+   * and the reason travels with it into Adjust, where the pills are.
+   */
+  const why =
+    ownerFrom === "known" ? known?.because
+    : assignee && assignee === nominee?.id ? nominee.reason
+    : null;
+  const dateLabel = DATE_CHIPS.find((c) => c.due() === due)?.label ?? relative(due);
+  // `requires` rides along: the gate the suggestion respected must also land on
+  // the task, or a nomination refused here could be hand-assigned there.
+  const commit = () =>
+    ready && s.addTask({ title, owner: assignee, when, due, priority, requires, minAge, source, said });
+
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      variant={variant}
+      title="New task"
+      footer={
+        <Button tone="lemon" size="lg" className={clsx("w-full", !ready && "opacity-40")} onClick={commit}>
+          {ready ? `Add “${title}”` : "Add task"}
+        </Button>
+      }
+    >
+      {/* ONE input, two doors. The mic and the field used to be two unrelated
+          boxes with a limp "…or type it" between them — the speaking half looked
+          designed and the typing half looked like a fallback nobody wanted. They
+          are the same input: same engine, same result, so they share a surface,
+          split by a hairline instead of an apology.
+
+          Restored from the session transcript after I replaced it with a single
+          pill that put the mic INSIDE the field. That looked tidier and said less:
+          a 44px circle in a 58px pill leaves the speaking path no room to explain
+          itself, so "tap and talk — we'll fill it in" had nowhere to live and the
+          fast path went back to being a mystery icon. Two rooms, one house. */}
+      <div className={clsx(
+        "overflow-hidden rounded-card border transition-colors",
+        dictation.listening ? "border-ink" : "border-ink/[.08]",
+      )}>
+        {dictation.supported && (
+          <button
+            onClick={() => (dictation.listening ? dictation.stop() : dictation.start())}
+            className={clsx(
+              "flex w-full items-center gap-3 p-card-pad text-left transition-colors",
+              dictation.listening ? "bg-ink text-white" : "bg-card hover:bg-surface",
+            )}
+          >
+            <motion.span
+              // Pulses ONLY while live — a mic that looks alive when it isn't is a
+              // lie about whether you're being recorded.
+              animate={dictation.listening ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+              transition={dictation.listening ? { duration: 1.4, repeat: Infinity } : smooth}
+              className={clsx(
+                "grid h-11 w-11 shrink-0 place-items-center rounded-pill",
+                dictation.listening ? "bg-danger text-white" : "bg-lemon text-ink",
+              )}
+            >
+              <Icon name="mic" size={20} />
+            </motion.span>
+            <span className="min-w-0 flex-1">
+              <b className="block text-bodysm">{dictation.listening ? "Listening…" : "Say the task"}</b>
+              <span className={clsx("block truncate text-caption", dictation.listening ? "text-white/70" : "text-sub")}>
+                {dictation.listening
+                  ? dictation.heard || "“Leo water the plants tonight”"
+                  : "Tap and talk — we'll fill it in"}
+              </span>
+            </span>
+          </button>
+        )}
+
+        {/* No glyph in front of the field. The "…" belongs to the SENTENCE —
+            "…or write it" — where it does the joining work: the mic block above
+            offers one way, this line trails on with the other. I'd put the
+            ellipsis in a 44px slot to keep the two halves aligned, which turned
+            a piece of punctuation into a pretend icon and made the box look like
+            it had two labels. The placeholder starts at the card's own padding;
+            nothing needs to line up with a mic that isn't a column. */}
+        <label className={clsx(
+          "flex items-center bg-card px-card-pad",
+          dictation.supported && "border-t border-ink/[.06]",
+        )}>
+          <span className="sr-only">What needs doing?</span>
+          <input
+            value={raw}
+            onChange={(e) => setRaw(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && commit()}
+            placeholder={dictation.supported ? "…or write it" : "Leo water the plants tonight"}
+            className="min-w-0 flex-1 bg-transparent py-4 text-bodysm font-medium outline-none placeholder:text-sub"
+          />
+        </label>
+      </div>
+
+      {dictation.error && <p className="mt-2 text-caption text-danger">{dictation.error}</p>}
+
+      {/* ONE line of readback. This is the whole form in the common case. */}
+      {ready && (
+        <div className="mt-4 rounded-card bg-card p-card-pad">
+          <b className="block text-body">{title}</b>
+          <div className="mt-1 flex flex-wrap items-center gap-1 text-caption text-sub">
+            <Icon name="spark" size={12} className="text-ink" />
+            <span className="text-ink">{dateLabel}</span>
+            {when !== "Any time" && <>· <span className="text-ink">{when}</span></>}
+            {/* The name, flat. It used to read "Maya (suggested)" — hedging on a
+                decision the app had already made, and then not making it. If
+                nobody is eligible at all we say THAT, rather than "Anyone",
+                which sounded like a choice and meant nobody. */}
+            · <span className="text-ink">{assignee ? s.members[assignee].name : "Needs an owner"}</span>
+            {priority !== "med" && <>· <span className="text-ink">{PRIORITY_LABEL[priority]}</span></>}
+          </div>
+          {/* WHY. The app filled a person in from its own memory, so it has to
+              show its working — "Leo usually does this" is checkable; a name
+              appearing on its own is just the app being confident at you. */}
+          {why && <p className="mt-1 text-caption text-sub">{why}.</p>}
+          <button
+            onClick={() => setAdjusting(!adjusting)}
+            aria-expanded={adjusting}
+            className="mt-2 flex items-center gap-1 text-caption font-medium text-sub transition-colors hover:text-ink"
+          >
+            {adjusting ? "Done adjusting" : "Adjust"}
+            <motion.span animate={{ rotate: adjusting ? 180 : 0 }} transition={smooth} className="flex">
+              <Icon name="chevDown" size={12} />
+            </motion.span>
+          </button>
+        </div>
+      )}
+
+      {/* The old form, folded away. Here to CORRECT a guess, not to be filled in. */}
+      <AnimatePresence initial={false}>
+        {adjusting && ready && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={smooth}
+            className="overflow-hidden"
+          >
+            <div className="pt-4">
+              <span className="text-caption font-medium uppercase tracking-wide text-sub">When</span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {DATE_CHIPS.map((c) => {
+                  const d = c.due();
+                  return (
+                    <Choice key={c.label} selected={due === d} onClick={() => setPickedDue(d)}>{c.label}</Choice>
+                  );
+                })}
+                <PickerChip
+                  kind="date"
+                  open={dateOpen}
+                  onToggle={() => { setDateOpen(!dateOpen); setTimeOpen(false); }}
+                  active={DATE_CHIPS.every((c) => c.due() !== due)}
+                >
+                  {DATE_CHIPS.every((c) => c.due() !== due) ? `${badge(due).day} ${badge(due).weekday}` : "Pick"}
+                </PickerChip>
+              </div>
+              <PickerPanel open={dateOpen}>
+                <MiniCalendar value={due} onPick={(v) => { setPickedDue(v); setDateOpen(false); }} />
+              </PickerPanel>
+            </div>
+
+            <div className="mt-4">
+              <span className="text-caption font-medium uppercase tracking-wide text-sub">Time of day</span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {TIMES.map((t) => (
+                  <Choice key={t} selected={when === t} onClick={() => setPickedWhen(t)}>{t}</Choice>
+                ))}
+                {/* A clock time is a different KIND of answer from "Morning" — it
+                    gets the picker, and shows itself once set. */}
+                <PickerChip
+                  kind="time"
+                  open={timeOpen}
+                  onToggle={() => { setTimeOpen(!timeOpen); setDateOpen(false); }}
+                  active={!TIMES.includes(when)}
+                >
+                  {TIMES.includes(when) ? "Pick" : when}
+                </PickerChip>
+              </div>
+              {/* NO auto-close: a wheel emits on every notch as you scroll past
+                  it, so closing on pick would slam shut under your finger. The
+                  calendar closes because a day is one discrete choice; a time is
+                  three, and you're done when you say you are. */}
+              <PickerPanel open={timeOpen}>
+                <MiniClock value={TIMES.includes(when) ? "" : when} onPick={setPickedWhen} />
+              </PickerPanel>
+            </div>
+
+            <div className="mt-4">
+              <span className="text-caption font-medium uppercase tracking-wide text-sub">Assign to</span>
+              {/* Shows who is ACTUALLY getting it — including the Balancer's pick,
+                  which is now a real answer rather than a hint. No "Anyone" pill
+                  and no toggle-to-clear: there is always an owner, so clearing
+                  would just re-run the Balancer and land on the same person. */}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {people.map((m) => (
+                  <Choice
+                    key={m.id}
+                    selected={assignee === m.id}
+                    onClick={() => setOwnerPick(m.id)}
+                  >
+                    <Avatar member={m} size={22} /> {m.name}
+                    {/* The recommendation, ON the person it's about. Saying
+                        "we'd suggest Ada" in prose below made you read a name and
+                        then go hunting for the matching pill. */}
+                    {/* Always lemon, selected or not. It used to dim to white/20
+                        on the ink pill — which was fine while the Balancer's pick
+                        was never the assignee, and wrong the moment it became one:
+                        the badge vanished into the fill exactly when it was
+                        describing the live answer. "Best fit" means the same thing
+                        either way, so it looks the same either way — and lemon on
+                        ink is the loudest the palette gets. */}
+                    {nominee?.id === m.id && (
+                      <span className="-mr-1 ml-0.5 rounded-pill bg-lemon px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[.1em] text-ink">
+                        Best fit
+                      </span>
+                    )}
+                  </Choice>
+                ))}
+              </div>
+              {/* The reason, kept with the badge. Once you override, it can't sit
+                  in the readback any more — that line is under the assignee's
+                  name and would read as being about them. Here it's directly
+                  under the badged pill, so "we'd have said Maya, and why" stays
+                  available exactly while you're weighing the choice. */}
+              {nominee && assignee !== nominee.id && (
+                <p className="mt-2 text-caption text-sub">
+                  {s.members[nominee.id]?.name} is the best fit — {nominee.reason.toLowerCase()}.
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4">
+              <span className="text-caption font-medium uppercase tracking-wide text-sub">Priority</span>
+              {/* Hug, like every other pill on this sheet. `flex-1` stretched these
+                  three to fill the row, so one control group sat to a different
+                  rhythm than the four above it for no reason. */}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {(["low", "med", "high"] as Priority[]).map((p) => (
+                  <Choice key={p} className="!gap-1" selected={priority === p} onClick={() => setPickedPri(p)}>
+                    {PRIORITY_LABEL[p]}
+                    {p === "high" && <Icon name="high" size={12} className={priority === p ? "" : "text-danger"} />}
+                  </Choice>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Sheet>
+  );
+}
+
+function ActivitySheet() {
+  const s = useHousehold();
+  return (
+    <>
+      <h2 className="font-tight text-h1">Activity</h2>
+      <Card pad="none" className="mt-4 px-4">
+        {s.activity.length ? (
+          s.activity.map((a, i) => (
+            <div key={i} className="flex items-center gap-3 border-t border-black/[.05] py-3 first:border-t-0">
+              <span className="text-sm font-medium">{a.text}</span>
+            </div>
+          ))
+        ) : (
+          <p className="py-10 text-center font-medium text-sub">Nothing yet — start completing things!</p>
+        )}
+      </Card>
+      <div className="mt-2">
+        <Pill tone="tag">Shared across every device</Pill>
+      </div>
+    </>
+  );
+}

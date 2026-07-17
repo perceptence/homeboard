@@ -1,0 +1,316 @@
+<style>
+  /* ================================================================
+     HOUSEHOLD FLOW — "The Balance"  (a kinetic mobile, not a chart)
+     A different idea: fairness you can see tilt and touch to fix.
+     ================================================================ */
+
+  .stage{ --p-maya:#FF9E7A; --p-sam:#7FB2FF;
+          --thread:rgba(255,236,214,.34); --beam:#E9D9C7; --anchor:#F3E7D6;
+          position:relative; min-height:100vh; overflow:hidden;
+          font-family:"SF Pro Rounded",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
+          -webkit-font-smoothing:antialiased; }
+  .stage *{ box-sizing:border-box; }
+  .mono{ font-family:ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace; }
+
+  /* ---- Atmosphere: light shifts with time of day (concept, not chrome) ---- */
+  .stage[data-atm="dusk"]{  --bg-top:#20172A; --bg-mid:#2A1A28; --bg-horizon:#43241E;
+                            --glow:#FF9A5A; --ink:#F7EEE7; --muted:#B7A9B6; --hair:rgba(247,238,231,.10); }
+  .stage[data-atm="night"]{ --bg-top:#0F0C16; --bg-mid:#141020; --bg-horizon:#221626;
+                            --glow:#C88350; --ink:#ECE6F2; --muted:#8E86A0; --hair:rgba(236,230,242,.08); }
+  .stage[data-atm="dawn"]{  --bg-top:#DCD6E6; --bg-mid:#E9DBDF; --bg-horizon:#F3DCC4;
+                            --glow:#F0995A; --ink:#2A2333; --muted:#6D6478; --hair:rgba(42,35,51,.12);
+                            --beam:#9C8368; --thread:rgba(74,58,44,.34); --anchor:#7E664F; }
+
+  .bg{ position:absolute; inset:0; z-index:0;
+       background:
+        radial-gradient(120% 70% at 50% 118%, var(--glow) 0%, transparent 46%),
+        linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 52%, var(--bg-horizon) 100%);
+       transition:background 1.1s ease; }
+  .bg::after{ /* soft vignette + grain-free depth */ content:""; position:absolute; inset:0;
+       background:radial-gradient(130% 90% at 50% 0%, transparent 60%, rgba(0,0,0,.28) 100%);
+       opacity:.7; }
+
+  .wrap{ position:relative; z-index:1; max-width:1040px; margin:0 auto;
+         padding:clamp(22px,4vw,40px) clamp(18px,4vw,40px) 48px;
+         display:flex; flex-direction:column; min-height:100vh; }
+
+  /* ---- Header ---- */
+  .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:18px; flex-wrap:wrap; }
+  .brand{ font-size:.8rem; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  .verdict{ margin:10px 0 0; font-size:clamp(1.5rem,1rem+2.3vw,2.5rem); font-weight:600;
+            letter-spacing:-.02em; line-height:1.08; color:var(--ink); max-width:16ch; text-wrap:balance;
+            transition:color .5s ease; }
+  .verdict b{ color:var(--glow); font-weight:600; }
+  .sub{ margin:8px 0 0; color:var(--muted); font-size:.95rem; max-width:34ch; }
+
+  .atm{ display:inline-flex; gap:2px; padding:3px; border-radius:999px;
+        background:rgba(255,255,255,.06); border:1px solid var(--hair); backdrop-filter:blur(6px); }
+  .atm button{ font:inherit; font-size:.8rem; font-weight:600; color:var(--muted); cursor:pointer;
+        background:transparent; border:0; border-radius:999px; padding:7px 15px; transition:.2s; }
+  .atm button[aria-pressed="true"]{ background:rgba(255,255,255,.12); color:var(--ink); }
+  .stage[data-atm="dawn"] .atm{ background:rgba(0,0,0,.05); }
+  .stage[data-atm="dawn"] .atm button[aria-pressed="true"]{ background:rgba(0,0,0,.10); }
+
+  /* ---- The mobile ---- */
+  .mobilewrap{ flex:1; display:flex; align-items:center; justify-content:center; margin:6px 0; }
+  svg.mobile{ width:100%; max-width:900px; height:auto; touch-action:none; cursor:grab; overflow:visible; }
+  svg.mobile:active{ cursor:grabbing; }
+  .tok{ cursor:grab; }
+  .tok:active{ cursor:grabbing; }
+  .toklabel{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:12px; font-weight:500;
+             letter-spacing:.01em; fill:var(--ink); opacity:.82; pointer-events:none; }
+  .pname{ font-weight:600; font-size:16px; letter-spacing:-.01em; }
+  .ptag{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:11px; letter-spacing:.06em;
+         text-transform:uppercase; fill:var(--muted); }
+
+  /* ---- Controls ---- */
+  .controls{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center; }
+  .btn{ font:inherit; font-weight:600; font-size:.95rem; cursor:pointer; border:0; border-radius:999px;
+        padding:13px 24px; color:#1a121a; background:var(--glow); position:relative; overflow:hidden;
+        box-shadow:0 6px 26px -8px var(--glow); transition:transform .18s cubic-bezier(.3,0,.1,1), filter .2s; }
+  .btn:hover{ filter:brightness(1.06); } .btn:active{ transform:scale(.96); }
+  .btn[disabled]{ opacity:.4; cursor:default; box-shadow:none; }
+  .hint{ color:var(--muted); font-size:.85rem; }
+  .hint b{ color:var(--ink); font-weight:600; }
+
+  .stage :focus-visible{ outline:2px solid var(--glow); outline-offset:3px; }
+  @media (prefers-reduced-motion:reduce){ .bg,.verdict{ transition:none; } }
+  @media (max-width:560px){ .verdict{ font-size:1.6rem; } .sub{ display:none; } }
+</style>
+
+<div class="stage" data-atm="dusk" id="stage">
+  <div class="bg"></div>
+  <div class="wrap">
+
+    <header class="head">
+      <div>
+        <div class="brand">Household&nbsp;Flow &middot; The&nbsp;Balance</div>
+        <h1 class="verdict" id="verdict">Tonight, the home is<br>leaning on <b>Maya</b>.</h1>
+        <p class="sub">Fairness you can see. Drag a thread across to Sam &mdash; the whole house rebalances.</p>
+      </div>
+      <div class="atm" role="group" aria-label="Time of day">
+        <button data-atm-set="dawn">Dawn</button>
+        <button data-atm-set="dusk" aria-pressed="true">Dusk</button>
+        <button data-atm-set="night">Night</button>
+      </div>
+    </header>
+
+    <div class="mobilewrap">
+      <svg class="mobile" id="mobile" viewBox="0 0 900 480" role="img"
+           aria-label="A hanging mobile of the household's responsibilities, tilted toward Maya because she is carrying more.">
+        <defs>
+          <radialGradient id="gMaya" cx="38%" cy="32%" r="72%">
+            <stop offset="0%" stop-color="#FFD8BE"/><stop offset="42%" stop-color="var(--p-maya)"/>
+            <stop offset="100%" stop-color="#C25A3C"/>
+          </radialGradient>
+          <radialGradient id="gSam" cx="38%" cy="32%" r="72%">
+            <stop offset="0%" stop-color="#D6E9FF"/><stop offset="42%" stop-color="var(--p-sam)"/>
+            <stop offset="100%" stop-color="#3E6DB8"/>
+          </radialGradient>
+        </defs>
+        <g id="scene"></g>
+      </svg>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="rebalance">Let it rebalance</button>
+      <span class="hint" id="hint"><b>Drag</b> a light to hand it off &middot; it sways to a new balance</span>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var stage=document.getElementById('stage'), svg=document.getElementById('mobile'),
+      scene=document.getElementById('scene'), verdictEl=document.getElementById('verdict'),
+      hintEl=document.getElementById('hint'), rebtn=document.getElementById('rebalance');
+  var reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  // ---- Atmosphere toggle (light shifts with time, not a light/dark switch) ----
+  [].forEach.call(document.querySelectorAll('[data-atm-set]'),function(b){
+    b.addEventListener('click',function(){
+      stage.setAttribute('data-atm', b.dataset.atmSet);
+      document.querySelectorAll('[data-atm-set]').forEach(function(x){x.setAttribute('aria-pressed', x===b);});
+    });
+  });
+
+  // ---- Data: responsibilities, initially skewed onto Maya (the default manager) ----
+  var tokens=[
+    {id:'t1', label:'Dentist',   owner:'maya'},
+    {id:'t2', label:'Groceries', owner:'maya'},
+    {id:'t3', label:'Recital',   owner:'maya'},
+    {id:'t4', label:'Vet visit', owner:'maya'},
+    {id:'t5', label:'Plants',    owner:'maya'},
+    {id:'t6', label:'Trash',     owner:'sam'},
+    {id:'t7', label:'Car reg.',  owner:'sam'}
+  ];
+  var people={ maya:{name:'Maya', grad:'url(#gMaya)', side:-1},
+               sam:{name:'Sam',  grad:'url(#gSam)',  side:+1} };
+
+  // ---- Geometry ----
+  var CX=450, A={x:CX,y:104}, MAIN_HALF=240, THREAD=84, TOK_THREAD=58, TOK_R=19, GAP=74;
+  function rot(x,y,ox,oy,a){ var c=Math.cos(a),s=Math.sin(a),dx=x-ox,dy=y-oy;
+    return {x:ox+dx*c-dy*s, y:oy+dx*s+dy*c}; }
+
+  // ---- Build DOM once, update per frame ----
+  var el={};
+  function line(cls){ var l=document.createElementNS(svg.namespaceURI,'line'); if(cls)l.setAttribute('class',cls); scene.appendChild(l); return l; }
+  function circ(){ var c=document.createElementNS(svg.namespaceURI,'circle'); scene.appendChild(c); return c; }
+  function text(cls){ var t=document.createElementNS(svg.namespaceURI,'text'); t.setAttribute('class',cls); t.setAttribute('text-anchor','middle'); scene.appendChild(t); return t; }
+
+  // ceiling anchor
+  el.ceiling=line(); el.ceiling.setAttribute('stroke','var(--hair)'); el.ceiling.setAttribute('stroke-width','2');
+  el.anchorDot=circ(); el.anchorDot.setAttribute('r','5'); el.anchorDot.setAttribute('fill','var(--anchor)');
+  // main beam (glow underlay + core)
+  el.mainGlow=line(); el.mainGlow.setAttribute('stroke','var(--glow)'); el.mainGlow.setAttribute('stroke-width','7'); el.mainGlow.setAttribute('stroke-linecap','round'); el.mainGlow.setAttribute('opacity','.16');
+  el.main=line(); el.main.setAttribute('stroke','var(--beam)'); el.main.setAttribute('stroke-width','3'); el.main.setAttribute('stroke-linecap','round'); el.main.setAttribute('opacity','.9');
+  el.pivotThread={}; el.sub={}; el.subThread={}; el.name={}; el.tag={};
+  ['maya','sam'].forEach(function(k){
+    el.pivotThread[k]=line(); el.pivotThread[k].setAttribute('stroke','var(--thread)'); el.pivotThread[k].setAttribute('stroke-width','1.6');
+    el.sub[k]=line(); el.sub[k].setAttribute('stroke','var(--beam)'); el.sub[k].setAttribute('stroke-width','2.4'); el.sub[k].setAttribute('stroke-linecap','round'); el.sub[k].setAttribute('opacity','.8');
+    el.name[k]=text('pname'); el.name[k].setAttribute('fill', k==='maya'?'var(--p-maya)':'var(--p-sam)'); el.name[k].textContent=people[k].name;
+    el.tag[k]=text('ptag');
+  });
+  // token elements
+  tokens.forEach(function(t){
+    t.thread=line(); t.thread.setAttribute('stroke','var(--thread)'); t.thread.setAttribute('stroke-width','1.6');
+    t.halo=circ(); t.halo.setAttribute('r', TOK_R+12); t.halo.setAttribute('opacity','.15');
+    t.core=circ(); t.core.setAttribute('r', TOK_R); t.core.setAttribute('class','tok'); t.core.setAttribute('tabindex','0');
+    t.spec=circ(); t.spec.setAttribute('r','6'); t.spec.setAttribute('fill','#fff'); t.spec.setAttribute('opacity','.5'); t.spec.setAttribute('pointer-events','none');
+    // physics state
+    t.cx=CX+people[t.owner].side*140; t.cy=300; t.vx=0; t.vy=0; t.drag=false;
+    addDrag(t);
+  });
+
+  // shared floating label (revealed on hover / during drag) — drawn last = on top
+  el.floatBg=circ(); el.floatBg.setAttribute('r','0'); el.floatBg.setAttribute('fill','transparent');
+  el.float=text('toklabel'); el.float.setAttribute('opacity','0');
+  el.float.style.transition='opacity .18s ease'; el.float.setAttribute('font-size','13'); el.float.setAttribute('fill','var(--ink)');
+  function showLabel(tk){ el.float.textContent=tk.label; el.float.setAttribute('opacity','1'); el._lbl=tk; }
+  function hideLabel(tk){ if(el._lbl===tk && !tk.drag){ el.float.setAttribute('opacity','0'); el._lbl=null; } }
+
+  // ---- Physics state ----
+  var main={a:0,v:0}, t0=performance.now();
+  function weights(){ var l=0,r=0; tokens.forEach(function(t){ var o=effOwner(t); (o==='maya'?l:r); if(o==='maya')l++; else r++; }); return {l:l,r:r}; }
+  function effOwner(t){ if(t.drag){ return t.cx<CX ? 'maya':'sam'; } return t.owner; }
+
+  function layout(){
+    // per-person target pivot positions from current main angle
+    var leftEnd=rot(A.x-MAIN_HALF, A.y, A.x, A.y, main.a);
+    var rightEnd=rot(A.x+MAIN_HALF, A.y, A.x, A.y, main.a);
+    var ends={maya:leftEnd, sam:rightEnd};
+    var pivots={ maya:{x:leftEnd.x, y:leftEnd.y+THREAD}, sam:{x:rightEnd.x, y:rightEnd.y+THREAD} };
+    return {ends:ends, pivots:pivots};
+  }
+
+  function frame(now){
+    var dt=Math.min(2,(now-t0)/16.7); t0=now; var t=now/1000;
+    var w=weights();
+    // main beam target angle: dips toward heavier side (+ = right/sam down). tiny breathing.
+    var target=Math.max(-0.27,Math.min(0.27,(w.r-w.l)*0.070)) + (reduce?0:0.013*Math.sin(t*0.55));
+    // spring
+    main.v += (target-main.a)*0.055*dt; main.v *= Math.pow(0.90,dt); main.a += main.v*dt;
+
+    var L=layout();
+    // ceiling + anchor + main beam
+    el.ceiling.setAttribute('x1',A.x-150); el.ceiling.setAttribute('y1',34); el.ceiling.setAttribute('x2',A.x+150); el.ceiling.setAttribute('y2',34);
+    el.anchorDot.setAttribute('cx',A.x); el.anchorDot.setAttribute('cy',A.y);
+    [el.main,el.mainGlow].forEach(function(m){ m.setAttribute('x1',L.ends.maya.x); m.setAttribute('y1',L.ends.maya.y); m.setAttribute('x2',L.ends.sam.x); m.setAttribute('y2',L.ends.sam.y); });
+    // per person: sub-beam + staggered hanging tokens (Calder-style)
+    ['maya','sam'].forEach(function(k){
+      var end=L.ends[k], piv=L.pivots[k];
+      el.pivotThread[k].setAttribute('x1',end.x); el.pivotThread[k].setAttribute('y1',end.y);
+      el.pivotThread[k].setAttribute('x2',piv.x); el.pivotThread[k].setAttribute('y2',piv.y);
+      var kt=tokens.filter(function(x){return effOwner(x)===k;});
+      var n=Math.max(1,kt.length), half=(n-1)*GAP/2, maxV=TOK_THREAD;
+      el.sub[k].setAttribute('x1',piv.x-half-20); el.sub[k].setAttribute('y1',piv.y);
+      el.sub[k].setAttribute('x2',piv.x+half+20); el.sub[k].setAttribute('y2',piv.y);
+      el.name[k].setAttribute('x',piv.x); el.name[k].setAttribute('y',piv.y-15);
+      kt.forEach(function(tk,i){
+        var vlen=TOK_THREAD + (i%2)*38;           // alternate rows so labels never collide
+        if(vlen>maxV) maxV=vlen;
+        tk._tx = piv.x + (i-(n-1)/2)*GAP;
+        tk._ty = piv.y + vlen;
+        tk._pivx = tk._tx; tk._pivy = piv.y;
+      });
+      // adaptive descriptor under the cluster (never a score)
+      var w2=weights(), diff=(k==='maya'?w2.l-w2.r:w2.r-w2.l);
+      el.tag[k].textContent = diff>0?'carrying more' : (diff<0?'has room' : 'evenly held');
+      el.tag[k].setAttribute('x',piv.x);
+      el.tag[k].setAttribute('y', piv.y + maxV + TOK_R + 26);
+    });
+
+    // tokens: spring toward target (drag overrides). Trailing gives pendulum life.
+    tokens.forEach(function(tk){
+      if(!tk.drag){
+        var tx=(tk._tx!=null?tk._tx:tk.cx), ty=(tk._ty!=null?tk._ty:tk.cy);
+        tk.vx += (tx-tk.cx)*0.09*dt; tk.vy += (ty-tk.cy)*0.09*dt;
+        tk.vx *= Math.pow(0.82,dt); tk.vy *= Math.pow(0.82,dt);
+        tk.cx += tk.vx*dt; tk.cy += tk.vy*dt;
+      }
+      var pvx=(tk._pivx!=null?tk._pivx:tk.cx), pvy=(tk._pivy!=null?tk._pivy:tk.cy-TOK_THREAD);
+      tk.thread.setAttribute('x1',pvx); tk.thread.setAttribute('y1',pvy);
+      tk.thread.setAttribute('x2',tk.cx); tk.thread.setAttribute('y2',tk.cy);
+      var o=effOwner(tk), grad=people[o].grad, hue=(o==='maya'?'var(--p-maya)':'var(--p-sam)');
+      tk.halo.setAttribute('cx',tk.cx); tk.halo.setAttribute('cy',tk.cy); tk.halo.setAttribute('fill',hue);
+      tk.core.setAttribute('cx',tk.cx); tk.core.setAttribute('cy',tk.cy); tk.core.setAttribute('fill',grad);
+      tk.core.setAttribute('r', tk.drag?TOK_R+3:TOK_R);
+      tk.spec.setAttribute('cx',tk.cx-6); tk.spec.setAttribute('cy',tk.cy-7);
+    });
+    if(el._lbl){ el.float.setAttribute('x',el._lbl.cx); el.float.setAttribute('y',el._lbl.cy - TOK_R - 12); }
+
+    updateVerdict(w);
+    requestAnimationFrame(frame);
+  }
+
+  function updateVerdict(w){
+    var msg, sub;
+    if(Math.abs(w.l-w.r)<=1){ msg='The home is <b>evenly held</b>&nbsp;tonight.'; }
+    else if(w.l>w.r){ msg='Tonight, the home is<br>leaning on <b>Maya</b>.'; }
+    else { msg='<b>Sam</b> is carrying more<br>of the home tonight.'; }
+    if(verdictEl.dataset.msg!==msg){ verdictEl.dataset.msg=msg; verdictEl.innerHTML=msg; }
+    rebtn.disabled = Math.abs(w.l-w.r)<=1;
+  }
+
+  // ---- Drag (pointer) ----
+  function svgPt(e){ var p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY;
+    return p.matrixTransform(svg.getScreenCTM().inverse()); }
+  function addDrag(tk){
+    function down(e){ e.preventDefault(); tk.drag=true; tk.vx=tk.vy=0; showLabel(tk);
+      hintEl.innerHTML='Release over <b>'+ (tk.cx<CX?'Maya':'Sam') +'</b> to hand it off';
+      window.addEventListener('pointermove',move); window.addEventListener('pointerup',up); }
+    function move(e){ var p=svgPt(e); tk.cx=p.x; tk.cy=p.y;
+      hintEl.innerHTML='Release over <b>'+ (tk.cx<CX?'Maya':'Sam') +'</b> to hand it off'; }
+    function up(){ tk.drag=false; tk.owner = tk.cx<CX?'maya':'sam';
+      tk.vx=(Math.random()-.5)*3; // little kick so it sways in
+      hideLabel(tk);
+      hintEl.innerHTML='<b>Drag</b> a light to hand it off &middot; it sways to a new balance';
+      window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); }
+    tk.core.addEventListener('pointerdown',down);
+    tk.core.addEventListener('pointerenter',function(){ showLabel(tk); });
+    tk.core.addEventListener('pointerleave',function(){ hideLabel(tk); });
+    tk.core.addEventListener('focus',function(){ showLabel(tk); });
+    tk.core.addEventListener('blur',function(){ hideLabel(tk); });
+    // keyboard: Enter/Space toggles owner (accessibility)
+    tk.core.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault();
+      tk.owner=tk.owner==='maya'?'sam':'maya'; tk.vx=(Math.random()-.5)*3; } });
+  }
+
+  // ---- "Let it rebalance": the Balancer moves work, one thread at a time ----
+  rebtn.addEventListener('click',function(){
+    if(rebtn.disabled) return; rebtn.disabled=true;
+    var step=function(){
+      var w=weights(); if(Math.abs(w.l-w.r)<=1){ hintEl.innerHTML='<b>Evenly held.</b> I moved a couple of things to Sam.';
+        setTimeout(function(){hintEl.innerHTML='<b>Drag</b> a light to hand it off &middot; it sways to a new balance';},2600); return; }
+      var from=w.l>w.r?'maya':'sam', to=from==='maya'?'sam':'maya';
+      var cand=tokens.filter(function(t){return t.owner===from;});
+      var t=cand[cand.length-1]; if(t){ t.owner=to; t.vx=(Math.random()-.5)*3; }
+      setTimeout(step, reduce?60:520);
+    };
+    hintEl.innerHTML='Rebalancing&hellip;'; setTimeout(step, 260);
+  });
+
+  requestAnimationFrame(frame);
+})();
+</script>

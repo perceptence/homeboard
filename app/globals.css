@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html, body { height: 100%; }
+body { -webkit-font-smoothing: antialiased; }
+
+/* Scrollbars stay out of the way on both surfaces. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* Member identity colours — referenced from the domain seed, so people stay
+   the same colour on every surface (avatar, workload bar, calendar chip). */
+:root {
+  --m-maya: #E8654B;
+  --m-sam:  #3E86C8;
+  --m-leo:  #8B5CF6;
+  --m-ada:  #28A98B;
+  --m-juno: #C08A4A;
+}

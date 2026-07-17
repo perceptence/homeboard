@@ -1,0 +1,250 @@
+<style>
+  /* ================================================================
+     HOUSEHOLD FLOW — Landing page
+     Bold modern-app aesthetic: big rounded type, saturated color-blocked
+     cards, pills, emoji, avatar stacks. (per reference screenshots)
+     ================================================================ */
+  .lp{ --bg:#EBECF2; --ink:#161518; --cream:#FBFAF7; --sub:#5B5A63;
+       --coral:#F0553B; --yellow:#F3CE3A; --peri:#AAB6F3; --ink-card:#17161A;
+       font-family:"SF Pro Rounded",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
+       -webkit-font-smoothing:antialiased; background:var(--bg); color:var(--ink); }
+  .lp *{ box-sizing:border-box; }
+  .lp .wrap{ max-width:1160px; margin:0 auto; padding:0 clamp(18px,4vw,36px); }
+  .lp h1,.lp h2,.lp h3{ letter-spacing:-.035em; line-height:.98; }
+  .lp .emoji{ font-family:"Apple Color Emoji","Segoe UI Emoji",sans-serif; letter-spacing:0; }
+
+  /* Nav */
+  .nav{ position:sticky; top:0; z-index:30; background:rgba(235,236,242,.72); backdrop-filter:saturate(1.5) blur(14px); }
+  .nav .row{ display:flex; align-items:center; gap:14px; padding:16px 0; }
+  .brand{ display:flex; align-items:center; gap:10px; font-weight:800; font-size:1.15rem; letter-spacing:-.03em; }
+  .brand .mk{ width:30px; height:30px; border-radius:9px; background:var(--ink); display:grid; place-items:center; color:var(--yellow); }
+  .brand .mk svg{ width:17px; height:17px; }
+  .nav .links{ display:flex; gap:26px; margin:0 auto; }
+  .nav .links a{ color:var(--ink); text-decoration:none; font-weight:600; font-size:.95rem; opacity:.72; }
+  .nav .links a:hover{ opacity:1; }
+  .btn{ font:inherit; font-weight:700; font-size:.95rem; border:0; border-radius:99px; padding:11px 20px; cursor:pointer; letter-spacing:-.01em;
+    display:inline-flex; align-items:center; gap:9px; transition:transform .15s, filter .15s; }
+  .btn:active{ transform:scale(.97); }
+  .btn-dark{ background:var(--ink); color:var(--cream); } .btn-dark:hover{ filter:brightness(1.12); }
+  .btn-coral{ background:var(--coral); color:#fff; } .btn-coral:hover{ filter:brightness(1.06); }
+  .btn-ghost{ background:transparent; color:var(--ink); }
+  .btn .circ{ width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,.22); display:grid; place-items:center; }
+  .btn .circ svg{ width:13px; height:13px; }
+  @media(max-width:760px){ .nav .links{ display:none; } }
+
+  /* Hero */
+  .hero{ padding:clamp(30px,5vw,64px) 0 20px; display:grid; grid-template-columns:1.15fr .85fr; gap:40px; align-items:center; }
+  @media(max-width:900px){ .hero{ grid-template-columns:1fr; } }
+  .eyebrow{ display:inline-flex; align-items:center; gap:8px; font-size:.78rem; font-weight:800; letter-spacing:.02em; text-transform:uppercase;
+    background:var(--ink); color:var(--cream); padding:7px 13px; border-radius:99px; }
+  .eyebrow .dot{ width:7px; height:7px; border-radius:50%; background:var(--coral); }
+  .hero h1{ font-size:clamp(2.9rem,2rem+4.6vw,5.4rem); font-weight:800; margin:20px 0 0; }
+  .hero h1 .c{ color:var(--coral); }
+  .hero .lede{ font-size:clamp(1.05rem,.9rem+.6vw,1.3rem); color:var(--sub); font-weight:500; max-width:34ch; margin:22px 0 0; line-height:1.4; letter-spacing:-.01em; }
+  .hero .cta{ display:flex; gap:12px; margin-top:28px; flex-wrap:wrap; }
+  .hero .proof{ display:flex; align-items:center; gap:12px; margin-top:26px; }
+  .stack{ display:flex; } .stack .a{ width:34px; height:34px; border-radius:50%; border:2.5px solid var(--bg); margin-left:-10px; background:#ccc; }
+  .stack .a:first-child{ margin-left:0; }
+  .proof .t{ font-size:.86rem; color:var(--sub); font-weight:600; } .proof .t b{ color:var(--ink); }
+
+  /* Phone mock in hero */
+  .phones{ position:relative; display:flex; justify-content:center; }
+  .phone{ width:min(280px,74vw); background:var(--ink-card); border-radius:40px; padding:12px; box-shadow:0 40px 80px -30px rgba(30,20,40,.5); }
+  .phone .scr{ background:#0E0D10; border-radius:30px; overflow:hidden; padding:20px 16px 16px; min-height:520px; position:relative; }
+  .phone .notch{ width:96px; height:26px; background:#0E0D10; border-radius:0 0 16px 16px; position:absolute; top:0; left:50%; transform:translateX(-50%); z-index:2; }
+  .ph-hi{ display:flex; justify-content:space-between; align-items:center; color:#fff; margin-top:14px; }
+  .ph-hi .g{ font-size:1.02rem; font-weight:700; } .ph-hi .av{ width:34px; height:34px; border-radius:50%; background:var(--peri); }
+  .ph-card{ border-radius:22px; padding:16px; margin-top:14px; }
+  .ph-yellow{ background:var(--yellow); color:var(--ink); }
+  .ph-peri{ background:var(--peri); color:var(--ink); }
+  .ph-ghost{ background:#1B1A1F; color:#fff; }
+  .ph-card .k{ font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; opacity:.7; }
+  .ph-card .big{ font-size:1.28rem; font-weight:800; letter-spacing:-.02em; line-height:1.06; margin-top:8px; }
+  .ph-card .r{ display:flex; align-items:center; gap:8px; margin-top:14px; }
+  .ph-pill{ font-size:.72rem; font-weight:800; background:rgba(0,0,0,.12); padding:5px 10px; border-radius:99px; }
+  .ph-card.ph-ghost .ph-pill{ background:rgba(255,255,255,.14); }
+  .ph-nav{ position:absolute; left:16px; right:16px; bottom:14px; height:56px; background:#1B1A1F; border-radius:20px; display:flex; align-items:center; justify-content:space-around; }
+  .ph-nav .i{ width:20px; height:20px; border-radius:6px; background:#3a3941; } .ph-nav .i.on{ background:var(--coral); }
+  .float{ position:absolute; border-radius:18px; padding:12px 14px; font-weight:800; font-size:.9rem; box-shadow:0 20px 40px -16px rgba(30,20,40,.4); }
+  .float.f1{ background:var(--coral); color:#fff; top:8%; left:-6%; transform:rotate(-6deg); }
+  .float.f2{ background:var(--cream); color:var(--ink); bottom:12%; right:-8%; transform:rotate(5deg); }
+  @media(max-width:520px){ .float{ display:none; } }
+
+  /* Section scaffolding */
+  .sec{ padding:clamp(40px,7vw,84px) 0; }
+  .sec-lead{ max-width:30ch; }
+  .sec h2{ font-size:clamp(2rem,1.4rem+2.4vw,3.4rem); font-weight:800; }
+  .sec .sub{ color:var(--sub); font-size:1.1rem; font-weight:500; margin-top:14px; max-width:44ch; letter-spacing:-.01em; }
+
+  /* Four questions cards */
+  .cards4{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:34px; }
+  @media(max-width:900px){ .cards4{ grid-template-columns:1fr 1fr; } }
+  @media(max-width:520px){ .cards4{ grid-template-columns:1fr; } }
+  .qc{ border-radius:26px; padding:22px; min-height:210px; display:flex; flex-direction:column; }
+  .qc .n{ font-size:.8rem; font-weight:800; opacity:.6; } .qc .q{ font-size:1.5rem; font-weight:800; letter-spacing:-.03em; margin-top:auto; line-height:1.02; }
+  .qc .d{ font-size:.9rem; font-weight:550; margin-top:10px; opacity:.82; line-height:1.3; }
+  .qc .em{ font-size:1.8rem; }
+  .qc-coral{ background:var(--coral); color:#fff; } .qc-yellow{ background:var(--yellow); color:var(--ink); }
+  .qc-peri{ background:var(--peri); color:var(--ink); } .qc-dark{ background:var(--ink-card); color:var(--cream); }
+
+  /* Feature block */
+  .feat{ display:grid; grid-template-columns:1fr 1fr; gap:28px; align-items:center; }
+  @media(max-width:840px){ .feat{ grid-template-columns:1fr; } }
+  .feat.rev .fig{ order:2; }
+  .bigcard{ border-radius:32px; padding:clamp(24px,3vw,40px); }
+  .card-peri{ background:var(--peri); } .card-cream{ background:var(--cream); }
+  .feat .tag{ display:inline-flex; align-items:center; gap:8px; font-weight:800; font-size:.82rem; text-transform:uppercase; letter-spacing:.04em; color:var(--coral); }
+  .feat h3{ font-size:clamp(1.7rem,1.2rem+1.6vw,2.6rem); font-weight:800; margin-top:14px; }
+  .feat p{ color:var(--sub); font-weight:500; margin-top:14px; font-size:1.05rem; line-height:1.45; letter-spacing:-.005em; }
+  .feat ul{ list-style:none; padding:0; margin:20px 0 0; display:flex; flex-direction:column; gap:10px; }
+  .feat li{ display:flex; gap:10px; align-items:center; font-weight:600; }
+  .feat li .ck{ width:22px; height:22px; border-radius:50%; background:var(--ink); color:var(--yellow); display:grid; place-items:center; flex-shrink:0; }
+  .feat li .ck svg{ width:12px; height:12px; }
+
+  /* nudge chips (AI, dark section) */
+  .dark{ background:var(--ink-card); color:var(--cream); border-radius:38px; }
+  .dark .sub{ color:#A3A1AC; }
+  .nudges{ display:flex; flex-direction:column; gap:14px; margin-top:30px; }
+  .nudge{ display:flex; gap:14px; align-items:flex-start; background:#211F26; border-radius:20px; padding:16px 18px; }
+  .nudge.hl{ background:var(--coral); } .nudge.hl *{ color:#fff!important; }
+  .nudge .k{ width:38px; height:38px; border-radius:50%; background:var(--peri); display:grid; place-items:center; font-size:1.1rem; flex-shrink:0; }
+  .nudge .nt{ font-weight:700; font-size:1.02rem; } .nudge .nw{ color:#A3A1AC; font-size:.9rem; margin-top:3px; font-weight:500; }
+
+  /* domains + stats */
+  .pills{ display:flex; flex-wrap:wrap; gap:10px; margin-top:26px; }
+  .dp{ font-weight:700; font-size:.98rem; background:var(--cream); border-radius:99px; padding:11px 18px; display:flex; align-items:center; gap:9px; box-shadow:0 2px 8px -4px rgba(30,20,40,.15); }
+  .dp .em{ font-size:1.1rem; }
+  .stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:30px; }
+  @media(max-width:640px){ .stats{ grid-template-columns:1fr; } }
+  .stat{ background:var(--ink-card); color:var(--cream); border-radius:26px; padding:26px; }
+  .stat .v{ font-size:2.8rem; font-weight:800; letter-spacing:-.04em; } .stat.c .v{ color:var(--coral); } .stat.y .v{ color:var(--yellow); } .stat.p .v{ color:var(--peri); }
+  .stat .l{ color:#A3A1AC; font-weight:600; margin-top:6px; }
+
+  /* Big CTA */
+  .cta-big{ background:var(--coral); color:#fff; border-radius:40px; padding:clamp(36px,6vw,72px); text-align:center; }
+  .cta-big h2{ font-size:clamp(2.2rem,1.5rem+3vw,4.2rem); font-weight:800; }
+  .cta-big p{ font-size:1.15rem; opacity:.9; font-weight:500; margin-top:16px; }
+  .cta-form{ display:flex; gap:10px; justify-content:center; margin-top:30px; flex-wrap:wrap; }
+  .cta-form input{ font:inherit; font-weight:600; border:0; border-radius:99px; padding:15px 22px; width:min(320px,80vw); outline:none; background:#fff; color:var(--ink); }
+  .btn-yellow{ background:var(--yellow); color:var(--ink); }
+
+  footer{ padding:40px 0 60px; }
+  .foot{ display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap; color:var(--sub); font-weight:600; font-size:.9rem; }
+  .lp :focus-visible{ outline:3px solid var(--coral); outline-offset:2px; }
+</style>
+
+<div class="lp">
+  <!-- NAV -->
+  <nav class="nav"><div class="wrap row">
+    <div class="brand"><span class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-6 8 6M6 10v9h12v-9"/></svg></span>Household</div>
+    <div class="links"><a href="#how">How it works</a><a href="#family">For families</a><a href="#home">Everything</a><a href="#">Pricing</a></div>
+    <button class="btn btn-dark">Get early access <span class="circ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+  </div></nav>
+
+  <!-- HERO -->
+  <header class="wrap hero">
+    <div>
+      <span class="eyebrow"><span class="dot"></span>Household OS</span>
+      <h1>Your whole home, <span class="c">handled.</span> <span class="emoji">🏡</span></h1>
+      <p class="lede">The calm operating system for running a home. It carries the mental load, balances the work, and quietly keeps everything on track — so no one person has to run the place.</p>
+      <div class="cta">
+        <button class="btn btn-coral">Get early access <span class="circ"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></button>
+        <button class="btn btn-ghost">Watch the 60-sec tour</button>
+      </div>
+      <div class="proof">
+        <div class="stack"><span class="a" style="background:#E8654B"></span><span class="a" style="background:#3E86C8"></span><span class="a" style="background:#9B6BD6"></span><span class="a" style="background:#28A98B"></span></div>
+        <div class="t">Loved by <b>3,400+</b> households in early access</div>
+      </div>
+    </div>
+    <div class="phones">
+      <div class="float f1">Bins tonight <span class="emoji">🗑️</span></div>
+      <div class="phone">
+        <div class="scr"><span class="notch"></span>
+          <div class="ph-hi"><div class="g">Good morning, Riveras <span class="emoji">👋</span></div><div class="av"></div></div>
+          <div class="ph-card ph-yellow"><div class="k">The one that matters</div><div class="big">Ada&rsquo;s recital — 5:30 today</div><div class="r"><span class="ph-pill">Everyone goes</span><span class="ph-pill">Reminder set</span></div></div>
+          <div class="ph-card ph-ghost"><div class="k">Yours · Sam</div><div class="big">Pick up the kids · 3:00</div><div class="r"><span class="ph-pill">Then bins, 8pm</span></div></div>
+          <div class="ph-card ph-peri"><div class="k">Dinner, sorted</div><div class="big">Chicken traybake <span class="emoji">🍗</span></div><div class="r"><span class="ph-pill">You have everything</span></div></div>
+          <div class="ph-nav"><span class="i on"></span><span class="i"></span><span class="i"></span><span class="i"></span></div>
+        </div>
+      </div>
+      <div class="float f2">Evenly shared <span class="emoji">⚖️</span></div>
+    </div>
+  </header>
+
+  <!-- FOUR QUESTIONS -->
+  <section class="wrap sec" id="how">
+    <div class="sec-lead"><h2>Four questions.<br>Answered every day.</h2><p class="sub">Running a home is really just answering these — over and over. Household does the answering for you.</p></div>
+    <div class="cards4">
+      <div class="qc qc-coral"><div class="n">01</div><span class="em emoji">👀</span><div class="q">What needs attention?</div><div class="d">One calm list across the whole home — tasks, bills, low supplies, upkeep.</div></div>
+      <div class="qc qc-yellow"><div class="n">02</div><span class="em emoji">🤝</span><div class="q">Who should do it?</div><div class="d">Work routes to whoever has room. Fair by default, no nagging.</div></div>
+      <div class="qc qc-peri"><div class="n">03</div><span class="em emoji">⏰</span><div class="q">When should it happen?</div><div class="d">Everything lands on the right day, around your real schedules.</div></div>
+      <div class="qc qc-dark"><div class="n">04</div><span class="em emoji">🌙</span><div class="q">What can wait?</div><div class="d">The rest goes quiet until it matters. Less noise, more calm.</div></div>
+    </div>
+  </section>
+
+  <!-- FEATURE: kitchen display -->
+  <section class="wrap sec" id="family"><div class="feat">
+    <div class="fig"><div class="bigcard card-peri">
+      <div class="ph-card ph-yellow" style="margin:0"><div class="k">Today, together</div><div class="big">A calm Sunday <span class="emoji">☀️</span></div></div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <div class="dp" style="flex:1;justify-content:center">🍳 Pancakes</div><div class="dp" style="flex:1;justify-content:center">🎭 Recital 5:30</div>
+      </div>
+      <div class="ph-card ph-ghost" style="margin-top:12px;color:#fff"><div class="k" style="color:#fff;opacity:.7">A hand needed</div><div class="big">Bin night — that&rsquo;s Sam&rsquo;s <span class="emoji">🗑️</span></div></div>
+    </div></div>
+    <div>
+      <span class="tag">🧑‍🍳 The kitchen display</span>
+      <h3>The whole family, at a glance.</h3>
+      <p>A warm display on the counter that reads your day out loud: who&rsquo;s where, what&rsquo;s for dinner, and the one moment that actually matters. No app-hunting, no spreadsheets.</p>
+      <ul>
+        <li><span class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span> Plain-language brief, not a wall of data</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span> Light shifts from morning to evening</li>
+        <li><span class="ck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span> Tap any face for their own view</li>
+      </ul>
+    </div>
+  </div></section>
+
+  <!-- DARK: AI carries the load -->
+  <section class="wrap sec"><div class="dark" style="padding:clamp(28px,4vw,52px)"><div class="feat">
+    <div>
+      <span class="tag" style="color:var(--yellow)">✨ Quietly intelligent</span>
+      <h3 style="color:var(--cream)">It carries the load, so you don&rsquo;t.</h3>
+      <p class="sub" style="max-width:38ch">Household notices before you do — the milk running low, the filter due, the week tilting onto one person — and just handles it. You stay the human; it stays the manager.</p>
+    </div>
+    <div class="nudges">
+      <div class="nudge"><span class="k emoji">🛒</span><div><div class="nt">Low on oat milk & dish soap</div><div class="nw">Added to Sunday&rsquo;s shop — you usually run out about now.</div></div></div>
+      <div class="nudge hl"><span class="k emoji" style="background:rgba(255,255,255,.2)">⚖️</span><div><div class="nt">Sam&rsquo;s carrying more this week</div><div class="nw">Move &ldquo;vacuum&rdquo; to Maya to even it out?</div></div></div>
+      <div class="nudge"><span class="k emoji">🔧</span><div><div class="nt">HVAC filter due in 4 days</div><div class="nw">I&rsquo;ll add it to Sam&rsquo;s Saturday.</div></div></div>
+    </div>
+  </div></div></section>
+
+  <!-- EVERYTHING / domains + stats -->
+  <section class="wrap sec" id="home">
+    <div class="sec-lead"><h2>One home. One place.</h2><p class="sub">Tasks are just the start. Household quietly runs everything under one calm roof.</p></div>
+    <div class="pills">
+      <span class="dp"><span class="em emoji">✅</span>Tasks & chores</span><span class="dp"><span class="em emoji">🛒</span>Shopping</span>
+      <span class="dp"><span class="em emoji">📅</span>Calendar</span><span class="dp"><span class="em emoji">🔧</span>Maintenance</span>
+      <span class="dp"><span class="em emoji">💸</span>Bills</span><span class="dp"><span class="em emoji">📦</span>Inventory</span>
+      <span class="dp"><span class="em emoji">🐕</span>Pets</span><span class="dp"><span class="em emoji">🧒</span>Kids</span>
+      <span class="dp"><span class="em emoji">🧺</span>Laundry</span><span class="dp"><span class="em emoji">📄</span>Documents</span>
+    </div>
+    <div class="stats">
+      <div class="stat c"><div class="v">2 min</div><div class="l">to set up — no database-building</div></div>
+      <div class="stat y"><div class="v">0</div><div class="l">passive-aggressive sticky notes</div></div>
+      <div class="stat p"><div class="v">~5 hrs</div><div class="l">of coordinating saved each month</div></div>
+    </div>
+  </section>
+
+  <!-- BIG CTA -->
+  <section class="wrap sec">
+    <div class="cta-big">
+      <h2>Stop being the household manager. <span class="emoji">✌️</span></h2>
+      <p>Join early access. Your calmer home is a couple of taps away.</p>
+      <div class="cta-form"><input type="email" placeholder="you@home.com" aria-label="Email"><button class="btn btn-yellow">Get early access</button></div>
+    </div>
+  </section>
+
+  <footer class="wrap"><div class="foot">
+    <div class="brand"><span class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-6 8 6M6 10v9h12v-9"/></svg></span>Household</div>
+    <div>Made calm, on purpose &middot; © 2026</div>
+  </div></footer>
+</div>

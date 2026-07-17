@@ -1,0 +1,403 @@
+/** Homeboard — domain model.
+ *  One household; many lenses. Every surface reads from these types.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * THE USER MODEL — four things that must never contaminate each other.
+ *
+ * "Mom", "Dad", "Kid", "Roommate" are RELATIONSHIPS. They describe how people
+ * feel about each other. They are not a permission system, they are not a
+ * capability model, and any app that treats them as one is wrong about real
+ * homes: the teenager who runs the family budget, the grandparent who lives
+ * with you and shouldn't be locked out, the au pair who needs the school run
+ * but not the bank account, the adult child moving back in. None of them fit.
+ *
+ * So the model separates:
+ *
+ *   1. HOUSEHOLD TYPE  — how this home WORKS      (axes; a preset is a shortcut)
+ *   2. IDENTITY        — who someone IS           (name, age, person or pet)
+ *   3. ROLE            — what someone MAY DO      (never inferred from 1 or 2)
+ *   4. RESPONSIBILITY  — what someone LOOKS AFTER (domains and spaces)
+ *
+ * The load-bearing rule: **ROLE IS ASSIGNED, NEVER DERIVED.** Age does not
+ * grant authority and authority does not imply age. A 15-year-old can hold
+ * `full`; a 40-year-old can be `guided` after an illness. The app must never
+ * write `age < 18 ? "limited" : "full"` — that is the bug this model exists
+ * to prevent.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+/** Open string — onboarding lets people create whoever actually lives in their home. */
+export type MemberId = string;
+
+/* ───────────────────────── 1. HOUSEHOLD TYPE ───────────────────────── */
+
+/**
+ * How this home works. The app branches on THESE — never on the preset — so a
+ * household that matches no preset still works, and a household that outgrows
+ * its preset (a couple has a baby; roommates start pooling) changes one axis
+ * instead of migrating type.
+ *
+ * Only two axes survive scrutiny. `size` was a third in the sketch and is gone:
+ * it's derivable from the member list, and storing what you can derive is a
+ * drift bug waiting to happen.
+ */
+export interface HouseholdAxes {
+  /** Pooled: a bill is just a bill. Split: every expense carries shares. */
+  money: "pooled" | "split";
+  /**
+   * Does anyone here depend on someone else's decisions?
+   *
+   * NOT derivable from roles, despite appearances — it's what makes the guided
+   * role OFFERABLE in the first place, so deriving it from "is anyone guided"
+   * would be circular. A roommate house never sees guided surfaces, star
+   * rewards, or the age gate on tasks.
+   */
+  dependents: boolean;
+}
+
+/** An onboarding shortcut that sets `axes` and suggests a starting cast.
+ *  Nothing in the app may branch on this — see HouseholdAxes. */
+export type HouseholdPreset = "family" | "couple" | "roommates" | "solo";
+
+/* ─────────────────────── 2. IDENTITY ─────────────────────── */
+
+/** WHAT someone is — a species, not a status. "adult" and "kid" used to live
+ *  here and were doing three jobs at once: species, life stage, and permission. */
+export type MemberKind = "person" | "pet";
+
+/* ─────────────────────── 3. PERMISSION ROLE ─────────────────────── */
+
+/**
+ * What someone MAY do. Assigned by an owner; never inferred from age, never
+ * inferred from a relationship.
+ *
+ *   owner    runs the household: settings, people, and other people's roles.
+ *   full     everything except household settings. Money, contracts, anyone's work.
+ *   limited  their own work and shared chores. No money, no settings, can't
+ *            reassign other people. (Was "Teen" — but nothing about it is teenage.)
+ *   guided   a simplified surface: only their own things, one at a time, with
+ *            stars. (Was "Child" — but it fits anyone who wants less surface.)
+ */
+export type Role = "owner" | "full" | "limited" | "guided";
+
+/** Authority order. The ONLY thing that may compare roles. */
+export const ROLE_RANK: Record<Role, number> = { guided: 0, limited: 1, full: 2, owner: 3 };
+
+/**
+ * What each role is CALLED, to a family.
+ *
+ * "Owner / Full access / Limited / Guided" was an IAM console wearing a home
+ * app's clothes. Nobody in a house says "I have full access" — and "Limited"
+ * quietly told a fourteen-year-old the app thinks less of them, which is the
+ * opposite of what the role model is for. These say what someone DOES.
+ *
+ * A noun phrase, not a sentence: it has to sit under "Your access" as a label
+ * and next to a name on the iPad. For "Sam is now ___" use ROLE_SET; for what a
+ * TASK needs, use ROLE_NEEDS. Three jobs, three tables — one string trying to do
+ * all three is how "The only one with full access" ended up in a handoff.
+ */
+export const ROLE_LABEL: Record<Role, string> = {
+  owner: "Runs the home",
+  full: "Shares the running",
+  limited: "Tasks and chores",
+  guided: "A simpler view",
+};
+
+/**
+ * The detail under the label. Says what the person can DO — never "child",
+ * never "adult".
+ *
+ * Deliberately PRONOUN-FREE. These show on your own profile ("Your access") and
+ * about other people (the iPad's household list), and no single pronoun is right
+ * in both: "just their own things" was being read back to Ada about Ada.
+ */
+export const ROLE_HINT: Record<Role, string> = {
+  owner: "Settings, people, and who can do what",
+  full: "Everything except the household's own settings",
+  limited: "No money, no settings, no changing anyone else's jobs",
+  guided: "One thing at a time, with stars",
+};
+
+/** A verb phrase for "Sam now ___". The label is a noun and won't fit here:
+ *  "Sam is now tasks and chores" is not a sentence. */
+export const ROLE_SET: Record<Role, string> = {
+  owner: "runs the home",
+  full: "shares the running",
+  limited: "does tasks and chores",
+  guided: "sees a simpler view",
+};
+
+/**
+ * What the WORK needs — never what the person is.
+ *
+ * A role is a fact about a person, so it has no business being the reason a task
+ * is out of reach: "Needs full access" describes the wrong noun. `requires:
+ * "full"` in practice means money, contracts, alcohol, prescriptions, bleach,
+ * the boiler, a chainsaw, driving (see NEEDS_FULL in parse.ts) — that's not
+ * ACCESS, it's ACCOUNTABILITY. So say the work.
+ */
+export const ROLE_NEEDS: Record<Role, string> = {
+  guided: "",
+  limited: "a shared chore",
+  full: "money, contracts or safety",
+  owner: "running the home",
+};
+
+/* ─────────────────────── 4. RESPONSIBILITY ─────────────────────── */
+
+/**
+ * Responsibility is TWO independent questions, and collapsing them loses real
+ * households: "Sam does the cooking" (what) and "Leo keeps his room" (where)
+ * are not the same shape of promise.
+ */
+export interface Responsibility {
+  /** WHAT — a domain of home life: "Meals", "Bills", "Laundry". */
+  domains: string[];
+  /** WHERE — a space: "Kitchen", "Garden", "Leo's room". */
+  spaces: string[];
+}
+
+/* ─────────────────────── 5. AVAILABILITY ─────────────────────── */
+
+/**
+ * WHERE someone is. A fact about their life — never a permission.
+ *
+ * `suggestTaker` used to infer "busy" from `events.filter(isToday)`, a proxy that
+ * rates a dentist appointment the same as a week in Spain. This replaces the
+ * guess with something the person actually told us.
+ *
+ *   here   the default. No effect.
+ *   wfh    at home all day — a POSITIVE. They can take the delivery and put the
+ *          laundry on. Every other app treats availability as "don't bother me";
+ *          working from home makes you MORE useful for home work, not less.
+ *   out    gone for the day, back tonight — daytime work skips them, evenings don't.
+ *   away   gone for days. Nothing new lands within the span.
+ *
+ * "Working today" isn't here: everyone is working today. It's `here` with extra
+ * words.
+ */
+export type Presence = "here" | "wfh" | "out" | "away";
+
+export interface Availability {
+  presence: Presence;
+  /** The span `away` covers, ISO. Only `away` needs one — the rest are about today. */
+  from?: string;
+  to?: string;
+  /**
+   * Don't nudge me between these. "HH:MM", local, and it may wrap past midnight
+   * (22:00 → 07:00).
+   *
+   * NOTHING CONSUMES THIS YET beyond the reminder copy — the app has no push
+   * notifications, only toasts, and a toast is feedback for your own tap, which
+   * must never be silenced. It's modelled now because reminders are coming and
+   * the household's answer ("don't wake the kids") shouldn't wait for them.
+   */
+  quiet?: { from: string; to: string };
+}
+
+/* ─────────────────────── the member ─────────────────────── */
+
+export interface Member {
+  /* identity */
+  id: MemberId;
+  name: string;
+  kind: MemberKind;
+  /** Real, and only ever used as a CAPABILITY gate against a task's minAge —
+   *  never as a permission. Optional: plenty of adults won't type it in. */
+  age?: number;
+  /** CSS colour token for this person — used for bars, event chips, and the pet chip. */
+  color: string;
+
+  /* permission — independent of everything above */
+  role: Role;
+
+  /* responsibility */
+  responsibility?: Responsibility;
+
+  /** Where they are. A SIGNAL for the Balancer — never a gate. See canAssign. */
+  availability?: Availability;
+
+  /** Earned on the guided surface, where the reward loop lives. Follows the
+   *  ROLE, not an age: whoever is guided collects stars. */
+  stars?: number;
+}
+
+/** A person being created during onboarding, before they become a Member. */
+export interface DraftPerson {
+  id: string;
+  name: string;
+  kind: MemberKind;
+  /** Chosen explicitly in onboarding. Never defaulted from an age. */
+  role: Role;
+  age?: number;
+}
+
+export interface OnboardingDraft {
+  step: number;
+  householdName: string;
+  preset: HouseholdPreset;
+  axes: HouseholdAxes;
+  people: DraftPerson[];
+  /** Which parts of home life this household wants run for them. */
+  domains: string[];
+}
+
+export type Priority = "low" | "med" | "high";
+
+export interface Task {
+  id: number;
+  title: string;
+  /** null = unassigned; the Balancer may suggest an owner. */
+  owner: MemberId | null;
+  suggest?: MemberId;
+  /** TIME OF DAY only ("Tonight", "6:30 PM") — never the date. The date is `due`,
+      and the two sitting side by side on a card must not contradict each other. */
+  when: string;
+  /** The date it's due — ISO YYYY-MM-DD. The single source of truth for
+      sorting, grouping and the date badge. */
+  due: string;
+  done: boolean;
+  priority: Priority;
+  recurring?: string;
+  /** Where this task came from — the domain that raised it. Shown as the card eyebrow. */
+  source?: string;
+  /**
+   * VERBATIM — exactly what the person typed or said, before we read it.
+   *
+   * The title is cleaned up ("Leo water plants tonight" -> "Water plants") because
+   * a list of raw utterances is a mess to scan. But cleaning is interpretation,
+   * and interpretation must be auditable: if the app decides "tonight" was a date
+   * rather than part of the name, the person has to be able to see what they
+   * actually said and judge for themselves. Kept only when it differs from the
+   * title — storing an identical copy says nothing.
+   */
+  said?: string;
+
+  /* --- Who may hold this work. Suitability is a property of the TASK, so every
+     path that assigns (onboarding, the Balancer, manual assign) respects it.
+     Two gates, because they are two different questions. --- */
+  /**
+   * AUTHORITY: the minimum role. Money, contracts, anything the household holds
+   * someone accountable for.
+   *
+   * This replaced `adultOnly`, which asked the wrong question. "Adult" bundled
+   * age with authority and got both wrong: it locked out the 16-year-old the
+   * family trusts with the shopping card, and let in any adult houseguest.
+   * `requires: "full"` says the true thing — this needs someone with authority,
+   * whoever that is.
+   */
+  requires?: Role;
+  /**
+   * CAPABILITY: minimum age. Sharp, hot, heavy, or simply too big to carry.
+   * Orthogonal to `requires` — being trusted doesn't make you tall enough.
+   */
+  minAge?: number;
+
+  /**
+   * Someone doing this ONCE, because `owner` can't. Cover, not a transfer.
+   *
+   * ── Why this is a field and not just `owner = sam` ──────────────────────
+   * The obvious implementation of "Sam covers Maya's week away" is to reassign
+   * the tasks. It's wrong, and quietly so: `recall()` learns precedent by
+   * tallying `owner` across every task sharing a `source`. Reassign five Meals
+   * tasks for one trip and the household's memory now says *Sam* usually cooks
+   * — permanently, because nothing restores it when Maya lands. A week away
+   * would rewrite a standing agreement, and the app would keep acting on the
+   * lie long after.
+   *
+   * So `owner` stays TRUE (whose job this is) and `coveredBy` carries the
+   * temporary fact (who's actually doing it). The split is what lets cover
+   * expire without an undo step: clear one field and the truth is still there.
+   *
+   * ── The rule ───────────────────────────────────────────────────────────
+   * Anything asking "who is doing this?" reads `holder()`. Only precedent —
+   * who this work BELONGS to — reads `owner`. Getting these backwards is the
+   * bug this field exists to make thinkable.
+   */
+  coveredBy?: MemberId;
+}
+
+export type ShopCategory = "Groceries" | "Supplies" | "Pet";
+
+export interface ShopItem {
+  id: string;
+  title: string;
+  category: ShopCategory;
+  /** Surfaced because inventory ran low (may be auto-added). */
+  low: boolean;
+  done: boolean;
+  note?: string;
+  auto?: boolean;
+}
+
+export type BillStatus = "due" | "upcoming" | "scheduled" | "paid";
+export interface Bill {
+  id: string;
+  title: string;
+  amount: number;
+  due: string;
+  status: BillStatus;
+}
+
+export type StockStatus = "low" | "ok" | "expiring";
+export interface InventoryItem {
+  id: string;
+  title: string;
+  location: string;
+  quantity: string;
+  status: StockStatus;
+}
+
+export type MaintStatus = "over" | "due" | "season" | "up";
+export interface MaintItem {
+  id: string;
+  title: string;
+  asset: string;
+  /** ISO YYYY-MM-DD. `status` and the "when" text both derive from this. */
+  due: string;
+  status: MaintStatus;
+  cadence: string;
+}
+
+export interface HouseEvent {
+  id: string;
+  /** ISO YYYY-MM-DD — same field, same meaning, as a Task's. */
+  due: string;
+  title: string;
+  time: string;
+  who: MemberId;
+  /** How often it recurs — shown with the repeat glyph, same as a task. */
+  recurring?: string;
+}
+
+export interface Automation {
+  id: string;
+  title: string;
+  description: string;
+  on: boolean;
+}
+
+export interface ActivityEntry {
+  text: string;
+  at: number;
+  /**
+   * Whose doing it was. Without this the feed can only be the HOUSEHOLD's — which
+   * is right on the shared iPad and wrong on a phone, where "Recent activity" was
+   * showing Maya paying a bill on Leo's own profile.
+   *
+   * Optional: some events are the house's, not a person's (a bill got paid, a
+   * rebalance ran). Those belong to everyone and are filtered out of "yours".
+   */
+  who?: MemberId;
+}
+
+/** Which lens we're looking through. "ipad" = the shared family/owner superset. */
+export type Persona = "ipad" | MemberId;
+export type IpadRoute =
+  | "home" | "tasks" | "shopping" | "calendar" | "household" | "insights"
+  | "more" | "bills" | "inventory" | "maint" | "autos" | "settings";
+/**
+ * The phone has THREE tabs, on one axis: now -> later -> me.
+ * today = what's on right now · ahead = the week/month/quarter · you = the person.
+ */
+export type PhoneRoute = "today" | "ahead" | "you";

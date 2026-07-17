@@ -1,0 +1,519 @@
+<style>
+  /* ===== HOUSEHOLD FLOW &mdash; Living Foundation (Phase 14, step 1) ============ */
+  /* Tokens mirror src/ui/tokens/tokens.css (self-contained for the artifact). */
+
+  :root{
+    --oat-50:#FAF8F3;--oat-100:#F6F4EE;--oat-200:#EFECE4;--oat-300:#E4E0D5;--oat-400:#CFC9BB;
+    --clay-600:#6B675E;--ink-900:#23211C;--ink-050:#EDE9E0;
+    --char-900:#14120F;--char-800:#1A1815;--char-700:#24211D;--char-600:#2E2A25;
+    --heath-700:#4E5845;--heath-600:#5F6B54;--heath-500:#71805F;--heath-400:#8C9A7B;--heath-300:#A9B598;--heath-100:#E4E8DC;
+    --amber-500:#C0894A;--amber-400:#D6A24E;--warm-pole:#C0894A;--cool-pole:#6E8194;
+
+    --surface:var(--oat-200);--surface-sunken:var(--oat-300);--surface-raised:var(--oat-100);--surface-overlay:var(--oat-50);
+    --content-primary:var(--ink-900);--content-muted:var(--clay-600);--content-faint:#918C81;--content-on-accent:#FAF8F3;
+    --accent:var(--heath-600);--accent-strong:var(--heath-700);--accent-tint:var(--heath-100);
+    --signal-slip:var(--amber-500);--signal-slip-tint:#F3E7D6;
+    --border-hairline:rgba(35,33,28,.09);--border-strong:rgba(35,33,28,.16);
+    --balance-warm:var(--warm-pole);--balance-cool:var(--cool-pole);
+    --elev-raised:0 1px 2px rgba(58,50,38,.06),0 2px 8px rgba(58,50,38,.05);
+    --elev-sheet:0 2px 6px rgba(58,50,38,.08),0 16px 40px rgba(58,50,38,.12);
+    --elev-overlay:0 4px 12px rgba(58,50,38,.10),0 24px 64px rgba(58,50,38,.16);
+    --scrim:rgba(28,25,20,.28);
+
+    --font-voice:ui-serif,"New York",Georgia,"Times New Roman",serif;
+    --font-ui:system-ui,-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    --font-num:ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;
+    --r-sm:8px;--r-md:12px;--r-lg:20px;--r-sheet:28px;--r-full:999px;
+    --dur-quick:160ms;--dur-standard:240ms;--dur-settle:320ms;
+    --ease-calm:cubic-bezier(.22,.61,.30,1);--ease-snappy:cubic-bezier(.30,0,.10,1);
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --surface:var(--char-800);--surface-sunken:var(--char-900);--surface-raised:var(--char-700);--surface-overlay:var(--char-600);
+    --content-primary:var(--ink-050);--content-muted:#9A958A;--content-faint:#726D63;--content-on-accent:#14120F;
+    --accent:var(--heath-400);--accent-strong:var(--heath-300);--accent-tint:rgba(140,154,123,.14);
+    --signal-slip:var(--amber-400);--signal-slip-tint:rgba(214,162,78,.14);
+    --border-hairline:rgba(237,233,224,.10);--border-strong:rgba(237,233,224,.18);
+    --elev-raised:0 1px 2px rgba(0,0,0,.30),0 2px 10px rgba(0,0,0,.28);
+    --elev-sheet:0 2px 8px rgba(0,0,0,.40),0 18px 44px rgba(0,0,0,.50);
+    --elev-overlay:0 4px 14px rgba(0,0,0,.46),0 28px 70px rgba(0,0,0,.58);
+    --scrim:rgba(0,0,0,.52);
+  }}
+  :root[data-theme="light"]{
+    --surface:var(--oat-200);--surface-sunken:var(--oat-300);--surface-raised:var(--oat-100);--surface-overlay:var(--oat-50);
+    --content-primary:var(--ink-900);--content-muted:var(--clay-600);--content-faint:#918C81;--content-on-accent:#FAF8F3;
+    --accent:var(--heath-600);--accent-strong:var(--heath-700);--accent-tint:var(--heath-100);
+    --signal-slip:var(--amber-500);--signal-slip-tint:#F3E7D6;
+    --border-hairline:rgba(35,33,28,.09);--border-strong:rgba(35,33,28,.16);
+    --elev-raised:0 1px 2px rgba(58,50,38,.06),0 2px 8px rgba(58,50,38,.05);
+    --elev-sheet:0 2px 6px rgba(58,50,38,.08),0 16px 40px rgba(58,50,38,.12);
+    --elev-overlay:0 4px 12px rgba(58,50,38,.10),0 24px 64px rgba(58,50,38,.16);
+  }
+  :root[data-theme="dark"]{
+    --surface:var(--char-800);--surface-sunken:var(--char-900);--surface-raised:var(--char-700);--surface-overlay:var(--char-600);
+    --content-primary:var(--ink-050);--content-muted:#9A958A;--content-faint:#726D63;--content-on-accent:#14120F;
+    --accent:var(--heath-400);--accent-strong:var(--heath-300);--accent-tint:rgba(140,154,123,.14);
+    --signal-slip:var(--amber-400);--signal-slip-tint:rgba(214,162,78,.14);
+    --border-hairline:rgba(237,233,224,.10);--border-strong:rgba(237,233,224,.18);
+    --elev-raised:0 1px 2px rgba(0,0,0,.30),0 2px 10px rgba(0,0,0,.28);
+    --elev-sheet:0 2px 8px rgba(0,0,0,.40),0 18px 44px rgba(0,0,0,.50);
+    --elev-overlay:0 4px 14px rgba(0,0,0,.46),0 28px 70px rgba(0,0,0,.58);
+  }
+
+  .hf{background:var(--surface);color:var(--content-primary);font-family:var(--font-ui);
+    -webkit-font-smoothing:antialiased;line-height:1.5;transition:background var(--dur-standard) var(--ease-calm),color var(--dur-standard) var(--ease-calm);}
+  .hf *{box-sizing:border-box;}
+  .hf-wrap{max-width:940px;margin:0 auto;padding:clamp(24px,5vw,64px) clamp(20px,5vw,48px) 96px;}
+
+  /* Header */
+  .hf-top{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap;margin-bottom:56px;}
+  .hf-mark{font-family:var(--font-voice);font-size:clamp(2rem,1.3rem+2.6vw,2.9rem);font-weight:500;
+    letter-spacing:-.01em;line-height:1.02;text-wrap:balance;margin:0;}
+  .hf-mark em{font-style:italic;color:var(--accent);}
+  .hf-lede{color:var(--content-muted);font-size:1.0625rem;max-width:46ch;margin:14px 0 0;text-wrap:pretty;}
+  .hf-eyebrow{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--content-faint);
+    font-weight:600;margin:0 0 10px;}
+
+  /* Theme toggle */
+  .hf-toggle{display:inline-flex;background:var(--surface-sunken);border:1px solid var(--border-hairline);
+    border-radius:var(--r-full);padding:3px;gap:2px;}
+  .hf-toggle button{font:inherit;font-size:.8125rem;font-weight:500;color:var(--content-muted);
+    background:transparent;border:0;border-radius:var(--r-full);padding:6px 14px;cursor:pointer;
+    transition:color var(--dur-quick),background var(--dur-quick);}
+  .hf-toggle button[aria-pressed="true"]{background:var(--surface-raised);color:var(--content-primary);box-shadow:var(--elev-raised);}
+  .hf :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px;}
+
+  /* Section scaffold */
+  .hf-section{padding:44px 0;border-top:1px solid var(--border-hairline);}
+  .hf-section:first-of-type{border-top:0;}
+  .hf-h2{font-family:var(--font-voice);font-size:clamp(1.4rem,1.1rem+1vw,1.9rem);font-weight:500;
+    letter-spacing:-.01em;margin:0 0 6px;}
+  .hf-note{color:var(--content-muted);font-size:.9375rem;max-width:60ch;margin:0 0 28px;text-wrap:pretty;}
+
+  /* Color */
+  .hf-swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:14px;}
+  .hf-sw{border-radius:var(--r-md);border:1px solid var(--border-hairline);overflow:hidden;background:var(--surface-raised);}
+  .hf-sw .chip{height:66px;}
+  .hf-sw .meta{padding:9px 11px 11px;}
+  .hf-sw .name{font-size:.8125rem;font-weight:600;}
+  .hf-sw .hex{font-family:var(--font-num);font-size:.72rem;color:var(--content-faint);margin-top:2px;letter-spacing:.02em;}
+
+  /* Type scale */
+  .hf-typerow{display:grid;grid-template-columns:88px 1fr;gap:18px;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--border-hairline);}
+  .hf-typerow:last-child{border-bottom:0;}
+  .hf-typerow .lbl{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--content-faint);font-weight:600;padding-top:6px;}
+  .t-display{font-family:var(--font-voice);font-size:clamp(2rem,1.4rem+2.6vw,3rem);font-weight:500;letter-spacing:-.015em;line-height:1.05;}
+  .t-title{font-family:var(--font-voice);font-size:clamp(1.5rem,1.2rem+1.2vw,2rem);font-weight:500;letter-spacing:-.01em;}
+  .t-heading{font-size:1.25rem;font-weight:600;}
+  .t-body{font-size:1.0625rem;}
+  .t-callout{font-size:.9375rem;color:var(--content-muted);}
+  .t-caption{font-size:.8125rem;color:var(--content-faint);}
+  .t-num{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:1.0625rem;}
+
+  /* Scales (space / radius / elevation) */
+  .hf-scale{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-end;}
+  .hf-scale .u{display:flex;flex-direction:column;gap:8px;align-items:center;}
+  .hf-scale .bar{background:var(--accent);border-radius:3px;}
+  .hf-scale .cap{font-family:var(--font-num);font-size:.72rem;color:var(--content-faint);}
+  .hf-radii{display:flex;flex-wrap:wrap;gap:18px;}
+  .hf-radii .r{width:92px;height:72px;background:var(--surface-raised);border:1px solid var(--border-strong);
+    display:flex;align-items:flex-end;justify-content:center;padding-bottom:8px;font-family:var(--font-num);font-size:.72rem;color:var(--content-faint);}
+  .hf-elev{display:flex;flex-wrap:wrap;gap:22px;}
+  .hf-elev .e{width:150px;height:96px;background:var(--surface-raised);border-radius:var(--r-lg);
+    display:flex;align-items:center;justify-content:center;font-size:.8125rem;color:var(--content-muted);font-weight:500;}
+
+  /* Component surface */
+  .hf-stage{background:var(--surface-sunken);border:1px solid var(--border-hairline);border-radius:var(--r-sheet);
+    padding:clamp(20px,4vw,36px);display:flex;flex-direction:column;gap:18px;}
+  .hf-stage-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;}
+
+  /* The One-Thing */
+  .one-thing{background:var(--surface-raised);border-radius:var(--r-sheet);box-shadow:var(--elev-sheet);
+    padding:30px 28px;position:relative;overflow:hidden;}
+  .one-thing::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--accent);opacity:.9;}
+  .one-thing .kicker{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-strong);font-weight:700;}
+  .one-thing .body{font-family:var(--font-voice);font-size:clamp(1.35rem,1.1rem+1vw,1.7rem);line-height:1.25;
+    letter-spacing:-.01em;margin:12px 0 6px;text-wrap:balance;}
+  .one-thing .why{color:var(--content-muted);font-size:.9375rem;}
+  .one-thing .row{display:flex;align-items:center;gap:10px;margin-top:20px;}
+
+  /* Responsibility Card + states */
+  .rcard{background:var(--surface-raised);border:1px solid var(--border-hairline);border-radius:var(--r-lg);
+    box-shadow:var(--elev-raised);padding:15px 16px;display:flex;flex-direction:column;gap:10px;position:relative;}
+  .rcard .stripe{position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:transparent;}
+  .rcard.is-active .stripe{background:var(--accent);}
+  .rcard.is-slipping .stripe{background:var(--signal-slip);}
+  .rcard.is-slipping{background:var(--signal-slip-tint);}
+  .rcard.is-done{opacity:.6;}
+  .rcard .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;}
+  .rcard .title{font-size:.9875rem;font-weight:600;line-height:1.3;}
+  .rcard.is-done .title{text-decoration:line-through;text-decoration-color:var(--content-faint);}
+  .rcard .meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.78rem;color:var(--content-muted);}
+  .glyph{width:22px;height:22px;border-radius:6px;background:var(--accent-tint);color:var(--accent-strong);
+    display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .glyph svg{width:13px;height:13px;}
+  .pill{font-size:.68rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:var(--r-full);
+    background:var(--surface-sunken);color:var(--content-muted);white-space:nowrap;}
+  .pill.state-proposed{background:var(--accent-tint);color:var(--accent-strong);}
+  .pill.state-slipping{background:var(--signal-slip);color:var(--content-on-accent);}
+  .pill.state-done{background:transparent;color:var(--content-faint);}
+  .dot-owner{width:16px;height:16px;border-radius:var(--r-full);background:var(--accent);color:var(--content-on-accent);
+    font-size:.6rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
+  .cog-tag{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;color:var(--content-faint);}
+  .cog-tag svg{width:12px;height:12px;}
+
+  /* Suggestion chip */
+  .chip-sug{display:flex;gap:12px;align-items:flex-start;background:var(--surface-raised);border:1px solid var(--accent-tint);
+    border-left:3px solid var(--accent);border-radius:var(--r-md);padding:13px 14px;}
+  .chip-sug .ai{width:26px;height:26px;border-radius:var(--r-full);background:var(--accent);flex-shrink:0;position:relative;}
+  .chip-sug .ai::after{content:"";position:absolute;inset:8px;border-radius:var(--r-full);background:var(--content-on-accent);opacity:.85;}
+  .chip-sug .txt{font-size:.9rem;line-height:1.4;}
+  .chip-sug .why{color:var(--content-muted);font-size:.8rem;margin-top:3px;}
+  .chip-sug .acts{display:flex;gap:8px;margin-top:10px;}
+
+  /* Buttons */
+  .btn{font:inherit;font-weight:600;font-size:.875rem;border-radius:var(--r-full);padding:9px 18px;cursor:pointer;border:1px solid transparent;
+    transition:transform var(--dur-quick) var(--ease-snappy),background var(--dur-quick),border-color var(--dur-quick);}
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--accent);color:var(--content-on-accent);}
+  .btn-primary:hover{background:var(--accent-strong);}
+  .btn-quiet{background:var(--surface-sunken);color:var(--content-primary);border-color:var(--border-hairline);}
+  .btn-ghost{background:transparent;color:var(--content-muted);padding:9px 12px;}
+  .btn-ghost:hover{color:var(--content-primary);}
+  .btn-sm{padding:6px 13px;font-size:.8125rem;}
+
+  /* Member tokens */
+  .members{display:flex;gap:22px;flex-wrap:wrap;}
+  .mtok{display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .avatar{width:52px;height:52px;border-radius:var(--r-full);display:flex;align-items:center;justify-content:center;
+    font-weight:600;font-size:1rem;color:var(--content-on-accent);background:var(--accent);position:relative;}
+  .avatar .ring{position:absolute;inset:-5px;border-radius:var(--r-full);border:2.5px solid var(--accent);}
+  .avatar.cap-stretched .ring{border-color:var(--signal-slip);border-right-color:transparent;transform:rotate(-30deg);}
+  .avatar.cap-full .ring{border-color:var(--signal-slip);}
+  .avatar.cap-away{background:var(--surface-overlay);color:var(--content-faint);border:1px solid var(--border-strong);}
+  .avatar.cap-away .ring{border-color:var(--border-strong);border-style:dashed;}
+  .mtok .who{font-size:.8rem;font-weight:600;}
+  .mtok .cap{font-size:.72rem;color:var(--content-faint);}
+
+  /* Balance field */
+  .balance{background:var(--surface-raised);border-radius:var(--r-lg);padding:22px;box-shadow:var(--elev-raised);}
+  .bfield{height:74px;border-radius:var(--r-md);position:relative;overflow:hidden;
+    background:linear-gradient(100deg,color-mix(in oklab,var(--balance-warm) 42%,var(--surface)) 0%,var(--surface-raised) 48%,color-mix(in oklab,var(--balance-cool) 40%,var(--surface)) 100%);}
+  .bfield .tilt{position:absolute;top:50%;left:50%;width:120px;height:120px;border-radius:var(--r-full);
+    transform:translate(-64%,-50%);background:radial-gradient(circle,color-mix(in oklab,var(--balance-warm) 55%,transparent),transparent 70%);}
+  .balance .cap{display:flex;justify-content:space-between;margin-top:14px;font-size:.8rem;color:var(--content-muted);}
+  .balance .lede{font-size:.9375rem;margin-top:2px;}
+
+  /* Mode banner */
+  .mbanner{display:flex;align-items:center;gap:14px;border-radius:var(--r-lg);padding:15px 18px;
+    background:color-mix(in oklab,var(--surface-raised) 82%,var(--heath-300));border:1px solid var(--border-hairline);}
+  .mbanner.travel{background:color-mix(in oklab,var(--surface-raised) 82%,var(--cool-pole));}
+  .mbanner .mi{width:34px;height:34px;border-radius:var(--r-full);background:var(--surface-raised);
+    display:flex;align-items:center;justify-content:center;box-shadow:var(--elev-raised);flex-shrink:0;}
+  .mbanner .mi svg{width:17px;height:17px;color:var(--accent-strong);}
+  .mbanner .mt{font-weight:600;font-size:.9375rem;}
+  .mbanner .ms{font-size:.82rem;color:var(--content-muted);}
+
+  /* Footer */
+  .hf-foot{margin-top:56px;padding-top:28px;border-top:1px solid var(--border-hairline);
+    color:var(--content-faint);font-size:.8125rem;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  .hf-foot code{font-family:var(--font-num);color:var(--content-muted);}
+
+  @media (prefers-reduced-motion:reduce){.hf,.hf *{transition-duration:1ms!important;}}
+</style>
+
+<div class="hf">
+  <div class="hf-wrap">
+
+    <header class="hf-top">
+      <div>
+        <p class="hf-eyebrow">Household&nbsp;Flow &middot; Design&nbsp;Foundation</p>
+        <h1 class="hf-mark">Quiet materials,<br><em>warm light.</em></h1>
+        <p class="hf-lede">The token system and anchor components that everything else is built from. Calm by construction &mdash; the interface is meant to disappear.</p>
+      </div>
+      <div class="hf-toggle" role="group" aria-label="Theme">
+        <button data-theme-set="light" aria-pressed="false">Light</button>
+        <button data-theme-set="dark" aria-pressed="false">Dark</button>
+        <button data-theme-set="system" aria-pressed="true">System</button>
+      </div>
+    </header>
+
+    <!-- COLOR -->
+    <section class="hf-section">
+      <p class="hf-eyebrow">Foundation</p>
+      <h2 class="hf-h2">Color</h2>
+      <p class="hf-note">Warm greige grounds &mdash; never pure white or black. One signature hue, <strong>Heath</strong>, carries &ldquo;the present&rdquo; and the system&rsquo;s own voice. Amber is the only signal color; it means <em>slipping</em>, never danger. Hex values update live with the theme.</p>
+      <div class="hf-swatches" id="swatches"></div>
+    </section>
+
+    <!-- TYPE -->
+    <section class="hf-section">
+      <p class="hf-eyebrow">Foundation</p>
+      <h2 class="hf-h2">Typography</h2>
+      <p class="hf-note">A serif <em>voice</em> for the household&rsquo;s own quiet statements, a humanist sans for everything operational, and tabular figures for anything that counts. No display face shouting &mdash; a loud one would fight the calm.</p>
+      <div>
+        <div class="hf-typerow"><span class="lbl">Display</span><span class="t-display">Defrost the chicken tonight.</span></div>
+        <div class="hf-typerow"><span class="lbl">Title</span><span class="t-title">Here&rsquo;s what the home is carrying</span></div>
+        <div class="hf-typerow"><span class="lbl">Heading</span><span class="t-heading">Sunday reset</span></div>
+        <div class="hf-typerow"><span class="lbl">Body</span><span class="t-body">Two things are yours today. The rest is handled &mdash; I&rsquo;ll surface anything that starts to slip.</span></div>
+        <div class="hf-typerow"><span class="lbl">Callout</span><span class="t-callout">Because Leo&rsquo;s dentist is in three weeks, and booking takes a few days.</span></div>
+        <div class="hf-typerow"><span class="lbl">Caption</span><span class="t-caption">Cognitive owner &middot; Maya</span></div>
+        <div class="hf-typerow"><span class="lbl">Numeric</span><span class="t-num">4 handled &middot; 1 yours &middot; 0 slipping</span></div>
+      </div>
+    </section>
+
+    <!-- SCALES -->
+    <section class="hf-section">
+      <p class="hf-eyebrow">Foundation</p>
+      <h2 class="hf-h2">Space, radius & elevation</h2>
+      <p class="hf-note">An 8-pt base with a deliberately large rhythm at the surface level &mdash; air is the primary material. Soft, warm shadows, lit from above like a lamp; never hard black drop-shadows.</p>
+      <div class="hf-scale" style="margin-bottom:34px" id="spaceScale"></div>
+      <div class="hf-radii" style="margin-bottom:34px">
+        <div class="r" style="border-radius:var(--r-sm)">sm &middot; 8</div>
+        <div class="r" style="border-radius:var(--r-md)">md &middot; 12</div>
+        <div class="r" style="border-radius:var(--r-lg)">lg &middot; 20</div>
+        <div class="r" style="border-radius:var(--r-sheet)">sheet &middot; 28</div>
+      </div>
+      <div class="hf-elev">
+        <div class="e" style="box-shadow:var(--elev-raised)">raised</div>
+        <div class="e" style="box-shadow:var(--elev-sheet)">sheet</div>
+        <div class="e" style="box-shadow:var(--elev-overlay)">overlay</div>
+      </div>
+    </section>
+
+    <!-- ONE THING -->
+    <section class="hf-section">
+      <p class="hf-eyebrow">Component &middot; anchor</p>
+      <h2 class="hf-h2">The one thing</h2>
+      <p class="hf-note">The default surface shows a single responsibility, not a list &mdash; the Balancer and Scheduler decide what matters most, right now, for you. Complete it and it clears; the next thing rises into its place.</p>
+      <div class="hf-stage">
+        <div class="one-thing" id="oneThing">
+          <span class="kicker">Yours &middot; right now</span>
+          <p class="body">Defrost the chicken tonight.</p>
+          <p class="why">Tomorrow&rsquo;s dinner needs it, and you&rsquo;re free after 8.</p>
+          <div class="row">
+            <button class="btn btn-primary" id="doneBtn">Set it down</button>
+            <button class="btn btn-ghost">Hand off</button>
+            <button class="btn btn-ghost">Not tonight</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESPONSIBILITY CARD STATES -->
+    <section class="hf-section">
+      <p class="hf-eyebrow">Component &middot; the atom</p>
+      <h2 class="hf-h2">Responsibility card</h2>
+      <p class="hf-note">Not a task &mdash; a thing that&rsquo;s <em>yours to make sure happens</em>. It carries the cognitive owner (who remembers) separately from the doer (who does). Five states; <strong>slipping</strong> warms gently rather than alarming.</p>
+      <div class="hf-stage">
+        <div class="hf-stage-grid">
+
+          <div class="rcard">
+            <span class="stripe"></span>
+            <div class="top">
+              <div class="title">Restock oat milk</div>
+              <span class="pill state-proposed">Proposed</span>
+            </div>
+            <div class="meta"><span class="glyph" data-glyph="cart"></span> Groceries
+              <span class="cog-tag"><span data-glyph="brain"></span> Anticipated</span></div>
+          </div>
+
+          <div class="rcard">
+            <span class="stripe"></span>
+            <div class="top">
+              <div class="title">Book Leo&rsquo;s dentist</div>
+              <span class="pill">Scheduled</span>
+            </div>
+            <div class="meta"><span class="dot-owner">M</span> Maya &middot; by Aug 28
+              <span class="cog-tag"><span data-glyph="brain"></span> Maya tracks</span></div>
+          </div>
+
+          <div class="rcard is-active">
+            <span class="stripe"></span>
+            <div class="top">
+              <div class="title">Take the trash out</div>
+              <span class="pill">Tonight</span>
+            </div>
+            <div class="meta"><span class="dot-owner" style="background:var(--cool-pole)">S</span> Sam &middot; yours now</div>
+          </div>
+
+          <div class="rcard is-slipping">
+            <span class="stripe"></span>
+            <div class="top">
+              <div class="title">Renew car registration</div>
+              <span class="pill state-slipping">Slipping</span>
+            </div>
+            <div class="meta"><span class="dot-owner">M</span> Maya &middot; was due Fri
+              <span class="cog-tag">Want me to move it?</span></div>
+          </div>
+
+          <div class="rcard is-done">
+            <span class="stripe"></span>
+            <div class="top">
+              <div class="title">Water the plants</div>
+              <span class="pill state-done">Done</span>
+            </div>
+            <div class="meta"><span class="dot-owner" style="background:var(--cool-pole)">S</span> Sam &middot; 6:40pm</div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- SUGGESTION + AI -->
+    <section class="hf-section">
+      <p class="hf-eyebrow">Component &middot; the kernel&rsquo;s voice</p>
+      <h2 class="hf-h2">Suggestion</h2>
+      <p class="hf-note">The coordinator proposes in place &mdash; never a chatbot, never a prompt box. Accept, adjust, or dismiss with a flick. Every suggestion carries its &ldquo;because,&rdquo; and every accepted one is reversible.</p>
+      <div class="hf-stage" style="gap:14px">
+        <div class="chip-sug">
+          <span class="ai" aria-hidden="true"></span>
+          <div>
+            <div class="txt">You&rsquo;re almost out of oat milk. Add it to Saturday&rsquo;s shop?</div>
+            <div class="why">Because you buy it about every nine days, and the last one opened on the 4th.</div>
+            <div class="acts">
+              <button class="btn btn-primary btn-sm">Add it</button>
+              <button class="btn btn-quiet btn-sm">Adjust</button>
+              <button class="btn btn-ghost btn-sm">Dismiss</button>
+            </div>
+          </div>
+        </div>
+        <div class="chip-sug">
+          <span class="ai" aria-hidden="true"></span>
+          <div>
+            <div class="txt">You&rsquo;ve okayed this a few times. Want me to just handle reordering from now on?</div>
+            <div class="why">I&rsquo;ll leave a receipt each time, and you can take it back whenever.</div>
+            <div class="acts">
+              <button class="btn btn-primary btn-sm">Yes, handle it</button>
+              <button class="btn btn-ghost btn-sm">Keep asking</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BALANCE + MEMBERS -->
+    <section class="hf-section">
+      <p class="hf-eyebrow">Component &middot; the soul surface</p>
+      <h2 class="hf-h2">Balance & members</h2>
+      <p class="hf-note">Fairness is felt, not scored. Load renders as an ambient warm&harr;cool field that tilts gently &mdash; no leaderboard, no numbers-first. Capacity rings show who has room and who&rsquo;s stretched, so work routes to the right person quietly.</p>
+      <div class="hf-stage">
+        <div class="balance">
+          <div class="bfield" aria-hidden="true"><span class="tilt"></span></div>
+          <div class="lede">Maya&rsquo;s carried most of the planning this week.</div>
+          <div class="cap"><span>Maya &middot; more of the load</span><span>Sam &middot; room to take some</span></div>
+        </div>
+        <div class="members">
+          <div class="mtok"><div class="avatar">M<span class="ring"></span></div><span class="who">Maya</span><span class="cap">Stretched</span></div>
+          <div class="mtok"><div class="avatar cap-full" style="background:var(--cool-pole)">S<span class="ring"></span></div><span class="who">Sam</span><span class="cap">Room to help</span></div>
+          <div class="mtok"><div class="avatar" style="background:var(--heath-500)">L<span class="ring"></span></div><span class="who">Leo &middot; 10</span><span class="cap">Available</span></div>
+          <div class="mtok"><div class="avatar cap-away">A<span class="ring"></span></div><span class="who">Ada &middot; 7</span><span class="cap">At grandma&rsquo;s</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODES -->
+    <section class="hf-section">
+      <p class="hf-eyebrow">Component &middot; whole-surface state</p>
+      <h2 class="hf-h2">Modes</h2>
+      <p class="hf-note">The household is a state machine. On the hard weeks, a Mode reconfigures how work is distributed and surfaced &mdash; the world gently re-tints, load sheds, and notifications quiet. Grace under chaos, engineered.</p>
+      <div class="hf-stage" style="gap:14px">
+        <div class="mbanner">
+          <span class="mi" data-glyph="heart"></span>
+          <div><div class="mt">Recovery mode &middot; Maya</div><div class="ms">I&rsquo;ve eased her load and quieted things down. Feel better.</div></div>
+        </div>
+        <div class="mbanner travel">
+          <span class="mi" data-glyph="plane"></span>
+          <div><div class="mt">Travel mode &middot; Sam, Fri&ndash;Sun</div><div class="ms">His regulars are handed off. I&rsquo;ll brief him when he&rsquo;s back.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="hf-foot">
+      <span>Household&nbsp;Flow &middot; Phase&nbsp;14 &middot; design system foundation</span>
+      <span>Tokens: <code>src/ui/tokens/tokens.css</code> &middot; WCAG&nbsp;AA &middot; light + evening</span>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  // ---- Theme toggle (overrides prefers-color-scheme in both directions) ----
+  var btns=[].slice.call(document.querySelectorAll('[data-theme-set]'));
+  function apply(mode){
+    if(mode==='system'){root.removeAttribute('data-theme');}
+    else{root.setAttribute('data-theme',mode);}
+    btns.forEach(function(b){b.setAttribute('aria-pressed', b.dataset.themeSet===mode);});
+    // refresh live hex readouts after paint
+    requestAnimationFrame(paintHex);
+  }
+  btns.forEach(function(b){b.addEventListener('click',function(){apply(b.dataset.themeSet);});});
+
+  // ---- Inline SVG glyphs (kept out of markup for readability) ----
+  var G={
+    cart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h2l2.2 12.3a1 1 0 0 0 1 .8h8.8a1 1 0 0 0 1-.8L20 7H6"/></svg>',
+    brain:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4a3 3 0 0 0-3 3 3 3 0 0 0-1 5.8V15a3 3 0 0 0 4 2.8V4Z"/><path d="M15 4a3 3 0 0 1 3 3 3 3 0 0 1 1 5.8V15a3 3 0 0 1-4 2.8V4Z"/></svg>',
+    heart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-9.2-8.6C1.1 8.2 2.6 5 5.8 5A4 4 0 0 1 12 7a4 4 0 0 1 6.2-2C21.4 5 22.9 8.2 21.2 11.4 19 15.5 12 20 12 20Z"/></svg>',
+    plane:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.2 13.8 3 12l0-2 6 1 3-6 2 0-1.5 7 4.5 1.2 1.2-2.4 1.6 0-.8 3.4.8 3.4-1.6 0L18 15l-4.5 1.2L15 22l-2 0-3-6-6 1 0-2 7.2-1.2"/></svg>'
+  };
+  document.querySelectorAll('[data-glyph]').forEach(function(el){
+    var key=el.getAttribute('data-glyph');
+    if(G[key]){ el.innerHTML=G[key]; }
+  });
+
+  // ---- Space scale bars ----
+  var sizes=[4,8,12,16,24,32,48,64];
+  var wrap=document.getElementById('spaceScale');
+  sizes.forEach(function(s){
+    var u=document.createElement('div');u.className='u';
+    u.innerHTML='<div class="bar" style="width:'+s+'px;height:'+s+'px"></div><span class="cap">'+s+'</span>';
+    wrap.appendChild(u);
+  });
+
+  // ---- Color swatches (live hex from computed styles) ----
+  var TOKENS=[
+    ['surface','Surface'],['surface-raised','Raised'],['surface-sunken','Sunken'],
+    ['content-primary','Ink'],['content-muted','Muted'],
+    ['accent','Heath &middot; accent'],['accent-strong','Heath strong'],['accent-tint','Heath tint'],
+    ['signal-slip','Signal &middot; slip'],['balance-warm','Balance warm'],['balance-cool','Balance cool']
+  ];
+  var sw=document.getElementById('swatches');
+  TOKENS.forEach(function(t){
+    var el=document.createElement('div');el.className='hf-sw';
+    el.innerHTML='<div class="chip" style="background:var(--'+t[0]+')"></div>'+
+      '<div class="meta"><div class="name">'+t[1]+'</div><div class="hex" data-tok="'+t[0]+'">-</div></div>';
+    sw.appendChild(el);
+  });
+  function toHex(c){
+    var m=c.match(/rgba?\(([^)]+)\)/); if(!m) return c;
+    var p=m[1].split(',').map(function(x){return parseFloat(x);});
+    return '#'+p.slice(0,3).map(function(v){return ('0'+Math.round(v).toString(16)).slice(-2);}).join('').toUpperCase();
+  }
+  function paintHex(){
+    document.querySelectorAll('.hex[data-tok]').forEach(function(el){
+      var probe=document.createElement('span');probe.style.color='var(--'+el.dataset.tok+')';
+      document.body.appendChild(probe);
+      var c=getComputedStyle(probe).color;probe.remove();
+      el.textContent=toHex(c);
+    });
+  }
+  paintHex();
+  if(window.matchMedia){window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',function(){requestAnimationFrame(paintHex);});}
+
+  // ---- One-thing "set it down" demo ----
+  var done=document.getElementById('doneBtn'), card=document.getElementById('oneThing');
+  if(done){done.addEventListener('click',function(){
+    var reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+    card.style.transition=reduce?'none':'transform .32s var(--ease-calm), opacity .32s var(--ease-calm)';
+    card.style.transform='translateY(14px)';card.style.opacity='0.35';
+    setTimeout(function(){
+      card.querySelector('.kicker').textContent='All clear';
+      card.querySelector('.body').textContent='Nothing needs you right now.';
+      card.querySelector('.why').textContent="That's the point.";
+      card.querySelector('.row').style.display='none';
+      card.style.transform='translateY(0)';card.style.opacity='1';
+    }, reduce?0:340);
+  });}
+})();
+</script>

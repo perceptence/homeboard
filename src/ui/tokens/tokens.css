@@ -1,0 +1,177 @@
+/* ============================================================================
+   HOUSEHOLD FLOW — Design Tokens (source of truth)
+   Phase 08 · "Quiet Materials, Warm Light"
+
+   Architecture: primitive -> semantic -> component.
+   UI must consume SEMANTIC and COMPONENT tokens only — never primitives.
+   Themes (light/dark) and Modes (recovery/travel/...) swap the SEMANTIC layer.
+   ========================================================================== */
+
+/* ---- 1. PRIMITIVES (raw values — do not use directly in components) ------- */
+:root {
+  /* Warm greige neutrals (biased toward the Heath accent, not pure grey) */
+  --oat-50:  #FAF8F3;
+  --oat-100: #F6F4EE;
+  --oat-200: #EFECE4;
+  --oat-300: #E4E0D5;
+  --oat-400: #CFC9BB;
+  --clay-600: #6B675E;
+  --clay-700: #4A473F;
+  --ink-900: #23211C;   /* warm near-black */
+  --ink-050: #EDE9E0;   /* warm near-white */
+
+  /* Warm charcoals ("evening" — dark ground; never pure black) */
+  --char-900: #14120F;
+  --char-800: #1A1815;
+  --char-700: #24211D;
+  --char-600: #2E2A25;
+
+  /* Signature hue — Heath (muted deep sage-olive) */
+  --heath-700: #4E5845;
+  --heath-600: #5F6B54;
+  --heath-500: #71805F;
+  --heath-400: #8C9A7B;
+  --heath-300: #A9B598;
+  --heath-100: #E4E8DC;
+
+  /* Warm amber — the ONLY signal color (slipping / at-risk). Never red. */
+  --amber-500: #C0894A;
+  --amber-400: #D6A24E;
+
+  /* Balance field poles (muted warm <-> cool) */
+  --warm-pole: #C0894A;
+  --cool-pole: #6E8194;
+}
+
+/* ---- 2. SEMANTIC (light default) ----------------------------------------- */
+:root {
+  --surface:          var(--oat-200);
+  --surface-sunken:   var(--oat-300);
+  --surface-raised:   var(--oat-100);
+  --surface-overlay:  var(--oat-50);
+
+  --content-primary:  var(--ink-900);
+  --content-muted:    var(--clay-600);
+  --content-faint:    #918C81;
+  --content-on-accent:#FAF8F3;
+
+  --accent:           var(--heath-600);   /* "the present" + system voice */
+  --accent-strong:    var(--heath-700);
+  --accent-tint:      var(--heath-100);
+
+  --signal-slip:      var(--amber-500);
+  --signal-slip-tint: #F3E7D6;
+
+  --border-hairline:  rgba(35,33,28,0.09);
+  --border-strong:    rgba(35,33,28,0.16);
+
+  --balance-warm:     var(--warm-pole);
+  --balance-cool:     var(--cool-pole);
+
+  /* Elevation — warm, diffuse, light-from-above (never opacity-black hard) */
+  --elev-raised: 0 1px 2px rgba(58,50,38,0.06), 0 2px 8px rgba(58,50,38,0.05);
+  --elev-sheet:  0 2px 6px rgba(58,50,38,0.08), 0 16px 40px rgba(58,50,38,0.12);
+  --elev-overlay:0 4px 12px rgba(58,50,38,0.10), 0 24px 64px rgba(58,50,38,0.16);
+  --scrim:       rgba(28,25,20,0.28);
+}
+
+/* ---- 3. SEMANTIC (dark = "evening") -------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface:          var(--char-800);
+    --surface-sunken:   var(--char-900);
+    --surface-raised:   var(--char-700);
+    --surface-overlay:  var(--char-600);
+
+    --content-primary:  var(--ink-050);
+    --content-muted:    #9A958A;
+    --content-faint:    #726D63;
+    --content-on-accent:#14120F;
+
+    --accent:           var(--heath-400);
+    --accent-strong:    var(--heath-300);
+    --accent-tint:      rgba(140,154,123,0.14);
+
+    --signal-slip:      var(--amber-400);
+    --signal-slip-tint: rgba(214,162,78,0.14);
+
+    --border-hairline:  rgba(237,233,224,0.10);
+    --border-strong:    rgba(237,233,224,0.18);
+
+    --elev-raised: 0 1px 2px rgba(0,0,0,0.30), 0 2px 10px rgba(0,0,0,0.28);
+    --elev-sheet:  0 2px 8px rgba(0,0,0,0.40), 0 18px 44px rgba(0,0,0,0.50);
+    --elev-overlay:0 4px 14px rgba(0,0,0,0.46), 0 28px 70px rgba(0,0,0,0.58);
+    --scrim:       rgba(0,0,0,0.52);
+  }
+}
+
+/* Explicit theme overrides win over the media query in BOTH directions
+   (the in-product theme toggle stamps data-theme on :root). */
+:root[data-theme="light"] {
+  --surface: var(--oat-200); --surface-sunken: var(--oat-300);
+  --surface-raised: var(--oat-100); --surface-overlay: var(--oat-50);
+  --content-primary: var(--ink-900); --content-muted: var(--clay-600);
+  --content-faint: #918C81; --content-on-accent:#FAF8F3;
+  --accent: var(--heath-600); --accent-strong: var(--heath-700);
+  --accent-tint: var(--heath-100);
+  --signal-slip: var(--amber-500); --signal-slip-tint:#F3E7D6;
+  --border-hairline: rgba(35,33,28,0.09); --border-strong: rgba(35,33,28,0.16);
+  --elev-raised: 0 1px 2px rgba(58,50,38,0.06), 0 2px 8px rgba(58,50,38,0.05);
+  --elev-sheet:  0 2px 6px rgba(58,50,38,0.08), 0 16px 40px rgba(58,50,38,0.12);
+  --elev-overlay:0 4px 12px rgba(58,50,38,0.10), 0 24px 64px rgba(58,50,38,0.16);
+  --scrim: rgba(28,25,20,0.28);
+}
+:root[data-theme="dark"] {
+  --surface: var(--char-800); --surface-sunken: var(--char-900);
+  --surface-raised: var(--char-700); --surface-overlay: var(--char-600);
+  --content-primary: var(--ink-050); --content-muted:#9A958A;
+  --content-faint:#726D63; --content-on-accent:#14120F;
+  --accent: var(--heath-400); --accent-strong: var(--heath-300);
+  --accent-tint: rgba(140,154,123,0.14);
+  --signal-slip: var(--amber-400); --signal-slip-tint: rgba(214,162,78,0.14);
+  --border-hairline: rgba(237,233,224,0.10); --border-strong: rgba(237,233,224,0.18);
+  --elev-raised: 0 1px 2px rgba(0,0,0,0.30), 0 2px 10px rgba(0,0,0,0.28);
+  --elev-sheet:  0 2px 8px rgba(0,0,0,0.40), 0 18px 44px rgba(0,0,0,0.50);
+  --elev-overlay:0 4px 14px rgba(0,0,0,0.46), 0 28px 70px rgba(0,0,0,0.58);
+  --scrim: rgba(0,0,0,0.52);
+}
+
+/* ---- 4. MODE TINTS (whole-surface state, Phase 02 §12) -------------------
+   Applied as a class on the app root; gently re-tints the world. --------- */
+.mode-recovery { --surface: color-mix(in oklab, var(--surface) 92%, var(--heath-300)); filter: saturate(0.92) brightness(0.99); }
+.mode-travel   { --accent: var(--cool-pole); --surface: color-mix(in oklab, var(--surface) 94%, var(--cool-pole)); }
+
+/* ---- 5. NON-COLOR TOKENS -------------------------------------------------- */
+:root {
+  /* Type roles */
+  --font-voice: ui-serif, "New York", Georgia, "Times New Roman", serif;
+  --font-ui:    system-ui, -apple-system, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  --font-num:   ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  /* Type scale (fluid at surface level, tight in dense sheets) */
+  --text-display: clamp(2rem, 1.4rem + 2.6vw, 3rem);
+  --text-title:   clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+  --text-heading: 1.25rem;
+  --text-body:    1.0625rem;
+  --text-callout: 0.9375rem;
+  --text-caption: 0.8125rem;
+  --tracking-label: 0.08em;
+
+  /* Space (8pt base; large rhythm on surfaces) */
+  --s-1:2px; --s-2:4px; --s-3:8px; --s-4:12px; --s-5:16px;
+  --s-6:24px; --s-7:32px; --s-8:48px; --s-9:64px;
+
+  /* Radius */
+  --r-sm:8px; --r-md:12px; --r-lg:20px; --r-sheet:28px; --r-full:999px;
+
+  /* Motion (Phase 10) */
+  --dur-instant:80ms; --dur-quick:160ms; --dur-standard:240ms;
+  --dur-settle:320ms; --dur-mode:500ms;
+  --ease-calm: cubic-bezier(0.22, 0.61, 0.30, 1);       /* soft, slightly overdamped */
+  --ease-snappy: cubic-bezier(0.30, 0.00, 0.10, 1);
+  --spring-calm: linear();  /* placeholder; real springs via Framer Motion in app */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-quick:1ms; --dur-standard:1ms; --dur-settle:1ms; --dur-mode:1ms; }
+}

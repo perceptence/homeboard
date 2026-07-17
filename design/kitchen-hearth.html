@@ -1,0 +1,281 @@
+<style>
+  /* ==================================================================
+     HOUSEHOLD FLOW — The Kitchen Display ("the hearth")
+     A warm, intelligent family surface. Tap a person -> their view.
+     Shared iPad (family) <-> personal app (one person), one product.
+     ================================================================== */
+  .stage{ --maya:#E8654B; --sam:#3E86C8; --leo:#9B6BD6; --ada:#28A98B; --juno:#C08A4A;
+    font-family:"SF Pro Rounded",ui-rounded,system-ui,-apple-system,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    padding:clamp(14px,3vw,40px); position:relative; overflow:hidden; transition:background 1.2s ease; }
+  .stage *{ box-sizing:border-box; }
+
+  /* Ambient room light behind the device — shifts with time of day */
+  .stage[data-t="morning"]{ background:
+      radial-gradient(80% 60% at 20% 10%, #FBEAD3 0%, transparent 55%),
+      radial-gradient(90% 70% at 90% 90%, #F3D9C6 0%, transparent 60%),
+      linear-gradient(160deg,#F4E3D2,#EAD4C0); }
+  .stage[data-t="evening"]{ background:
+      radial-gradient(70% 50% at 78% 16%, #4a2f20 0%, transparent 55%),
+      radial-gradient(90% 80% at 12% 96%, #221611 0%, transparent 60%),
+      linear-gradient(160deg,#241812,#171009); }
+
+  /* Screen palette (inside the device) */
+  .device{ width:min(1040px,96vw); }
+  .bezel{ background:#0c0b0a; border-radius:34px; padding:14px; box-shadow:0 40px 90px -30px rgba(40,20,8,.6),0 8px 24px rgba(0,0,0,.25);
+    position:relative; }
+  .bezel::before{ content:""; position:absolute; top:50%; left:7px; width:6px; height:52px; transform:translateY(-50%);
+    background:#000; border-radius:4px; opacity:.5; } /* subtle button hint */
+  .cam{ position:absolute; top:22px; left:50%; transform:translateX(-50%); width:7px; height:7px; border-radius:50%;
+    background:#26221f; box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.05); }
+
+  .screen{ border-radius:22px; overflow:hidden; aspect-ratio:4/3; display:flex; flex-direction:column;
+    transition:background .9s ease, color .9s ease; position:relative; }
+  .stage[data-t="morning"] .screen{ --ink:#2C221B; --soft:#7A6A5C; --faint:#A79684; --card:#FFFDF9; --card2:#FBF1E5;
+    --line:rgba(60,40,20,.09); --accent:#DE8B33; --accent-ink:#8A4F16; --glow:rgba(222,139,51,.14);
+    background:radial-gradient(120% 90% at 12% 0%, #FFF6E9 0%, #F7E9D6 60%, #F1DFC9 100%); color:var(--ink); }
+  .stage[data-t="evening"] .screen{ --ink:#F4E7D7; --soft:#C3AF9B; --faint:#8C7A68; --card:#2E2018; --card2:#251913;
+    --line:rgba(255,230,200,.10); --accent:#F0A94E; --accent-ink:#F0A94E; --glow:rgba(240,169,78,.16);
+    background:radial-gradient(120% 90% at 82% 0%, #3A281C 0%, #2A1B12 62%, #20140D 100%); color:var(--ink); }
+
+  .view{ flex:1; padding:clamp(20px,3.2vw,40px); display:flex; flex-direction:column; min-height:0;
+    animation:fade .5s ease; }
+  @keyframes fade{ from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:none; } }
+
+  /* Header */
+  .hd{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .greet{ font-size:clamp(1.7rem,1.1rem+2.2vw,2.7rem); font-weight:700; letter-spacing:-.02em; line-height:1; }
+  .date{ color:var(--soft); font-size:clamp(.85rem,.6rem+.6vw,1.05rem); margin-top:6px; font-weight:550; }
+  .wx{ text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+  .wxr{ display:flex; align-items:center; gap:8px; font-weight:650; font-size:1.05rem; }
+  .wxr svg{ width:22px; height:22px; color:var(--accent); }
+  .tbtn{ display:inline-flex; background:var(--card2); border-radius:99px; padding:3px; gap:2px; }
+  .tbtn button{ font:inherit; font-size:.76rem; font-weight:650; border:0; background:transparent; color:var(--soft);
+    padding:5px 12px; border-radius:99px; cursor:pointer; }
+  .tbtn button[aria-pressed="true"]{ background:var(--card); color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.12); }
+
+  /* The intelligent summary line — the heart of it */
+  .brief{ margin:clamp(16px,2.4vw,30px) 0; font-size:clamp(1.15rem,.8rem+1.3vw,1.7rem); font-weight:600;
+    letter-spacing:-.01em; line-height:1.32; max-width:24ch; text-wrap:balance; }
+  .brief .hl{ color:var(--accent-ink); }
+  .brief .soft{ color:var(--soft); font-weight:550; }
+
+  /* Family row */
+  .fam{ display:flex; gap:clamp(10px,1.6vw,20px); }
+  .person{ flex:1; background:transparent; border:0; font:inherit; cursor:pointer; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:9px; padding:6px; border-radius:18px; transition:background .18s, transform .18s; }
+  .person:hover{ background:var(--card2); transform:translateY(-2px); }
+  .face{ width:clamp(50px,6vw,74px); height:clamp(50px,6vw,74px); border-radius:50%; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:700; font-size:clamp(1.1rem,1.4vw,1.6rem); position:relative; box-shadow:0 6px 18px -6px rgba(0,0,0,.35); }
+  .face::after{ content:""; position:absolute; inset:-4px; border-radius:50%; border:2px solid var(--pc); opacity:.28; }
+  .pn{ font-weight:650; font-size:clamp(.85rem,1vw,1.02rem); }
+  .ps{ font-size:clamp(.72rem,.85vw,.85rem); color:var(--soft); line-height:1.25; }
+  .badge-here{ position:absolute; bottom:-2px; right:-2px; width:18px; height:18px; border-radius:50%; background:var(--ada);
+    border:2.5px solid var(--card); }
+
+  /* Lower content: rhythm + dinner/nudges */
+  .low{ margin-top:auto; padding-top:clamp(14px,2vw,24px); display:grid; grid-template-columns:1.25fr 1fr; gap:clamp(12px,1.6vw,20px); }
+  .block{ background:var(--card); border-radius:20px; padding:clamp(14px,1.7vw,20px); box-shadow:0 2px 10px -4px rgba(40,20,8,.14); }
+  .block h3{ font-size:.72rem; letter-spacing:.09em; text-transform:uppercase; color:var(--faint); font-weight:700; margin-bottom:12px; }
+  .rhythm{ display:flex; flex-direction:column; gap:0; }
+  .moment{ display:flex; align-items:center; gap:13px; padding:9px 0; border-top:1px solid var(--line); }
+  .moment:first-child{ border-top:0; }
+  .moment .tm{ font-size:.82rem; font-weight:650; color:var(--soft); width:60px; font-variant-numeric:tabular-nums; flex-shrink:0; }
+  .moment .txt{ font-size:.96rem; font-weight:550; flex:1; }
+  .moment.done .txt{ color:var(--soft); text-decoration:line-through; text-decoration-color:var(--faint); }
+  .moment .who{ width:24px; height:24px; border-radius:50%; color:#fff; font-size:.68rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .moment.now{ position:relative; } .moment.now .tm{ color:var(--accent-ink); }
+  .nowdot{ width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 4px var(--glow); }
+
+  .dinner{ display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
+  .dinner .meal{ font-size:1.15rem; font-weight:700; letter-spacing:-.01em; }
+  .dinner .have{ font-size:.86rem; color:var(--soft); display:flex; align-items:center; gap:6px; }
+  .dinner .have svg{ width:15px; height:15px; color:var(--ada); }
+  .nudge{ display:flex; gap:11px; align-items:flex-start; padding:11px 0; border-top:1px solid var(--line); }
+  .nudge:first-of-type{ border-top:1px solid var(--line); }
+  .nudge .ni{ width:30px; height:30px; border-radius:10px; background:var(--card2); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--accent-ink); }
+  .nudge .ni svg{ width:16px; height:16px; }
+  .nudge .nt{ font-size:.9rem; font-weight:550; line-height:1.3; }
+  .nudge .nw{ font-size:.78rem; color:var(--soft); margin-top:1px; }
+
+  /* ---- Personal view ---- */
+  .pv-top{ display:flex; align-items:center; gap:14px; }
+  .backbtn{ display:inline-flex; align-items:center; gap:8px; font:inherit; font-weight:600; font-size:.92rem; color:var(--soft);
+    background:var(--card2); border:0; border-radius:99px; padding:8px 15px 8px 11px; cursor:pointer; }
+  .backbtn svg{ width:17px; height:17px; }
+  .pv-hero{ margin:clamp(18px,3vw,34px) 0 auto; }
+  .pv-kicker{ font-size:.78rem; letter-spacing:.1em; text-transform:uppercase; font-weight:700; color:var(--pc); }
+  .pv-one{ font-size:clamp(1.5rem,1rem+2vw,2.5rem); font-weight:700; letter-spacing:-.02em; line-height:1.15; margin:12px 0 8px; max-width:20ch; text-wrap:balance; }
+  .pv-why{ color:var(--soft); font-size:clamp(.95rem,.7rem+.6vw,1.15rem); max-width:34ch; }
+  .pv-cta{ margin-top:20px; display:flex; gap:10px; }
+  .cta{ font:inherit; font-weight:650; font-size:.95rem; border:0; border-radius:14px; padding:12px 22px; cursor:pointer;
+    background:var(--pc); color:#fff; box-shadow:0 8px 22px -8px var(--pc); }
+  .cta.ghost{ background:var(--card2); color:var(--ink); box-shadow:none; }
+  .pv-rest{ margin-top:clamp(16px,2.4vw,28px); background:var(--card); border-radius:20px; padding:6px 18px; box-shadow:0 2px 10px -4px rgba(40,20,8,.14); }
+  .pv-rest .rr{ display:flex; align-items:center; gap:12px; padding:13px 0; border-top:1px solid var(--line); }
+  .pv-rest .rr:first-child{ border-top:0; }
+  .pv-rest .dot{ width:9px; height:9px; border-radius:50%; border:2px solid var(--pc); flex-shrink:0; }
+  .pv-rest .rt{ font-weight:550; font-size:.98rem; flex:1; }
+  .pv-rest .rm{ font-size:.82rem; color:var(--soft); }
+  .allset{ text-align:center; color:var(--soft); font-size:.92rem; padding:16px; font-weight:550; }
+
+  .caption{ text-align:center; color:var(--soft); font-size:.82rem; margin-top:16px; font-weight:550; }
+  .stage[data-t="evening"] .caption{ color:#9C8973; }
+  .stage :focus-visible{ outline:2px solid var(--accent); outline-offset:3px; }
+  @media (prefers-reduced-motion:reduce){ .view{ animation:none; } .stage{ transition:none; } }
+  @media (max-width:720px){ .low{ grid-template-columns:1fr; } .screen{ aspect-ratio:auto; } .ps{ display:none; } }
+</style>
+
+<div class="stage" data-t="morning" id="stage">
+  <div class="device">
+    <div class="bezel"><span class="cam"></span>
+      <div class="screen"><div class="view" id="view"></div></div>
+    </div>
+    <div class="caption" id="cap">The kitchen display &middot; tap a face to see that person&rsquo;s day</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var stage=document.getElementById('stage'), view=document.getElementById('view'), cap=document.getElementById('cap');
+  var T='morning', current='family';
+
+  var P={ maya:{n:'Maya',c:'var(--maya)'}, sam:{n:'Sam',c:'var(--sam)'}, leo:{n:'Leo',c:'var(--leo)'}, ada:{n:'Ada',c:'var(--ada)'}, juno:{n:'Juno',c:'var(--juno)'} };
+  function face(id,cls){ var p=P[id]; return '<span class="face '+(cls||'')+'" style="background:'+p.c+';--pc:'+p.c+'">'+p.n[0]+'</span>'; }
+
+  var ICON={
+    sun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>',
+    moon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.3 6.3 0 0 0 10.5 10.5z"/></svg>',
+    check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>',
+    trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></svg>',
+    cart:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h2l2.2 12.3a1 1 0 0 0 1 .8h9a1 1 0 0 0 1-.8L20 7H6"/><circle cx="9" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/></svg>',
+    back:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+    star:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l2.6 5.6L20.5 9l-4.3 4 1.1 6-5.3-3-5.3 3 1.1-6L3.5 9l5.9-.4z"/></svg>'
+  };
+
+  /* ---- Content, per time of day (this is the "intelligence": it reads the day) ---- */
+  var DATA={
+    morning:{
+      greet:'Good morning', date:'Sunday, July 13', wx:'72&deg; &middot; Sunny', wxi:'sun',
+      brief:['It&rsquo;s a calm Sunday. ',[
+        {t:'Two small things',k:1},{t:' to handle, dinner&rsquo;s already sorted, and ',s:1},
+        {t:'Ada&rsquo;s recital',k:1},{t:' is the one that matters &mdash; ',s:1},{t:'5:30.',k:1}]],
+      here:'ada',
+      status:{maya:'Home all day',sam:'Pickup at 3',leo:'Recital tonight',ada:'Recital 5:30',juno:'Walked'},
+      rhythm:[
+        {tm:'Now',txt:'Slow morning &middot; pancakes',who:null,now:true},
+        {tm:'3:00',txt:'Sam picks up the kids',who:'sam'},
+        {tm:'5:30',txt:'Ada&rsquo;s recital &mdash; everyone',who:'ada'},
+        {tm:'6:45',txt:'Dinner together',who:'maya'},
+        {tm:'8:00',txt:'Bins out for the morning',who:'sam'}
+      ],
+      meal:'Sheet-pan chicken &amp; veg', have:'You&rsquo;ve got everything for it',
+      nudges:[
+        {i:'cart',t:'Low on oat milk &amp; dish soap',w:'Added to today&rsquo;s shop &mdash; you usually run out about now'},
+        {i:'trash',t:'Bin night',w:'That&rsquo;s Sam&rsquo;s &mdash; I&rsquo;ll nudge him at 8'}
+      ]
+    },
+    evening:{
+      greet:'Good evening', date:'Sunday, July 13', wx:'64&deg; &middot; Clear', wxi:'moon',
+      brief:['The day&rsquo;s winding down. ',[
+        {t:'Recital went well',k:1},{t:', dinner&rsquo;s on the table, and there&rsquo;s ',s:1},
+        {t:'just the bins',k:1},{t:' left before everyone&rsquo;s off the hook.',s:1}]],
+      here:'ada',
+      status:{maya:'Making dinner',sam:'Home',leo:'Homework',ada:'Home &middot; happy',juno:'Fed'},
+      rhythm:[
+        {tm:'3:00',txt:'Sam picked up the kids',who:'sam',done:true},
+        {tm:'5:30',txt:'Ada&rsquo;s recital &mdash; done',who:'ada',done:true},
+        {tm:'Now',txt:'Dinner &middot; chicken &amp; veg',who:'maya',now:true},
+        {tm:'8:00',txt:'Bins out',who:'sam'},
+        {tm:'8:30',txt:'Kids&rsquo; wind-down',who:'maya'}
+      ],
+      meal:'Sheet-pan chicken &amp; veg', have:'On the table now',
+      nudges:[
+        {i:'trash',t:'Bins go out tonight',w:'Sam&rsquo;s got it &mdash; reminder set for 8'},
+        {i:'star',t:'Ada earned a star',w:'She set the table without being asked'}
+      ]
+    }
+  };
+
+  /* ---- Personal content per person + time ---- */
+  var PERSON={
+    maya:{ morning:{one:'Get the chicken marinating', why:'Dinner&rsquo;s at 6:45 and it needs a few hours. Everything else today is calm.',
+              rest:[{t:'Drop Leo at rehearsal',m:'2:15'},{t:'Quick grocery run',m:'oat milk, dish soap'},{t:'Cook dinner',m:'6:00'}] },
+           evening:{one:'Nothing left but dinner', why:'It&rsquo;s plated. Sam&rsquo;s on bins, kids are settled. You&rsquo;re done for the day.',
+              rest:[{t:'Dinner together',m:'now'},{t:'Ada&rsquo;s wind-down',m:'8:30'}] } },
+    sam:{ morning:{one:'Pick up the kids at 3:00', why:'Maya&rsquo;s got dinner, so pickup and the bins tonight are yours. That&rsquo;s the whole day.',
+              rest:[{t:'Pick up Leo &amp; Ada',m:'3:00'},{t:'Take the bins out',m:'tonight, 8:00'}] },
+           evening:{one:'Bins out at 8:00', why:'Last thing on your list. I&rsquo;ll give you a nudge when it&rsquo;s time.',
+              rest:[{t:'Bins out',m:'8:00'}] } },
+    leo:{ morning:{one:'Your recital is tonight', why:'5:30 &mdash; Dad drives you at 2:15 for rehearsal. Just water the plants before you go.',
+              rest:[{t:'Water the plants',m:'after lunch'},{t:'Leave for rehearsal',m:'2:15'}] },
+           evening:{one:'Homework, then you&rsquo;re free', why:'Great job tonight. Twenty minutes of reading and the day&rsquo;s yours.',
+              rest:[{t:'Reading',m:'20 min'}] } },
+    ada:{ morning:{one:'Recital day!', why:'You&rsquo;re on at 5:30 and the whole family&rsquo;s coming. Nothing to do till then &mdash; go have fun.',
+              rest:[{t:'Recital',m:'5:30'}] },
+           evening:{one:'You did it', why:'Everyone loved it. Just wind-down and bed &mdash; you earned a star today.',
+              rest:[{t:'Wind-down',m:'8:30'}] } }
+  };
+
+  function briefHTML(b){ var out=b[0]; b[1].forEach(function(seg){ out+='<span class="'+(seg.k?'hl':seg.s?'soft':'')+'">'+seg.t+'</span>'; }); return out; }
+
+  function renderFamily(){
+    var d=DATA[T];
+    var fam=['maya','sam','leo','ada','juno'].map(function(id){
+      var hb = id===d.here ? '<span class="badge-here"></span>' : '';
+      return '<button class="person" data-person="'+id+'"><span style="position:relative">'+face(id)+hb+'</span>'+
+        '<span class="pn">'+P[id].n+'</span><span class="ps">'+d.status[id]+'</span></button>'; }).join('');
+    view.innerHTML =
+      '<div class="hd"><div><div class="greet">'+d.greet+', Riveras</div><div class="date">'+d.date+'</div></div>'+
+        '<div class="wx"><div class="wxr">'+ICON[d.wxi]+' '+d.wx+'</div>'+
+        '<div class="tbtn" role="group" aria-label="Time of day"><button data-time="morning" aria-pressed="'+(T==='morning')+'">Morning</button><button data-time="evening" aria-pressed="'+(T==='evening')+'">Evening</button></div></div></div>'+
+      '<div class="brief">'+briefHTML(d.brief)+'</div>'+
+      '<div class="fam">'+fam+'</div>'+
+      '<div class="low">'+
+        '<div class="block"><h3>Today, together</h3><div class="rhythm">'+ d.rhythm.map(function(m){
+          return '<div class="moment'+(m.now?' now':'')+(m.done?' done':'')+'">'+
+            '<span class="tm">'+(m.now?'<span class="nowdot"></span> Now':m.tm)+'</span>'+
+            '<span class="txt">'+m.txt+'</span>'+ (m.who?'<span class="who" style="background:'+P[m.who].c+'">'+P[m.who].n[0]+'</span>':'') +'</div>'; }).join('') +'</div></div>'+
+        '<div><div class="block" style="margin-bottom:14px"><h3>Tonight&rsquo;s dinner</h3><div class="dinner">'+
+            '<span class="meal">'+d.meal+'</span><span class="have">'+ICON.check+' '+d.have+'</span></div></div>'+
+          '<div class="block"><h3>A hand needed</h3>'+ d.nudges.map(function(n){
+            return '<div class="nudge"><span class="ni">'+ICON[n.i]+'</span><div><div class="nt">'+n.t+'</div><div class="nw">'+n.w+'</div></div></div>'; }).join('') +'</div>'+
+        '</div>'+
+      '</div>';
+    cap.innerHTML='The kitchen display &middot; tap a face to see that person&rsquo;s day';
+  }
+
+  function renderPerson(id){
+    var p=P[id], d=PERSON[id][T];
+    view.innerHTML =
+      '<div class="pv-top"><button class="backbtn" data-person="family">'+ICON.back+' The family</button>'+
+        '<div style="margin-left:6px;display:flex;align-items:center;gap:11px">'+face(id)+
+          '<div><div style="font-weight:700;font-size:1.15rem;letter-spacing:-.01em">'+p.n+'&rsquo;s '+(T==='morning'?'morning':'evening')+'</div>'+
+          '<div class="date" style="margin:0">'+DATA[T].date+'</div></div></div></div>'+
+      '<div class="pv-hero" style="--pc:'+p.c+'"><div class="pv-kicker">Right now &middot; yours</div>'+
+        '<div class="pv-one">'+d.one+'</div><div class="pv-why">'+d.why+'</div>'+
+        '<div class="pv-cta"><button class="cta" data-done="1">Mark it done</button><button class="cta ghost" data-person="family">Not now</button></div></div>'+
+      '<div class="pv-rest" style="--pc:'+p.c+'">'+ d.rest.map(function(r){
+        return '<div class="rr"><span class="dot"></span><span class="rt">'+r.t+'</span><span class="rm">'+r.m+'</span></div>'; }).join('') +'</div>';
+    cap.innerHTML='This is what '+p.n+' sees on their phone &middot; tap &ldquo;The family&rdquo; to go back';
+  }
+
+  function render(){ if(current==='family') renderFamily(); else renderPerson(current); }
+
+  view.addEventListener('click',function(e){
+    var pb=e.target.closest('[data-person]');
+    if(pb){ current=pb.dataset.person==='family'?'family':pb.dataset.person; render(); return; }
+    var tb=e.target.closest('[data-time]'); if(tb){ T=tb.dataset.time; stage.setAttribute('data-t',T); render(); return; }
+    var db=e.target.closest('[data-done]'); if(db){
+      var hero=view.querySelector('.pv-hero');
+      hero.querySelector('.pv-kicker').textContent='All done';
+      hero.querySelector('.pv-one').textContent='Nice. That&rsquo;s your one thing.';
+      hero.querySelector('.pv-one').innerHTML='Nice &mdash; that&rsquo;s your one thing.';
+      hero.querySelector('.pv-why').textContent='Everything else today is handled. Go enjoy the rest of it.';
+      hero.querySelector('.pv-cta').style.display='none';
+      return; }
+  });
+
+  render();
+})();
+</script>

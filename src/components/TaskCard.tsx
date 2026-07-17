@@ -1,0 +1,180 @@
+"use client";
+
+import clsx from "clsx";
+import { motion } from "framer-motion";
+import { badge, relative } from "@/lib/dates";
+import { holder, useHousehold } from "@/lib/store";
+import type { HouseEvent, MaintItem, Task } from "@/lib/types";
+import { Icon } from "./Icons";
+import { Avatar, Button, Card, DateBadge, PriorityPill, TitleBlock } from "./ui";
+
+/**
+ * THE STANDARD CARD FORMAT — every task and event on a white card uses it:
+ *
+ *   Eyebrow   where it came from  ("Home maintenance", "Calendar", "Automation")
+ *   Title     what it is          ("Take out the trash")
+ *   Subtitle  when + frequency    ("Tonight ⟳ Weekly")
+ *
+ * One task, one card. Tasks are never grouped into a shared box.
+ *
+ * EVERY card that wears this opens. Tasks, events and upkeep look identical on
+ * purpose — so if one of them refuses the tap, the card is lying about what it
+ * is. `onOpen` is effectively required; the optional signature is only for the
+ * iPad's read-only summaries.
+ */
+function ItemCard({
+  day, weekday, source, title, subtitle, done, onOpen, actions,
+}: {
+  day: number | string; weekday: string;
+  source: string; title: string; subtitle: React.ReactNode;
+  done?: boolean; onOpen?: () => void; actions?: React.ReactNode;
+}) {
+  return (
+    <Card className={clsx(done && "opacity-60")}>
+      {/* items-stretch: the date pill runs the FULL height of the card. */}
+      <div className="flex items-stretch gap-4">
+        <DateBadge day={day} weekday={weekday} />
+
+        <button onClick={onOpen} disabled={!onOpen} className="min-w-0 flex-1 text-left">
+          {/* Same component as the page header — just the card size. */}
+          <TitleBlock size="card" eyebrow={source} title={title} subtext={subtitle} muted={done} />
+        </button>
+
+        {actions && <div className="flex shrink-0 items-center gap-2 self-center">{actions}</div>}
+      </div>
+    </Card>
+  );
+}
+
+/** Fallback when a task has no explicit source (e.g. one the user just added). */
+const sourceOf = (t: Task) =>
+  t.source ?? (t.recurring ? "Routine" : t.suggest ? "Suggested" : "Added by you");
+
+export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean }) {
+  const { members, toggleTask, openSheet } = useHousehold();
+  const did = holder(task);
+  const owner = did ? members[did] : undefined;
+  /** Cover has to be VISIBLE or it's indistinguishable from a reassignment —
+   *  the card would quietly say this is Sam's job when it isn't. */
+  const covering = !!task.coveredBy;
+  const d = badge(task.due);
+
+  return (
+    <motion.div layout>
+      <ItemCard
+        day={d.day}
+        weekday={d.weekday}
+        source={sourceOf(task)}
+        title={task.title}
+        done={task.done}
+        onOpen={() => openSheet({ type: "task", id: task.id })}
+        subtitle={
+          <>
+            {task.when}
+            {task.recurring && (
+              <>
+                <Icon name="repeat" size={14} />
+                {task.recurring}
+              </>
+            )}
+            {!task.done && <PriorityPill priority={task.priority} />}
+            {/* Without this the card is a lie of omission: the avatar would show
+                Sam and nothing would say the job is still Maya's. Cover you
+                can't see is just a reassignment with extra steps. */}
+            {covering && task.owner && (
+              <span className="flex items-center gap-1">
+                <Icon name="handoff" size={14} />
+                Covering for {members[task.owner]?.name}
+              </span>
+            )}
+          </>
+        }
+        actions={
+          <>
+            {showOwner && owner && (
+              <button aria-label="Reassign" onClick={() => openSheet({ type: "assign", id: task.id })}>
+                <Avatar member={owner} />
+              </button>
+            )}
+            {/* `light` is WHITE — invisible on a white card. Same trap as "Remind me". */}
+            <Button tone={task.done ? "outline" : "dark"} onClick={() => toggleTask(task.id)}>
+              {task.done ? "Undo" : "Done"}
+            </Button>
+          </>
+        }
+      />
+    </motion.div>
+  );
+}
+
+/**
+ * An event wears the same card as a task — it's just sourced from the calendar.
+ *
+ * `showOwner` is OFF by default: on your own phone every card is yours, so an
+ * avatar (and a trailing "· Sam") only repeats what you already know. It earns
+ * its place on the shared iPad, where the household sees one screen.
+ */
+export function EventCard({ event, showOwner }: { event: HouseEvent; showOwner?: boolean }) {
+  const { members, notify, openSheet } = useHousehold();
+  const who = members[event.who];
+  const d = badge(event.due);
+
+  return (
+    <motion.div layout>
+      <ItemCard
+        day={d.day}
+        weekday={d.weekday}
+        source="Calendar"
+        title={event.title}
+        onOpen={() => openSheet({ type: "event", id: event.id })}
+        subtitle={
+          <>
+            {event.time}
+            {event.recurring && (
+              <>
+                <Icon name="repeat" size={14} />
+                {event.recurring}
+              </>
+            )}
+            {showOwner && who && <> · {who.name}</>}
+          </>
+        }
+        actions={
+          <>
+            {showOwner && who && <Avatar member={who} />}
+            {/* An event is something you SHOW UP TO, not something you finish — so the
+                slot where a task carries "Done" carries the only action an event has.
+                A disabled button here would occupy the card's most prominent position
+                purely to refuse the tap. */}
+            <Button tone="outline" onClick={() => notify(`We'll remind you before ${event.title}`)}>
+              <Icon name="bell" size={14} /> Remind me
+            </Button>
+          </>
+        }
+      />
+    </motion.div>
+  );
+}
+
+/** Upkeep wears the same card — sourced from home maintenance. */
+export function MaintCard({ item }: { item: MaintItem }) {
+  const { openSheet } = useHousehold();
+  return (
+    <motion.div layout>
+      <ItemCard
+        day={badge(item.due).day}
+        weekday={badge(item.due).weekday}
+        source={`Home maintenance · ${item.asset}`}
+        title={item.title}
+        onOpen={() => openSheet({ type: "maint", id: item.id })}
+        subtitle={
+          <>
+            {relative(item.due)}
+            <Icon name="repeat" size={14} />
+            {item.cadence}
+          </>
+        }
+      />
+    </motion.div>
+  );
+}
