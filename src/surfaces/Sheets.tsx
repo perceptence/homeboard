@@ -10,7 +10,7 @@ import { addDays, ago, badge, clockLabel, dayLabel, iso, relative, startOfWeek, 
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
-import type { MemberId, Priority, Task } from "@/lib/types";
+import type { MemberId, Priority, ShopCategory, Task } from "@/lib/types";
 import { ROLE_NEEDS } from "@/lib/types";
 
 /**
@@ -233,41 +233,66 @@ function ShopSheet() {
     setText("");
   };
 
+  // Grouped by aisle, so the list reads like the shop is laid out — and the
+  // category stops repeating down the right edge of every row.
+  const CATS: ShopCategory[] = ["Groceries", "Supplies", "Pet"];
+  const groups = CATS.map((cat) => ({ cat, items: open.filter((i) => i.category === cat) })).filter((g) => g.items.length);
+
+  const Row = (i: (typeof list)[number]) => (
+    <div key={i.id} className="flex min-h-touch items-center gap-3 py-1.5">
+      <Check done={i.done} onClick={() => s.toggleShopItem(i.id)} />
+      <span className={clsx("min-w-0 flex-1 text-bodysm font-medium", i.done && "text-sub line-through")}>
+        {i.title}
+      </span>
+      {/* The house asked, not a person — inventory ran low and the automation put
+          it here. Worth a word: an item nobody remembers adding looks like a glitch. */}
+      {i.low && !i.done && <Pill tone="tag">Running low</Pill>}
+    </div>
+  );
+
   return (
     <>
-      <h2 className="font-tight text-h1">Shopping</h2>
+      {/* Same header family as every other sheet: lemon tile, ink glyph, title. */}
+      <span className="flex items-center gap-3">
+        <IconTile name="cart" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">Shopping</h2>
+      </span>
       <p className="mt-1.5 text-bodysm text-sub">
-        {open.length ? `${open.length} to get — shared with everyone` : "All bought — nice work"}
+        {open.length ? `${open.length} to get · shared with everyone` : "All bought — nice work"}
       </p>
 
-      <label className="mt-4 flex items-center rounded-pill border border-ink/[.08] bg-card px-4 focus-within:border-ink">
+      {/* Add row: a leading plus and a filled lemon commit, so the field reads as
+          "drop something in" rather than a bare search box. */}
+      <label className="mt-4 flex items-center gap-2 rounded-pill border border-ink/[.08] bg-card py-1 pl-4 pr-1.5 transition-colors focus-within:border-ink">
+        <Icon name="plus" size={18} className="shrink-0 text-sub" />
         <span className="sr-only">Add an item</span>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           placeholder="Add an item…"
-          className="min-w-0 flex-1 bg-transparent py-3 text-bodysm font-medium outline-none placeholder:text-sub"
+          className="min-w-0 flex-1 bg-transparent py-2.5 text-bodysm font-medium outline-none placeholder:text-sub"
         />
         {text.trim() && (
-          <button onClick={add} className="shrink-0 text-caption font-semibold text-ink">Add</button>
+          <button onClick={add} className="shrink-0 rounded-pill bg-lemon px-4 py-2 text-caption font-semibold text-ink">Add</button>
         )}
       </label>
 
-      <div className="mt-2">
-        {[...open, ...done].map((i) => (
-          <div key={i.id} className="flex min-h-touch items-center gap-3 border-t border-ink/[.06] py-2 first:border-t-0">
-            <Check done={i.done} onClick={() => s.toggleShopItem(i.id)} />
-            <span className={clsx("min-w-0 flex-1 text-bodysm font-medium", i.done && "text-sub line-through")}>
-              {i.title}
-            </span>
-            {/* The house asked, not a person — inventory ran low and the
-                automation put it here. Worth a word: an item nobody remembers
-                adding looks like a glitch. */}
-            {i.low && !i.done && <Pill tone="tag">Running low</Pill>}
-            <span className="shrink-0 text-caption text-sub">{i.category}</span>
+      <div className="mt-5 space-y-5">
+        {groups.map((g) => (
+          <div key={g.cat}>
+            <Eyebrow>{g.cat}</Eyebrow>
+            <div className="mt-1">{g.items.map(Row)}</div>
           </div>
         ))}
+        {/* Bought things sink here — kept, not deleted, so a fat thumb mid-aisle
+            can un-check. */}
+        {done.length > 0 && (
+          <div>
+            <Eyebrow>In the cart · {done.length}</Eyebrow>
+            <div className="mt-1">{done.map(Row)}</div>
+          </div>
+        )}
       </div>
     </>
   );
@@ -431,11 +456,15 @@ function HandoffSheet({ id }: { id?: number }) {
 
   return (
     <>
-      <h2 className="font-tight text-h1">Hand off</h2>
-      <p className="mt-1 text-body text-sub">Which one should someone else take?</p>
+      {/* Same header family as every sheet: lemon tile, ink glyph, title. */}
+      <span className="flex items-center gap-3">
+        <IconTile name="handoff" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">Hand off</h2>
+      </span>
+      <p className="mt-1.5 text-bodysm text-sub">Which one should someone else take?</p>
 
       {mine.length === 0 ? (
-        <p className="py-10 text-center text-body text-sub">Nothing to hand off.</p>
+        <p className="py-10 text-center text-bodysm text-sub">Nothing to hand off.</p>
       ) : (
         <div className="mt-4 flex flex-col gap-2">
           {mine.map((t) => {
@@ -453,11 +482,14 @@ function HandoffSheet({ id }: { id?: number }) {
                 <button
                   onClick={() => open(t)}
                   aria-expanded={isOpen}
-                  className="flex min-h-touch w-full items-center gap-3 px-4 py-3 text-left"
+                  className="flex min-h-touch w-full items-center gap-3 px-3 py-3 text-left"
                 >
+                  {/* A glyph per row — the task list on the phone shows one, so the
+                      hand-off list shouldn't strip it. onTint reads on the grey row. */}
+                  <IconTile name={taskGlyph(t)} tone="onTint" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-h2">{t.title}</div>
-                    <div className="text-caption text-sub">{t.when}</div>
+                    <div className="truncate text-h2">{t.title}</div>
+                    <div className="text-caption text-sub">{clockLabel(t.when)}</div>
                   </div>
                   <motion.span animate={{ rotate: isOpen ? 90 : 0 }} transition={smooth} className="shrink-0 text-sub">
                     <Icon name="fwd" size={16} />

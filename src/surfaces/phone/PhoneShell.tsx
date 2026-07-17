@@ -1207,12 +1207,12 @@ function PhoneYou() {
               40px of nothing.
               `scale` is the same glyph as "Even it out": the card's subject and its
               verb, said once. */}
-          <div className="flex items-start gap-3">
-            <IconTile name="scale" />
-            {/* No subtext: the stat block IS the detail, and it says its own unit.
-                A third line here would only restate what the numbers already show. */}
-            <TitleBlock eyebrow="Your load" title={headline} />
-          </div>
+          {/* Icon on its own line, then the eyebrow/title pair, then the data —
+              the progress card's shape, applied across the whole profile so every
+              card on this tab opens the same way. */}
+          <IconTile name="scale" />
+          {/* No subtext: the stat block IS the detail, and it says its own unit. */}
+          <TitleBlock className="mt-4" eyebrow="Your load" title={headline} />
 
           {/* THE HOUSE, AS PEOPLE. Not a chart of any kind.
               ─────────────────────────────────────────────────────────────────
@@ -1324,9 +1324,9 @@ function PhoneYou() {
               that lists the settings you haven't touched is an inventory, not a
               summary. Unset, the control behind Adjust is the only mention —
               which is the right weight for something nobody's chosen yet. */}
-          <div className="flex items-start gap-3">
-            <IconTile name="pin" />
+          <IconTile name="pin" />
           <TitleBlock
+            className="mt-4"
             eyebrow="Where you are"
             title={PRESENCE_TITLE[presence]}
             subtext={
@@ -1357,7 +1357,6 @@ function PhoneYou() {
               </>
             }
           />
-          </div>
 
           {/* OUTSIDE the fold, deliberately. Everything else in this card is a
               setting you went looking for; this is the app telling you work will
@@ -1477,9 +1476,9 @@ function PhoneYou() {
           {/* The title truncates rather than wraps, and that's safe HERE
               specifically: the pills below name every domain in full, so a long
               patch loses nothing to the ellipsis. */}
-          <div className="flex items-start gap-3">
-            <IconTile name="grid" />
+          <IconTile name="grid" />
           <TitleBlock
+            className="mt-4"
             eyebrow="Your patch"
             title={jobs.length
               ? `You look after ${listOf(me.responsibility?.domains.length
@@ -1488,7 +1487,6 @@ function PhoneYou() {
               : "Nothing’s yours yet"}
             subtext={jobs.length ? undefined : `${ownerName(s)} can hand you a domain or a room.`}
           />
-          </div>
           {jobs.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {jobs.map((j) => <Pill key={j} tone="tag">{j}</Pill>)}
@@ -1507,19 +1505,21 @@ function PhoneYou() {
               describes what someone LOOKS AFTER, not what they're shut out of.
               It also made this the only card on the tab whose eyebrow started
               40px from the left edge, so the column no longer lined up. */}
-          <div className="flex items-start gap-3">
+          {/* Icon on line one, with the star tally riding the far end (like the
+              progress card's toggle); the eyebrow/title pair sits below. */}
+          <div className="flex items-center">
             <IconTile name="key" />
-            <TitleBlock
-              className="flex-1"
-              eyebrow="Your access"
-              title={ROLE_LABEL[me.role]}
-              subtext={ROLE_HINT[me.role]}
-            />
             {/* Stars belong to the guided surface — see the role model. */}
             {me.role === "guided" && (
-              <span className="shrink-0 font-tight text-h1 tabular-nums text-star">★ {me.stars ?? 0}</span>
+              <span className="ml-auto shrink-0 font-tight text-h1 tabular-nums text-star">★ {me.stars ?? 0}</span>
             )}
           </div>
+          <TitleBlock
+            className="mt-4"
+            eyebrow="Your access"
+            title={ROLE_LABEL[me.role]}
+            subtext={ROLE_HINT[me.role]}
+          />
           {me.role !== "owner" && (
             <p className="mt-3 border-t border-black/[.05] pt-3 text-caption text-sub">
               Only {ownerName(s)} can change this.
