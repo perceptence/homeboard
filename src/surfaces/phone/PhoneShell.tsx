@@ -10,7 +10,7 @@ import { ActionButton, Avatar, Button, Card, Check, Choice, Em, Eyebrow, IconTil
 import { listItem, listStagger, press, smooth, spring } from "@/lib/motion";
 import {
   addDays, badge, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
-  periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, today, todayIso, weekKey, weekLabel, type Period,
+  periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, today, todayIso, weekKey, weekLabel, type Period,
 } from "@/lib/dates";
 import { awayOn, coveredFor, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
@@ -49,12 +49,6 @@ export function PhoneShell() {
   // that and no more, so there's no empty scroll past the content.
   const [tail, setTail] = useState(0);
   const ahead = aheadFor(s, meId, scope, anchor, query);
-
-  /** Which days hold something for the viewer — the DateStrip's presence dots.
-   *  Cheap enough to build each render; it's a walk over two small arrays. */
-  const busyDays = new Set<string>();
-  for (const t of s.tasks) if (holder(t) === meId && !t.done) busyDays.add(t.due);
-  for (const e of s.events) if (e.who === meId) busyDays.add(e.due);
 
   // The nav is glass over a moving list — it has to look at what it's sitting on.
   // Re-sampled on scroll inside the hook; these deps catch the changes scroll
@@ -189,7 +183,6 @@ export function PhoneShell() {
               <TitleBlock size="page" tone="onDark" eyebrow={today()} title={`${greeting()}, ${me.name}`} />
             )}
             {route === "ahead" && (
-              <>
               <TitleBlock
                 size="page" tone="onDark"
                 eyebrow={
@@ -229,10 +222,6 @@ export function PhoneShell() {
                     : `${ahead.count} ${ahead.count === 1 ? "thing" : "things"} this ${scope.toLowerCase()}`
                 }
               />
-              {!ahead.searching && scope === "Week" && (
-                <DateStrip anchor={anchor} onPick={(d) => setAnchor(d)} busy={busyDays} />
-              )}
-              </>
             )}
             {route === "you" && (
               /* The HOUSEHOLD, not the role.
@@ -513,6 +502,12 @@ function PhoneToday() {
   const mine = s.tasks.filter((t) => holder(t) === meId && !t.done && isToday(t.due)).sort((a, b) => a.due.localeCompare(b.due));
   const events = s.events.filter((e) => e.who === meId && isToday(e.due));
 
+  /** Which days this week hold something for me — the week ruler's presence dots.
+   *  Cheap to build each render; a walk over two small arrays. */
+  const busy = new Set<string>();
+  for (const t of s.tasks) if (holder(t) === meId && !t.done) busy.add(t.due);
+  for (const e of s.events) if (e.who === meId) busy.add(e.due);
+
   /** The shared list, summarised for the card. `low` items are the ones the
    *  house asked for (inventory ran out), worth calling out separately. */
   const shop = shoppingList(s);
@@ -552,6 +547,12 @@ function PhoneToday() {
 
   return (
     <>
+      {/* THE WEEK — a glance-strip right under the greeting. Tap any day to open
+          Ahead on the week it belongs to. */}
+      <motion.div variants={listItem}>
+        <DateStrip busy={busy} onPick={() => s.goPhone("ahead")} />
+      </motion.div>
+
       {/* PRIMARY CARD (lemon) — the day, said out loud */}
       <motion.div variants={listItem}>
         <Card tone="lemon">
@@ -762,27 +763,27 @@ const SCOPE = ["Week", "Month", "Quarter", "Year"] as const;
 type Scope = Period;
 
 /**
- * The day ruler for Ahead's Week view — a horizontal strip of the next fortnight.
- * Today wears lemon (it's the app's "you are here"), the day you're viewing gets a
- * ring, and any day that holds something for you carries a dot. Tapping jumps the
- * list to that day.
+ * THIS WEEK, at a glance — on Today, right under the greeting.
  *
- * It shows only under Week scope: at day granularity it's a natural companion to a
- * week; against Month/Quarter (the list is months there) a 14-day ruler would be
- * saying something the list isn't.
+ * The seven days of the current calendar week (Mon–Sun, matching the "13–19
+ * July" period the rest of the app counts in — NOT a rolling fortnight, which
+ * drifted out of step with that label). Today wears lemon; any day holding
+ * something for you carries a dot. Tapping a day opens Ahead for the detail.
+ *
+ * It moved here from Ahead: a week ruler is a "what's my week" glance, which is
+ * a Today question, not a navigation control buried in the Ahead header.
  */
-function DateStrip({ anchor, onPick, busy }: { anchor: Date; onPick: (d: Date) => void; busy: Set<string> }) {
+function DateStrip({ onPick, busy }: { onPick: (d: Date) => void; busy: Set<string> }) {
   const todayStr = todayIso();
-  const anchorStr = iso(anchor);
-  const days = Array.from({ length: 14 }, (_, i) => addDays(new Date(), i));
+  const weekStart = startOfWeek(new Date());
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   return (
-    // -mx-5 px-5: bleed to the header's own padding so cards scroll off the edges,
-    // not into a 20px dead margin.
-    <div className="no-scrollbar -mx-5 mt-3.5 flex gap-2 overflow-x-auto overscroll-x-contain px-5 pb-0.5">
+    // -mx-screen px-screen: bleed to the body's own gutter so the row sits edge
+    // to edge under the greeting.
+    <div className="no-scrollbar -mx-screen flex gap-2 overflow-x-auto overscroll-x-contain px-screen pb-0.5">
       {days.map((d) => {
         const di = iso(d);
         const isToday = di === todayStr;
-        const isAnchor = di === anchorStr;
         const has = busy.has(di);
         return (
           <button
@@ -791,9 +792,8 @@ function DateStrip({ anchor, onPick, busy }: { anchor: Date; onPick: (d: Date) =
             aria-label={d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
             aria-current={isToday ? "date" : undefined}
             className={clsx(
-              "grid h-[60px] w-[46px] shrink-0 place-content-center place-items-center gap-1 rounded-[16px] transition-colors",
+              "grid h-[60px] flex-1 place-content-center place-items-center gap-1 rounded-[16px] transition-colors",
               isToday ? "bg-lemon text-ink"
-                : isAnchor ? "bg-white/[.18] text-white ring-1 ring-inset ring-white/40"
                 : "bg-white/[.07] text-white/80 hover:bg-white/[.12]",
             )}
           >
@@ -801,8 +801,8 @@ function DateStrip({ anchor, onPick, busy }: { anchor: Date; onPick: (d: Date) =
             <span className="text-[10px] font-medium uppercase leading-none tracking-[0.06em] opacity-65">
               {d.toLocaleDateString("en-GB", { weekday: "short" })}
             </span>
-            {/* The presence dot. On the lemon 'today' card it goes ink so it reads;
-                elsewhere it's lemon — the one spot of the app's colour on the strip. */}
+            {/* Presence dot — ink on the lemon 'today', else lemon: the one spot of
+                the app's colour on the strip. The strip sits on the dark app body. */}
             <span aria-hidden className={clsx("h-[3px] w-[3px] rounded-pill", has ? (isToday ? "bg-ink/45" : "bg-lemon") : "bg-transparent")} />
           </button>
         );

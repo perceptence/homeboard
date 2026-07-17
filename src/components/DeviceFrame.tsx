@@ -202,9 +202,10 @@ function PhoneChrome({ children, chromeGap }: { children: ReactNode; chromeGap: 
  * Max — so the dead zone is 52.
  *
  * This is the answer to "how many dead pixels": ~52 wide × ~37 tall, dead
- * centre, and NOTHING may render inside it. Both island states flank it —
- * leading content to its left, trailing to its right, the band itself left to
- * the hardware (two faint dots stand in for the sensors).
+ * centre, and NOTHING may render inside it. The collapsed state flanks it
+ * (leading left, trailing right); the expanded state clears the whole top band
+ * and drops its content below the sensor line. Either way the cutout itself is
+ * left to the hardware — two faint dots stand in for the sensors.
  */
 const DEAD_ZONE = 52;
 
@@ -401,7 +402,10 @@ function DynamicIsland() {
         // the collapsed pill used to swell to 158 and run content across the
         // sensors — pixels that don't exist on a real phone.
         width: !island ? 120 : expanded ? 384 : 120,
-        height: !island ? 34 : expanded ? 118 : 34,
+        // Taller than before (118 -> 150): the camera hardware keeps the top band
+        // to itself now, so ALL content — the title row and the buttons — lives
+        // BELOW the sensor line and needs the extra height to breathe.
+        height: !island ? 34 : expanded ? 150 : 34,
         borderRadius: !island || !expanded ? 20 : 42,
       }}
     >
@@ -425,60 +429,51 @@ function DynamicIsland() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, y: pull, transition: { opacity: { duration: 0.22 }, y: { type: "spring", stiffness: 500, damping: 40 } } }}
             exit={{ opacity: 0, transition: { duration: 0.16 } }}
-            className="flex h-full flex-col justify-center gap-2.5 px-5 py-3.5"
+            className="flex h-full flex-col px-5 pb-4"
           >
-            {/* TOP ROW — flanks the camera. A 3-column grid keeps the centre
-                column dead-centre on the ISLAND, which is centred on screen, which
-                is exactly where the TrueDepth camera sits. Content wraps around it
-                (leading | camera | trailing), the way a real Live Activity does —
-                the middle is hardware, so nothing lives there.
-                `pr-1` on the trailing side: the 42px corner curve bites into the
-                top-right exactly where the timer sits, so it's inset a little
-                further than the leading side to keep it off the curve. */}
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center">
-              {/* gap-2 + a 32px avatar (not 36): with the dead zone claiming the
-                  centre, the leading column is capped at the trailing column's
-                  width by the symmetric grid, and "Trash night" was landing right
-                  on that cap — the DOM read it as fitting (92==92) but the loaded
-                  font rendered a hair wider and clipped. Trimming the avatar and
-                  gap buys the title ~12px of clear headroom. */}
-              <div className="flex min-w-0 items-center gap-2 pr-2">
-                {who ? (
-                  <Avatar member={who} size={32} />
-                ) : (
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
-                    <Icon name="bell" size={16} />
-                  </span>
-                )}
-                <span className="min-w-0">
-                  <span className="block truncate text-[16px] font-semibold leading-tight text-white">{island.title}</span>
-                  <span className="block truncate text-[12px] leading-tight text-white/55">
-                    {island.held ? "Held during quiet hours"
-                      : island.timeLabel ? `at ${clockLabel(island.timeLabel)}`
-                      : "Reminder"}
-                  </span>
-                </span>
-              </div>
+            {/* THE CAMERA BAND — the hardware owns the top strip and NOTHING else
+                does. Content no longer flanks the sensor (leading | camera |
+                trailing); it all lives below this line, so the camera cutout sits
+                on genuinely empty pixels, the way it does on the glass. The dots
+                stand in for the FaceID pill + camera; pt-[13px] lands them at the
+                same height the collapsed pill's dots sat, so the expand animation
+                doesn't jump them. */}
+            <span aria-hidden className="mx-auto flex shrink-0 items-center justify-center gap-1.5 pb-3 pt-[13px]" style={{ width: DEAD_ZONE }}>
+              <span className="h-2 w-2 rounded-pill bg-white/[.08]" />
+              <span className="h-[7px] w-[7px] rounded-pill bg-white/[.05]" />
+            </span>
 
-              {/* THE DEAD ZONE — the camera lives here. A fixed-width band so
-                  content genuinely clears the sensor, not a shrug-width gap; two
-                  faint dots stand in for the FaceID pill + camera circle. */}
-              <span aria-hidden className="flex shrink-0 items-center justify-center gap-1.5" style={{ width: DEAD_ZONE }}>
-                <span className="h-2 w-2 rounded-pill bg-white/[.08]" />
-                <span className="h-[7px] w-[7px] rounded-pill bg-white/[.05]" />
+            {/* CONTENT — everything the app draws, entirely below the sensor line
+                and now spanning the FULL width (no dead zone splitting it). The
+                title finally has room; the countdown parks on the right. */}
+            <div className="flex flex-1 flex-col justify-center gap-3">
+            <div className="flex items-center gap-2.5">
+              {who ? (
+                <Avatar member={who} size={32} />
+              ) : (
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
+                  <Icon name="bell" size={16} />
+                </span>
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[16px] font-semibold leading-tight text-white">{island.title}</span>
+                <span className="block truncate text-[12px] leading-tight text-white/55">
+                  {island.held ? "Held during quiet hours"
+                    : island.timeLabel ? `at ${clockLabel(island.timeLabel)}`
+                    : "Reminder"}
+                </span>
               </span>
 
               {countdown && (
-                <span className="flex flex-col items-end pl-2 pr-1">
+                <span className="flex shrink-0 flex-col items-end">
                   <span className="text-[18px] font-bold leading-none tabular-nums text-lemon">{countdown}</span>
                   {!arrived && <span className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-white/40">to go</span>}
                 </span>
               )}
             </div>
 
-            {/* BOTTOM ROW — the actions, below the notch line where there's full
-                width. `stopPropagation` so a button press never reads as a body
-                tap (which opens the event) or the start of a tuck swipe.
+            {/* THE ACTIONS. `stopPropagation` so a button press never reads as a
+                body tap (which opens the event) or the start of a tuck swipe.
                 "On my way" only for event reminders — it posts to the household
                 feed so the others know. Done marks the event handled. */}
             <div className="flex gap-1.5">
@@ -493,6 +488,7 @@ function DynamicIsland() {
               <IslandButton onClick={(e) => { e.stopPropagation(); snooze(2); }}>
                 +2 min
               </IslandButton>
+            </div>
             </div>
           </motion.div>
         )}
