@@ -667,9 +667,18 @@ function PhoneToday() {
               "Twice a year" was the oven, due in 68 days. Deleted. With them gone
               the footer was a rule holding up one line.) */}
           {highCount > 0 && (
-            <p className="mt-3 flex items-center gap-1 text-caption font-medium text-danger">
+            /* A DOOR, not a label: the app's one urgent signal should take you
+               to the urgent thing. Opens the day's first high task — with more
+               than one, the earliest is where you'd start anyway. */
+            <button
+              onClick={() => {
+                const hot = mine.find((t) => t.priority === "high");
+                if (hot) s.openSheet({ type: "task", id: hot.id });
+              }}
+              className="mt-3 flex items-center gap-1 text-caption font-medium text-danger"
+            >
               <Icon name="high" size={14} /> {highCount} {highCount === 1 ? "is" : "are"} high
-            </p>
+            </button>
           )}
         </Card>
       </motion.div>

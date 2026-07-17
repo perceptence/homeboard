@@ -1062,7 +1062,12 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 4: the trash pair merged into one dual-sourced task; pickup went back to
   // being a TASK (a journey one). Re-seed.
   // 5: shopping gained an age-gated item (wine, minAge 18). Re-seed.
-  version: 5,
+  // 6: "Auto" source label; demo events seeded relative to now. Re-seed.
+  version: 6,
+  // Discard-and-reseed IS our migration (no backend, demo data). Returning an
+  // empty patch hands the store its fresh seed — and stops zustand logging
+  // "couldn't be migrated" as a console error on every version bump.
+  migrate: () => ({} as never),
   storage: createJSONStorage(() => localStorage),
   skipHydration: true,
   /**

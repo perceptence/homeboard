@@ -549,6 +549,7 @@ function HandoffSheet({ id }: { id?: number }) {
                   <IconTile name={taskGlyph(t)} tone="lemon" />
                   <TitleBlock
                     className="flex-1"
+                    oneLine
                     eyebrow={t.source ?? (t.recurring ? "Routine" : "Added by you")}
                     title={t.title}
                     subtext={

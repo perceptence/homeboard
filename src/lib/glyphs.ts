@@ -22,7 +22,7 @@ const TASK_GLYPHS: [RegExp, IconName][] = [
 ];
 
 const SOURCE_GLYPHS: Record<string, IconName> = {
-  Automation: "bolt", Meals: "dine", "Home maintenance": "wrench", "Home care": "plant",
+  Auto: "bolt", Automation: "bolt", Meals: "dine", "Home maintenance": "wrench", "Home care": "plant",
   Cleaning: "spark", Laundry: "spark", Kids: "kid", Bills: "bill", Calendar: "cal",
 };
 

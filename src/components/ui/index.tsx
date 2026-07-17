@@ -202,7 +202,7 @@ export function Eyebrow({ tone = "onLight", className, children }: {
 }
 
 export function TitleBlock({
-  eyebrow, title, subtext, size = "card", tone = "onLight", muted, className,
+  eyebrow, title, subtext, size = "card", tone = "onLight", muted, oneLine, className,
 }: {
   eyebrow?: ReactNode;
   title: ReactNode;
@@ -211,11 +211,18 @@ export function TitleBlock({
   tone?: TitleTone;
   /** A done task: struck through and dimmed. */
   muted?: boolean;
+  /**
+   * LIST ROWS set this: eyebrow and subtext each hold to ONE line, clipping
+   * rather than wrapping — a row's rhythm is its height, and one long source
+   * name must not make one card taller than its neighbours. Summary cards
+   * (e.g. presence, where the subtext is real prose) leave it off and wrap.
+   */
+  oneLine?: boolean;
   className?: string;
 }) {
   return (
     <div className={clsx("min-w-0", className)}>
-      {eyebrow && <Eyebrow tone={tone}>{eyebrow}</Eyebrow>}
+      {eyebrow && <Eyebrow tone={tone} className={oneLine ? "truncate" : undefined}>{eyebrow}</Eyebrow>}
       <div
         className={clsx(
           "mt-hair truncate",
@@ -226,7 +233,13 @@ export function TitleBlock({
         {title}
       </div>
       {subtext && (
-        <div className={clsx("mt-hair flex flex-wrap items-center gap-1.5 text-caption", subTone[tone])}>
+        <div
+          className={clsx(
+            "mt-hair flex items-center gap-1.5 text-caption",
+            oneLine ? "flex-nowrap overflow-hidden whitespace-nowrap" : "flex-wrap",
+            subTone[tone],
+          )}
+        >
           {subtext}
         </div>
       )}

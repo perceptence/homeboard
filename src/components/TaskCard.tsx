@@ -36,8 +36,10 @@ function ItemCard({
         <DateBadge day={day} weekday={weekday} />
 
         <button onClick={onOpen} disabled={!onOpen} className="min-w-0 flex-1 text-left">
-          {/* Same component as the page header — just the card size. */}
-          <TitleBlock size="card" eyebrow={source} title={title} subtext={subtitle} muted={done} />
+          {/* Same component as the page header — just the card size. `oneLine`:
+              a row's eyebrow and subtext clip rather than wrap, so no source
+              name or long subtitle can make one card taller than the next. */}
+          <TitleBlock size="card" oneLine eyebrow={source} title={title} subtext={subtitle} muted={done} />
         </button>
 
         {actions && <div className="flex shrink-0 items-center gap-2 self-center">{actions}</div>}

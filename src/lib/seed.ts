@@ -10,6 +10,21 @@ import { addDays, iso } from "./dates";
 const d = (offset: number) => iso(addDays(new Date(), offset));
 
 /**
+ * A clock label N minutes from NOW — for demo events that must land inside the
+ * "next two hours" horizon whatever the wall clock says when the app seeds.
+ * (Near midnight it can cross into tomorrow's numbers while dated today; a
+ * demo-seed quirk we accept.)
+ */
+const tAt = (mins: number) => {
+  const dt = new Date(Date.now() + mins * 60_000);
+  let h = dt.getHours();
+  const m = String(dt.getMinutes()).padStart(2, "0");
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${m} ${ap}`;
+};
+
+/**
  * IDENTITY and ROLE are set independently here, on purpose — the seed is the
  * model's first proof. Leo is 10 and `limited`, not because he's 10 but because
  * the household decided it; his age exists only so the minAge gate can check
@@ -39,7 +54,10 @@ export const seedTasks: Task[] = [
   /* ONE trash entry. It used to exist twice — this task AND a "Trash night"
      calendar event — which read as being asked to do the job twice. One thing,
      both provenances in the eyebrow. */
-  { id: 1, title: "Take out the trash", owner: "sam", when: "8:00 PM", due: d(0), done: false, priority: "med", recurring: "Weekly", minAge: 8, source: "Automation · Calendar" },
+  /* "Auto", not "Automation" — with two provenances in one eyebrow the long
+     word pushed the line to a second row, and an eyebrow is a label, not a
+     paragraph. */
+  { id: 1, title: "Take out the trash", owner: "sam", when: "8:00 PM", due: d(0), done: false, priority: "med", recurring: "Weekly", minAge: 8, source: "Auto · Calendar" },
   { id: 2, title: "Pick dinner & cook", owner: "maya", when: "6:30 PM", due: d(0), done: false, priority: "med", requires: "full", source: "Meals" },
   { id: 3, title: "Water the plants", owner: "leo", when: "After school", due: d(0), done: false, priority: "low", recurring: "Every 3 days", minAge: 5, source: "Home care" },
   /* A JOURNEY task — "On my way" and the live trip hang off it. It IS a task
@@ -109,6 +127,11 @@ export const seedMaint: MaintItem[] = [
  */
 export const seedEvents: HouseEvent[] = [
   { id: "e1", due: d(0), title: "Dentist", time: "4:00 PM", who: "leo", journey: true, where: "The dental clinic", icon: "care" },
+  /* Seeded RELATIVE to now (tAt) so they always sit inside the two-hour
+     horizon — the demo's "soon" band has something to show whenever it runs. */
+  { id: "e10", due: d(0), title: "Padel with Marco", time: tAt(70), who: "sam", journey: true, where: "The club", icon: "heart" },
+  { id: "e11", due: d(0), title: "Parcel at the locker", time: tAt(110), who: "sam", journey: true, where: "The locker", icon: "box" },
+  { id: "e12", due: d(0), title: "Yoga", time: tAt(80), who: "maya", journey: true, where: "The studio", icon: "heart" },
   { id: "e3", due: d(1), title: "WFH", time: "all day", who: "sam", recurring: "Every Mon", icon: "house" },
   { id: "e4", due: d(2), title: "Recital", time: "5:30 PM", who: "ada", journey: true, where: "The auditorium", icon: "music" },
   { id: "e5", due: d(3), title: "Grocery run", time: "10:00 AM", who: "maya", recurring: "Weekly", journey: true, where: "The market", icon: "cart" },
