@@ -250,7 +250,7 @@ interface HouseholdState {
   openSheet: (s: Sheet) => void;
   closeSheet: () => void;
   notify: (msg: string | null) => void;
-  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; timeLabel?: string; targetAt?: number }) => void;
+  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; timeLabel?: string; targetAt?: number; eventId?: string }) => void;
   /** "Remind me" for an event — BOTH doors (the card and the sheet) call this,
    *  so there is exactly one notion of what that button promises. */
   remindForEvent: (id: string) => void;
@@ -258,6 +258,14 @@ interface HouseholdState {
   setIslandMode: (mode: "expanded" | "collapsed") => void;
   /** Put the island away, bring it back in `mins` (countdown target preserved). */
   snoozeIsland: (mins: number) => void;
+  /** Done — mark the event handled, log it, dismiss the island. */
+  islandDone: () => void;
+  /** "On my way" — tell the household (a feed entry), then dismiss. */
+  islandOnMyWay: () => void;
+  /** Tap-through — open the event's detail in the app, dismiss the island. */
+  islandOpen: () => void;
+  /** Mark an event handled. */
+  completeEvent: (id: string) => void;
   /** The clock. Called every second by <Ticker/>; fires what's due, holds what's quiet. */
   tick: () => void;
   setQuery: (q: string) => void;
@@ -359,9 +367,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   closeSheet: () => set({ sheet: null }),
   notify: (toast) => set({ toast, toastWho: null }),
 
-  scheduleReminder: ({ at, text, who, title, timeLabel, targetAt }) =>
+  scheduleReminder: ({ at, text, who, title, timeLabel, targetAt, eventId }) =>
     set((s) => ({
-      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, timeLabel, targetAt }],
+      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, timeLabel, targetAt, eventId }],
       toast: at - Date.now() < 60_000
         ? "Reminder set — any moment now"
         : `Reminder set for ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
@@ -395,6 +403,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       timeLabel: e.time,
       targetAt: Date.now() + 1500 + 5 * 60_000,
       who: e.who,
+      eventId: e.id,
     });
   },
 
@@ -420,8 +429,47 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       timeLabel: i.timeLabel,
       targetAt: i.targetAt,
       who: i.who ?? Object.keys(s.members)[0],
+      eventId: i.eventId,
     });
     set({ island: null });
+  },
+
+  completeEvent: (id) =>
+    set((s) => {
+      const e = s.events.find((x) => x.id === id);
+      if (!e) return {};
+      return {
+        events: s.events.map((x) => (x.id === id ? { ...x, done: true } : x)),
+        ...logged(s, `${s.members[e.who]?.name ?? "Someone"} handled ${e.title}`, e.who),
+      };
+    }),
+
+  islandDone: () => {
+    const { island } = get();
+    if (island?.eventId) get().completeEvent(island.eventId);
+    set({ island: null, toast: "Nice — handled" });
+  },
+
+  islandOnMyWay: () => {
+    const { island, members } = get();
+    if (!island) return;
+    const name = island.who ? members[island.who]?.name : "Someone";
+    // A note the whole household sees — "Dad is on his way." The reminder was
+    // yours; this turns it into something the others know.
+    set((s) => ({
+      island: null,
+      ...logged(s, `${name} is on the way${island.title ? ` — ${island.title}` : ""}`, island.who ?? undefined),
+      toast: "Told the house",
+      toastWho: island.who,
+    }));
+  },
+
+  islandOpen: () => {
+    const { island } = get();
+    set({
+      island: null,
+      sheet: island?.eventId ? { type: "event", id: island.eventId } : null,
+    });
   },
 
   /**
@@ -461,6 +509,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
           who: due.who,
           held: due.held,
           mode: "expanded" as const,
+          eventId: due.eventId,
         },
         ...logged(s, due.text, due.who),
       };

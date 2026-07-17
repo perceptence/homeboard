@@ -375,6 +375,10 @@ export interface HouseEvent {
   who: MemberId;
   /** How often it recurs — shown with the repeat glyph, same as a task. */
   recurring?: string;
+  /** Handled. An event is a show-up thing, not a checkbox — but a reminder's
+   *  "Done" needs somewhere to land, so marking one done records that it was
+   *  dealt with and mutes the card. */
+  done?: boolean;
 }
 
 export interface Automation {
@@ -414,6 +418,9 @@ export interface Reminder {
   who: MemberId;
   /** It came due during quiet hours and was pushed past them. */
   held?: boolean;
+  /** The event this reminds about — lets the island's actions (open, done, on my
+   *  way) reach the real thing, not just a copy of its text. */
+  eventId?: string;
 }
 
 /**
@@ -435,6 +442,8 @@ export interface IslandNote {
   who: MemberId | null;
   held?: boolean;
   mode: "expanded" | "collapsed";
+  /** The event behind it, for the action buttons. */
+  eventId?: string;
 }
 
 export interface ActivityEntry {

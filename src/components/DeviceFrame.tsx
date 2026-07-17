@@ -226,6 +226,9 @@ function DynamicIsland() {
   const dismiss = useHousehold((s) => s.dismissIsland);
   const setMode = useHousehold((s) => s.setIslandMode);
   const snooze = useHousehold((s) => s.snoozeIsland);
+  const done = useHousehold((s) => s.islandDone);
+  const onMyWay = useHousehold((s) => s.islandOnMyWay);
+  const openTarget = useHousehold((s) => s.islandOpen);
   /** Whose phone we're looking at. The island is phone-only, so the persona is
    *  always a member id here. */
   const viewingId = useHousehold((s) => s.persona);
@@ -347,18 +350,20 @@ function DynamicIsland() {
   const onPointerUp = () => endDrag(pullNow.current < -22);
   const onPointerCancel = () => endDrag(false);
 
-  /** A true tap (no meaningful pointer travel) still does its old jobs:
-   *  bring a tucked pill back, or dismiss a finished one. Swiping up is the
-   *  ONLY way to tuck a live one now — there's nothing left for a tap to do
-   *  while it's still counting. */
+  /** Tap does different things by state:
+   *   collapsed → expand.
+   *   expanded body → OPEN the event in the app (the notification's whole point
+   *     when the app was closed — take me to the thing). Buttons stopPropagation,
+   *     so this only fires on the body. A swipe sets suppressClick and bails. */
   const onTap = () => {
     if (suppressClick.current) { suppressClick.current = false; return; }
-    if (!island || canTuck) return;
+    if (!island) return;
     if (!expanded) return setMode("expanded");
-    dismiss();
+    openTarget();
   };
 
   return (
+    <>
     <motion.div
       layout
       // A DIV, not a button — the expanded state holds its own <button>s (Done,
@@ -377,30 +382,39 @@ function DynamicIsland() {
       // Centred by MARGINS (inset-x-0 mx-auto), never transform — framer's
       // `layout` owns transform and drifts the pill onto the battery.
       className={
-        "absolute inset-x-0 top-[14px] z-[95] mx-auto overflow-hidden text-left touch-none " +
+        "absolute inset-x-0 top-[11px] z-[95] mx-auto overflow-hidden text-left touch-none " +
         (island ? "cursor-default" : "pointer-events-none")
       }
       style={{
-        // TRUE BLACK now, not charcoal — a real Dynamic Island is the black of the
-        // display switched off, seamless with the camera hardware. Lime glow ONLY
-        // when expanded: a full notification earns the bloom; a status-bar pill
-        // shouldn't blast colour across the header.
+        // TRUE BLACK — a real Dynamic Island is the black of the display switched
+        // off, seamless with the camera hardware. Lime glow ONLY when expanded.
         background: island ? "#040405" : "#0b0c09",
         boxShadow: !island
           ? undefined
           : expanded
             ? "0 0 0 1px rgba(244,255,122,0.14), 0 0 28px rgba(244,255,122,0.22), 0 22px 55px rgba(0,0,0,0.75)"
             : "0 10px 30px rgba(0,0,0,0.6)",
-        // Four silhouettes. Expanded 384×118 seats two rows around the camera.
-        // Collapsed is now 158, not 196: with the 62px dead zone in the middle
-        // and only an avatar + countdown flanking it, a wider pill just floated
-        // the content with empty edges. 158 hugs the camera the way a real
-        // compact Live Activity does.
-        width: !island ? 120 : expanded ? 384 : 158,
+        // THE PILL'S SMALL FORM IS THE CAMERA HARDWARE — idle AND collapsed. It
+        // stays ~120px with the sensors in it and NEVER grows to hold text; the
+        // notification's content flanks it as separate elements (below). Only the
+        // expanded form (384×118) is a surface the app draws on. This is the fix:
+        // the collapsed pill used to swell to 158 and run content across the
+        // sensors — pixels that don't exist on a real phone.
+        width: !island ? 120 : expanded ? 384 : 120,
         height: !island ? 34 : expanded ? 118 : 34,
         borderRadius: !island || !expanded ? 20 : 42,
       }}
     >
+      {/* THE CAMERA — two sensor dots, shown whenever the pill is in its small
+          hardware form (idle or collapsed). All the pill ever holds in those
+          states; the notification draws OUTSIDE it. */}
+      {!expanded && (
+        <span aria-hidden className="absolute inset-0 flex items-center justify-center gap-1.5">
+          <span className="h-2 w-2 rounded-pill bg-white/[.10]" />
+          <span className="h-[7px] w-[7px] rounded-pill bg-white/[.06]" />
+        </span>
+      )}
+
       <AnimatePresence initial={false}>
         {island && expanded && (
           <motion.div
@@ -462,50 +476,59 @@ function DynamicIsland() {
               )}
             </div>
 
-            {/* BOTTOM ROW — the actions. `stopPropagation` so a button press
-                never reads as a body tap or the start of a tuck swipe. */}
-            <div className="flex gap-2">
-              <IslandButton onClick={(e) => { e.stopPropagation(); dismiss(); }} tone="solid">
-                <Icon name="check" size={15} /> Done
+            {/* BOTTOM ROW — the actions, below the notch line where there's full
+                width. `stopPropagation` so a button press never reads as a body
+                tap (which opens the event) or the start of a tuck swipe.
+                "On my way" only for event reminders — it posts to the household
+                feed so the others know. Done marks the event handled. */}
+            <div className="flex gap-1.5">
+              {island.eventId && (
+                <IslandButton onClick={(e) => { e.stopPropagation(); onMyWay(); }}>
+                  <Icon name="arrow" size={14} /> On my way
+                </IslandButton>
+              )}
+              <IslandButton onClick={(e) => { e.stopPropagation(); done(); }} tone="solid">
+                <Icon name="check" size={14} /> Done
               </IslandButton>
               <IslandButton onClick={(e) => { e.stopPropagation(); snooze(2); }}>
-                <Icon name="clock" size={15} /> +2 min
+                +2 min
               </IslandButton>
             </div>
           </motion.div>
         )}
-        {island && !expanded && (
-          <motion.span
-            key="tucked"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: 0.22, delay: 0.05 } }}
-            exit={{ opacity: 0, transition: { duration: 0.16 } }}
-            // FLANKS THE CAMERA. This was one flex row — avatar, a long title,
-            // then the countdown — running straight across the sensor cutout,
-            // which is exactly what you caught: the title sat on dead pixels.
-            // Now a 3-column grid with the dead zone fixed in the centre; the
-            // avatar hugs its left edge, the countdown its right, and the title
-            // is GONE from this state (there's no room beside a 62px hole, and a
-            // real compact Live Activity shows a glyph + a value, never a
-            // sentence — the words come back on expand).
-            className="grid h-full grid-cols-[1fr_auto_1fr] items-center px-2"
-          >
-            <span className="flex justify-end pr-1.5">
-              {who && <Avatar member={who} size={26} />}
-            </span>
-            <span aria-hidden className="flex items-center justify-center gap-1.5" style={{ width: DEAD_ZONE }}>
-              <span className="h-2 w-2 rounded-pill bg-white/[.08]" />
-              <span className="h-[7px] w-[7px] rounded-pill bg-white/[.05]" />
-            </span>
-            <span className="flex justify-start pl-1.5">
-              {countdown && (
-                <span className="text-[13px] font-semibold tabular-nums text-lemon">{countdown}</span>
-              )}
-            </span>
-          </motion.span>
-        )}
       </AnimatePresence>
     </motion.div>
+
+    {/* COLLAPSED FLANKS — the camera pill above is HARDWARE; the app can only
+        draw beside it. Leading (who) sits to its left, trailing (countdown) to
+        its right, both on the header with a clear gap from the sensor. This is
+        the thing you caught: content was running across the dead zone. The pill
+        half-covers ±60px from centre, so ±66 lands the content 6px clear of it. */}
+    <AnimatePresence>
+      {island && !expanded && (
+        <>
+          <motion.div
+            key="lead"
+            initial={{ opacity: 0, x: 5 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 5 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-none absolute top-[11px] z-[96] flex h-[34px] items-center"
+            style={{ right: "calc(50% + 66px)" }}
+          >
+            {who && <Avatar member={who} size={24} />}
+          </motion.div>
+          <motion.div
+            key="trail"
+            initial={{ opacity: 0, x: -5 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -5 }}
+            transition={{ duration: 0.2 }}
+            className="pointer-events-none absolute top-[11px] z-[96] flex h-[34px] items-center"
+            style={{ left: "calc(50% + 66px)" }}
+          >
+            {countdown && <span className="text-[13px] font-semibold tabular-nums text-lemon">{countdown}</span>}
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+    </>
   );
 }
 
@@ -518,7 +541,7 @@ function IslandButton({
     <button
       onClick={onClick}
       className={
-        "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-pill text-[13px] font-semibold transition-colors " +
+        "flex h-9 flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-pill px-1 text-[12.5px] font-semibold transition-colors " +
         (tone === "solid"
           ? "bg-white/[.16] text-white hover:bg-white/25"
           : "bg-white/[.06] text-white/75 hover:bg-white/[.12] hover:text-white")

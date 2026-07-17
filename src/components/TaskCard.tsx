@@ -126,6 +126,7 @@ export function EventCard({ event, showOwner }: { event: HouseEvent; showOwner?:
         weekday={d.weekday}
         source="Calendar"
         title={event.title}
+        done={event.done}
         onOpen={() => openSheet({ type: "event", id: event.id })}
         subtitle={
           <>
@@ -142,16 +143,19 @@ export function EventCard({ event, showOwner }: { event: HouseEvent; showOwner?:
         actions={
           <>
             {showOwner && who && <Avatar member={who} />}
-            {/* An event is something you SHOW UP TO, not something you finish — so the
-                slot where a task carries "Done" carries the only action an event has.
-                A disabled button here would occupy the card's most prominent position
-                purely to refuse the tap. */}
-            {/* A real promise: schedules via the reminder engine (quiet hours
-                apply at delivery). This used to toast "we'll remind you" and
-                remind no one — while the sheet's identical button was real. */}
-            <Button tone="outline" onClick={() => remindForEvent(event.id)}>
-              <Icon name="bell" size={14} /> Remind me
-            </Button>
+            {/* Once handled (a reminder's "Done" landed here), the card wears a
+                quiet "Handled" instead of offering to remind you about a thing
+                that's over. Otherwise: "Remind me", a real promise via the
+                reminder engine. */}
+            {event.done ? (
+              <span className="flex items-center gap-1 text-caption font-medium text-sub">
+                <Icon name="check" size={14} /> Handled
+              </span>
+            ) : (
+              <Button tone="outline" onClick={() => remindForEvent(event.id)}>
+                <Icon name="bell" size={14} /> Remind me
+              </Button>
+            )}
           </>
         }
       />
