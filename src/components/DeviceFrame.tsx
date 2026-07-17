@@ -2,8 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Avatar } from "@/components/ui";
-import { Icon } from "@/components/Icons";
+import { Icon, type IconName } from "@/components/Icons";
 import { clockLabel } from "@/lib/dates";
 import { useHousehold } from "@/lib/store";
 
@@ -223,12 +222,12 @@ const DEAD_ZONE = 52;
  */
 function DynamicIsland() {
   const rawIsland = useHousehold((s) => s.island);
-  const members = useHousehold((s) => s.members);
   const dismiss = useHousehold((s) => s.dismissIsland);
   const setMode = useHousehold((s) => s.setIslandMode);
   const snooze = useHousehold((s) => s.snoozeIsland);
   const done = useHousehold((s) => s.islandDone);
   const onMyWay = useHousehold((s) => s.islandOnMyWay);
+  const arrive = useHousehold((s) => s.arrive);
   const openTarget = useHousehold((s) => s.islandOpen);
   /** Whose phone we're looking at. The island is phone-only, so the persona is
    *  always a member id here. */
@@ -254,28 +253,47 @@ function DynamicIsland() {
    * which then snapped down to the truth (4:59) on the first interval tick. This
    * kills that flash: the stale frame never paints.
    */
+  // A reminder counts to `targetAt`; a live journey counts to its `etaAt`. Either
+  // one means the clock is live and the layout-effect pre-syncs it before paint.
+  const clockTo = island?.targetAt ?? island?.etaAt;
   useLayoutEffect(() => {
-    if (island?.targetAt) setNow(Date.now());
-  }, [island?.targetAt]);
+    if (clockTo) setNow(Date.now());
+  }, [clockTo]);
   useEffect(() => {
-    if (!island?.targetAt) return;
+    if (!clockTo) return;
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, [island?.targetAt]);
+  }, [clockTo]);
 
   const arrived = !!island?.targetAt && now >= island.targetAt;
 
-  // The moment arrives while collapsed → the island re-opens itself. That's the
-  // one time it may interrupt again: the thing it was counting to is HERE.
-  useEffect(() => {
-    if (island?.mode === "collapsed" && arrived) setMode("expanded");
-  }, [arrived, island?.mode, setMode]);
+  /* ── the live journey ("On my way") ─────────────────────────────────────── */
+  const journey = island?.phase === "journey";
+  /** A reminder for a journey event → the expanded card offers "On my way". */
+  const isJourneyEvent = !!island?.journey;
+  /** The glyph that stands for the thing — shown instead of the tasked person's
+   *  own avatar, which tells them nothing (the notification is already theirs). */
+  const glyph: IconName = island?.icon ?? "bell";
+  /** Trip progress 0→1, and the ETA as whole minutes ("8 min", "1 min", "Now"). */
+  const etaLeft = journey && island?.etaAt ? Math.max(0, island.etaAt - now) : 0;
+  const etaMin = Math.ceil(etaLeft / 60_000);
+  const etaLabel = journey ? (etaLeft <= 0 ? "Now" : `${etaMin} min`) : null;
+  const tripProgress = journey && island?.startAt && island?.etaAt
+    ? Math.min(1, Math.max(0, (now - island.startAt) / (island.etaAt - island.startAt)))
+    : 0;
+  const atDestination = journey && etaLeft <= 0;
 
-  const who = island?.who ? members[island.who] : undefined;
+  // The moment arrives while collapsed → the island re-opens itself. That's the
+  // one time it may interrupt again: the thing it was counting to is HERE — a
+  // reminder coming due, or a live trip reaching its destination.
+  useEffect(() => {
+    if (island?.mode === "collapsed" && (arrived || atDestination)) setMode("expanded");
+  }, [arrived, atDestination, island?.mode, setMode]);
+
   const expanded = island?.mode === "expanded";
-  /** Only a live, unarrived countdown has anywhere to retreat TO — collapsed
-   *  is "still counting, out of your way," not "done, out of your way." */
-  const canTuck = expanded && !!island?.targetAt && !arrived;
+  /** Something still live has somewhere to retreat TO — a counting reminder, or a
+   *  trip still under way. Collapsed is "still going, out of your way." */
+  const canTuck = expanded && (journey ? !atDestination : (!!island?.targetAt && !arrived));
 
   /** "4:32" → "0:58" → "0:00". Fixed mm:ss once inside the five minutes, so the
    *  numbers hold their width and don't jitter the layout every digit change. */
@@ -316,16 +334,48 @@ function DynamicIsland() {
    */
   const suppressClick = useRef(false);
 
+  /* ── press-and-hold to expand (collapsed) ──────────────────────────────────
+     The real Dynamic Island expands on a LONG PRESS, not a tap — a tap on the
+     glass opens the app. Relying on the click event alone was the flake the
+     collapsed pill hit (a 120px target under the bezel, and the trailing click
+     is the same one the tuck-swipe has to suppress). So the hold is driven off
+     the pointer directly: press and wait, and it opens — no click required. */
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressAt = useRef<{ x: number; y: number } | null>(null);
+  const clearHold = () => {
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
-    if (!canTuck) return;
-    dragFrom.current = e.clientY;
-    // Capture can legitimately throw (a pointer that's already gone by the time
-    // this runs — a fast tap-and-release, some synthetic/testing dispatches) and
-    // it must never take the gesture down with it; the up/cancel handlers don't
-    // depend on capture succeeding.
-    try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch { /* not fatal */ }
+    if (canTuck) {
+      dragFrom.current = e.clientY;
+      // Capture can legitimately throw (a pointer that's already gone by the time
+      // this runs — a fast tap-and-release, some synthetic/testing dispatches) and
+      // it must never take the gesture down with it; the up/cancel handlers don't
+      // depend on capture succeeding.
+      try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch { /* not fatal */ }
+      return;
+    }
+    // Collapsed: arm the long-press. Held ~320ms without wandering → expand.
+    if (island && !expanded) {
+      pressAt.current = { x: e.clientX, y: e.clientY };
+      try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch { /* not fatal */ }
+      clearHold();
+      holdTimer.current = setTimeout(() => {
+        // Swallow the click that release will fire, so it doesn't re-toggle.
+        suppressClick.current = true;
+        pressAt.current = null;
+        setMode("expanded");
+      }, 320);
+    }
   };
   const onPointerMove = (e: React.PointerEvent) => {
+    // A wandering finger is not a hold — cancel the long-press if it drifts.
+    if (pressAt.current) {
+      const dx = Math.abs(e.clientX - pressAt.current.x);
+      const dy = Math.abs(e.clientY - pressAt.current.y);
+      if (dx > 8 || dy > 8) { clearHold(); pressAt.current = null; }
+    }
     if (dragFrom.current === null) return;
     // Elastic: the first 40px of pull follow the finger 1:1, past that it
     // drags through honey — a hint that the gesture has somewhere to land,
@@ -348,18 +398,17 @@ function DynamicIsland() {
     setPull(0);
     if (committed) setMode("collapsed");
   };
-  const onPointerUp = () => endDrag(pullNow.current < -22);
-  const onPointerCancel = () => endDrag(false);
+  const onPointerUp = () => { clearHold(); pressAt.current = null; endDrag(pullNow.current < -22); };
+  const onPointerCancel = () => { clearHold(); pressAt.current = null; endDrag(false); };
 
-  /** Tap does different things by state:
-   *   collapsed → expand.
+  /** Tap (a SHORT press) does different things by state:
+   *   collapsed → open the thing in the app (the long-press is what expands).
    *   expanded body → OPEN the event in the app (the notification's whole point
    *     when the app was closed — take me to the thing). Buttons stopPropagation,
-   *     so this only fires on the body. A swipe sets suppressClick and bails. */
+   *     so this only fires on the body. A swipe or a hold sets suppressClick. */
   const onTap = () => {
     if (suppressClick.current) { suppressClick.current = false; return; }
     if (!island) return;
-    if (!expanded) return setMode("expanded");
     openTarget();
   };
 
@@ -404,8 +453,9 @@ function DynamicIsland() {
         width: !island ? 120 : expanded ? 384 : 120,
         // Taller than before (118 -> 150): the camera hardware keeps the top band
         // to itself now, so ALL content — the title row and the buttons — lives
-        // BELOW the sensor line and needs the extra height to breathe.
-        height: !island ? 34 : expanded ? 150 : 34,
+        // BELOW the sensor line and needs the extra height to breathe. A live
+        // journey is taller still (172) — it carries the route line as well.
+        height: !island ? 34 : expanded ? (journey ? 172 : 150) : 34,
         borderRadius: !island || !expanded ? 20 : 42,
       }}
     >
@@ -444,62 +494,111 @@ function DynamicIsland() {
             </span>
 
             {/* CONTENT — everything the app draws, entirely below the sensor line
-                and now spanning the FULL width (no dead zone splitting it). The
-                title finally has room; the countdown parks on the right. */}
-            <div className="flex flex-1 flex-col justify-center gap-3">
-            <div className="flex items-center gap-2.5">
-              {who ? (
-                <Avatar member={who} size={32} />
-              ) : (
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
-                  <Icon name="bell" size={16} />
-                </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[16px] font-semibold leading-tight text-white">{island.title}</span>
-                <span className="block truncate text-[12px] leading-tight text-white/55">
-                  {island.held ? "Held during quiet hours"
-                    : island.timeLabel ? `at ${clockLabel(island.timeLabel)}`
-                    : "Reminder"}
-                </span>
-              </span>
+                and spanning the FULL width. Two shapes: a plain reminder, or a
+                LIVE JOURNEY once "On my way" is tapped. */}
+            {journey ? (
+              /* ── LIVE TRIP — Uber/DoorDash style. Origin (home) → destination,
+                    a marker crawling the route, an ETA ticking down. This is what
+                    the household watches after Sam taps "On my way". */
+              <div className="flex flex-1 flex-col justify-center gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-lemon text-ink">
+                    <Icon name="nav" size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[16px] font-semibold leading-tight text-white">
+                      {atDestination ? "Arriving now" : "On the way"}
+                    </span>
+                    <span className="block truncate text-[12px] leading-tight text-white/55">
+                      {island.title}{island.where ? ` · to ${island.where}` : ""}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end">
+                    <span className="text-[18px] font-bold leading-none tabular-nums text-lemon">{etaLabel}</span>
+                    {!atDestination && <span className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-white/40">away</span>}
+                  </span>
+                </div>
 
-              {countdown && (
-                <span className="flex shrink-0 flex-col items-end">
-                  <span className="text-[18px] font-bold leading-none tabular-nums text-lemon">{countdown}</span>
-                  {!arrived && <span className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-white/40">to go</span>}
-                </span>
-              )}
-            </div>
+                {/* The route. A home dot, the lime path filled to progress, a
+                    marker riding the head of it, a pin at the destination. */}
+                <div className="flex items-center gap-2">
+                  <Icon name="home" size={13} className="shrink-0 text-white/45" />
+                  <div className="relative h-[3px] flex-1 rounded-pill bg-white/[.14]">
+                    <div className="absolute inset-y-0 left-0 rounded-pill bg-lemon" style={{ width: `${tripProgress * 100}%` }} />
+                    <span
+                      className="absolute top-1/2 h-[11px] w-[11px] -translate-x-1/2 -translate-y-1/2 rounded-pill bg-lemon ring-2 ring-[#040405]"
+                      style={{ left: `${tripProgress * 100}%` }}
+                    />
+                  </div>
+                  <Icon name="pin" size={13} className="shrink-0 text-lemon" />
+                </div>
 
-            {/* THE ACTIONS. `stopPropagation` so a button press never reads as a
-                body tap (which opens the event) or the start of a tuck swipe.
-                "On my way" only for event reminders — it posts to the household
-                feed so the others know. Done marks the event handled. */}
-            <div className="flex gap-1.5">
-              {island.eventId && (
-                <IslandButton onClick={(e) => { e.stopPropagation(); onMyWay(); }}>
-                  <Icon name="arrow" size={14} /> On my way
-                </IslandButton>
-              )}
-              <IslandButton onClick={(e) => { e.stopPropagation(); done(); }} tone="solid">
-                <Icon name="check" size={14} /> Done
-              </IslandButton>
-              <IslandButton onClick={(e) => { e.stopPropagation(); snooze(2); }}>
-                +2 min
-              </IslandButton>
-            </div>
-            </div>
+                <div className="flex gap-1.5">
+                  <IslandButton onClick={(e) => { e.stopPropagation(); arrive(); }} tone="solid">
+                    <Icon name="check" size={14} /> Arrived
+                  </IslandButton>
+                  <IslandButton onClick={(e) => { e.stopPropagation(); dismiss(); }}>
+                    Cancel
+                  </IslandButton>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-1 flex-col justify-center gap-3">
+                <div className="flex items-center gap-2.5">
+                  {/* THE THING'S GLYPH, not the person's face. The notification is
+                      already the tasked person's — showing their own avatar back
+                      to them says nothing. An icon for the task does the work. */}
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
+                    <Icon name={glyph} size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[16px] font-semibold leading-tight text-white">{island.title}</span>
+                    <span className="block truncate text-[12px] leading-tight text-white/55">
+                      {island.held ? "Held during quiet hours"
+                        : island.timeLabel ? `at ${clockLabel(island.timeLabel)}`
+                        : "Reminder"}
+                    </span>
+                  </span>
+
+                  {countdown && (
+                    <span className="flex shrink-0 flex-col items-end">
+                      <span className="text-[18px] font-bold leading-none tabular-nums text-lemon">{countdown}</span>
+                      {!arrived && <span className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-white/40">to go</span>}
+                    </span>
+                  )}
+                </div>
+
+                {/* THE ACTIONS, by category. `stopPropagation` so a button press
+                    never reads as a body tap or the start of a tuck swipe.
+                    "On my way" shows ONLY for a JOURNEY (pickup, appointment) —
+                    it starts the live trip. A thing-at-home (trash, WFH) gets
+                    just Done + snooze; offering "On my way" for the bins made no
+                    sense. */}
+                <div className="flex gap-1.5">
+                  {isJourneyEvent && (
+                    <IslandButton onClick={(e) => { e.stopPropagation(); onMyWay(); }}>
+                      <Icon name="arrow" size={14} /> On my way
+                    </IslandButton>
+                  )}
+                  <IslandButton onClick={(e) => { e.stopPropagation(); done(); }} tone="solid">
+                    <Icon name="check" size={14} /> Done
+                  </IslandButton>
+                  <IslandButton onClick={(e) => { e.stopPropagation(); snooze(2); }}>
+                    +2 min
+                  </IslandButton>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
     </motion.div>
 
     {/* COLLAPSED FLANKS — the camera pill above is HARDWARE; the app can only
-        draw beside it. Leading (who) sits to its left, trailing (countdown) to
-        its right, both on the header with a clear gap from the sensor. This is
-        the thing you caught: content was running across the dead zone. The pill
-        half-covers ±60px from centre, so ±66 lands the content 6px clear of it. */}
+        draw beside it. Leading (the thing's GLYPH — a heading arrow on a live
+        trip, otherwise the task icon) sits to its left; trailing (the ETA on a
+        trip, else the countdown) to its right, both with a clear gap from the
+        sensor. The pill half-covers ±60px from centre, so ±66 lands 6px clear. */}
     <AnimatePresence>
       {island && !expanded && (
         <>
@@ -507,10 +606,10 @@ function DynamicIsland() {
             key="lead"
             initial={{ opacity: 0, x: 5 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 5 }}
             transition={{ duration: 0.2 }}
-            className="pointer-events-none absolute top-[11px] z-[96] flex h-[34px] items-center"
+            className="pointer-events-none absolute top-[11px] z-[96] flex h-[34px] items-center text-lemon"
             style={{ right: "calc(50% + 66px)" }}
           >
-            {who && <Avatar member={who} size={24} />}
+            <Icon name={journey ? "nav" : glyph} size={17} />
           </motion.div>
           <motion.div
             key="trail"
@@ -519,7 +618,9 @@ function DynamicIsland() {
             className="pointer-events-none absolute top-[11px] z-[96] flex h-[34px] items-center"
             style={{ left: "calc(50% + 66px)" }}
           >
-            {countdown && <span className="text-[13px] font-semibold tabular-nums text-lemon">{countdown}</span>}
+            {journey
+              ? <span className="text-[13px] font-semibold tabular-nums text-lemon">{etaLabel}</span>
+              : countdown && <span className="text-[13px] font-semibold tabular-nums text-lemon">{countdown}</span>}
           </motion.div>
         </>
       )}

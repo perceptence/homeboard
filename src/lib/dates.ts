@@ -222,3 +222,20 @@ export const clockLabel = (t: string): string => {
   const pm = h === 12 || (h >= 1 && h <= 6);
   return `${h}:${m[2]} ${pm ? "PM" : "AM"}`;
 };
+
+/**
+ * A clock time as minutes-since-midnight, for SORTING a day's items by when they
+ * happen. Runs the same meridiem read as `clockLabel`, so "3:15 PM" sorts before
+ * "8:00 PM" and a bare "8:00" lands where it displays. "all day" (and anything
+ * that isn't a clock) sorts to the very start of the day — an all-day thing
+ * frames the whole day, so it reads first.
+ */
+export const timeMinutes = (t: string): number => {
+  const m = t.match(/^\s*(\d{1,2}):(\d{2})\s*(AM|PM)?\s*$/i);
+  if (!m) return -1;
+  let h = Number(m[1]);
+  const pm = m[3] ? m[3].toUpperCase() === "PM" : (h === 12 || (h >= 1 && h <= 6));
+  if (pm && h !== 12) h += 12;
+  if (!pm && h === 12) h = 0;
+  return h * 60 + Number(m[2]);
+};

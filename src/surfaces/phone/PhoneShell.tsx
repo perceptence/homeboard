@@ -9,8 +9,8 @@ import { EventCard, MaintCard, TaskCard } from "@/components/TaskCard";
 import { ActionButton, Avatar, Button, Card, Check, Choice, Em, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, Sentence, TabToggle, TitleBlock } from "@/components/ui";
 import { listItem, listStagger, press, smooth, spring } from "@/lib/motion";
 import {
-  addDays, badge, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
-  periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, today, todayIso, weekKey, weekLabel, type Period,
+  addDays, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
+  periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel, type Period,
 } from "@/lib/dates";
 import { awayOn, coveredFor, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
@@ -496,14 +496,25 @@ function readProgress(pct: number): { text: React.ReactNode } {
 
 function PhoneToday() {
   const [span, setSpan] = useState<(typeof SPAN)[number]>("Weekly");
+  /** The day the strip is pointed at — drives everything below the greeting.
+   *  Starts on today; tapping the ruler moves it. */
+  const [sel, setSel] = useState<string>(() => todayIso());
   const s = useHousehold();
   const meId = currentMember(s);
   const me = s.members[meId];
-  const mine = s.tasks.filter((t) => holder(t) === meId && !t.done && isToday(t.due)).sort((a, b) => a.due.localeCompare(b.due));
-  const events = s.events.filter((e) => e.who === meId && isToday(e.due));
+  const selDate = parse(sel);
+  const onSel = isToday(sel);
+  /** Both lists are for the SELECTED day and sorted by when they happen — so an
+   *  8 PM bin night never sits above a 3:15 pickup. */
+  const mine = s.tasks
+    .filter((t) => holder(t) === meId && !t.done && t.due === sel)
+    .sort((a, b) => timeMinutes(a.when) - timeMinutes(b.when));
+  const events = s.events
+    .filter((e) => e.who === meId && e.due === sel)
+    .sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time));
 
-  /** Which days this week hold something for me — the week ruler's presence dots.
-   *  Cheap to build each render; a walk over two small arrays. */
+  /** Which days hold something for me — the ruler's presence dots. Across the
+   *  whole range, not just this week. Cheap: a walk over two small arrays. */
   const busy = new Set<string>();
   for (const t of s.tasks) if (holder(t) === meId && !t.done) busy.add(t.due);
   for (const e of s.events) if (e.who === meId) busy.add(e.due);
@@ -535,43 +546,28 @@ function PhoneToday() {
   const pct = total ? Math.round((doneInSpan / total) * 100) : 100;
   const progress = readProgress(pct);
 
-  /**
-   * The REAL date. `dayNum = 13; dayName = "Thu"` were hardcoded — a placeholder
-   * that outlived its screenshot. The header above said "Thursday 16 July" and
-   * every task card said "16 Thu" while this one insisted on the 13th: the app's
-   * hero card, wrong about what day it is, three days adrift and drifting further.
-   * `badge()` is what the task cards already use.
-   */
-  const d = badge(todayIso());
   const highCount = mine.filter((t) => t.priority === "high").length;
+  // "for today" on today; "for Saturday" on a day you've scrolled to.
+  const dayWord = onSel ? "today" : selDate.toLocaleDateString("en-GB", { weekday: "long" });
 
   return (
     <>
-      {/* THE WEEK — a glance-strip right under the greeting. Tap any day to open
-          Ahead on the week it belongs to. */}
+      {/* THE DAY RULER — scroll it, tap a day, and the page below repaints for
+          that day. The date it points at lives in `sel`. */}
       <motion.div variants={listItem}>
-        <DateStrip busy={busy} onPick={() => s.goPhone("ahead")} />
+        <DateStrip selected={sel} busy={busy} onPick={(d) => setSel(iso(d))} />
       </motion.div>
 
       {/* PRIMARY CARD (lemon) — the day, said out loud */}
       <motion.div variants={listItem}>
         <Card tone="lemon">
           <div className="flex items-center">
-            {/* `onTint`, not `neutral`. The grey well (#F5F4F8) is designed to sit
-                on WHITE, where a hair of difference reads as recessed. On lemon it
-                just goes pale and muddy — near-white on vivid yellow has nowhere to
-                stand. `onTint` is the well built for tinted cards: a 7% ink wash, so
-                the contrast is dark-on-light (the direction that always reads) and
-                the dark glyph sits in it cleanly.
-                Text steps 14 -> 16 and ink/55 -> ink/70: beside a 40px circle a
-                caption reads as a stray label rather than the date this card is
-                about. */}
-            <div className="flex items-center gap-3">
-              <IconTile name="cal" tone="onTint" />
-              <span className="text-body font-medium text-ink/70">
-                {d.day} {d.weekday}
-              </span>
-            </div>
+            {/* The date used to sit here ("17 Fri") — but the ruler above now says
+                which day this is, and saying it twice was just noise. So the tile
+                names what the CARD is (tasks), not what day it is. `onTint` is the
+                well built for tinted cards: a flat ink wash that reads dark-on-light
+                on lemon, where the white `neutral` well goes muddy. */}
+            <IconTile name="tasks" tone="onTint" />
             <div className="ml-auto flex items-center gap-2">
               <ActionButton
                 name="handoff" label="Hand off" tone="light"
@@ -593,9 +589,9 @@ function PhoneToday() {
             ) : (
               <>
                 You have <Em>{mine.length} {mine.length === 1 ? "task" : "tasks"}</Em>
-                {/* "for today" always breaks to its own line — the count is the
-                    first thing read, the timeframe the second. Not left to wrap. */}
-                <span className="block">for today</span>
+                {/* The timeframe always breaks to its own line — the count is the
+                    first thing read, the day the second. Not left to wrap. */}
+                <span className="block">for {dayWord}</span>
               </>
             )}
           </Sentence>
@@ -626,20 +622,29 @@ function PhoneToday() {
           so it doesn't twin with the progress card two rows down. */}
       <motion.div variants={listItem}>
         <Card tone="mint" onClick={() => s.openSheet({ type: "shop" })}>
-          <div className="flex items-center gap-3">
-            <IconTile name="cart" tone="onTint" />
+          {/* SAME SHAPE AS 'YOUR PROGRESS' — line one is the icon tile with a
+              status chip riding the far end; line two is the eyebrow/figure pair
+              with an affordance on the right. Consistency across the two summary
+              cards, so the phone reads as one system. */}
+          <div className="flex items-center">
+            <IconTile name="cart" tone="lemon" />
+            {/* The house-flagged items get a word — an item nobody remembers
+                adding otherwise reads as a glitch. Rides the far end, where the
+                progress card keeps its toggle. */}
+            {shopLow > 0 && <span className="ml-auto"><Pill tone="light">{shopLow} running low</Pill></span>}
+          </div>
+          <div className="mt-6 flex items-end gap-4">
             <div className="min-w-0 flex-1">
               <Eyebrow>Shared list</Eyebrow>
-              <div className="mt-hair text-h2">
-                {shopOpen
-                  ? `${shopOpen} to get`
-                  : "All bought"}
-              </div>
+              <Sentence className="mt-0.5">
+                {shopOpen ? <><Em>{shopOpen}</Em> to get</> : "All bought"}
+              </Sentence>
             </div>
-            {/* The house-flagged items get a word — an item nobody remembers
-                adding otherwise reads as a glitch. */}
-            {shopLow > 0 && <Pill tone="light">{shopLow} running low</Pill>}
-            <Icon name="fwd" size={20} className="shrink-0 text-ink/35" />
+            {/* A GO chip, not a caret — a filled affordance that reads as "opens",
+                the way the whole card behaves, rather than a thin list chevron. */}
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-ink text-white">
+              <Icon name="arrow" size={18} />
+            </span>
           </div>
         </Card>
       </motion.div>
@@ -763,37 +768,50 @@ const SCOPE = ["Week", "Month", "Quarter", "Year"] as const;
 type Scope = Period;
 
 /**
- * THIS WEEK, at a glance — on Today, right under the greeting.
+ * THE DAY RULER — on Today, right under the greeting. Scroll it through the
+ * weeks; tap a day to REPAINT Today for that day (its tasks, its events, its
+ * count) — it doesn't jump you to Ahead, it drives the page you're on.
  *
- * The seven days of the current calendar week (Mon–Sun, matching the "13–19
- * July" period the rest of the app counts in — NOT a rolling fortnight, which
- * drifted out of step with that label). Today wears lemon; any day holding
- * something for you carries a dot. Tapping a day opens Ahead for the detail.
- *
- * It moved here from Ahead: a week ruler is a "what's my week" glance, which is
- * a Today question, not a navigation control buried in the Ahead header.
+ * Two selection states, kept distinct on purpose:
+ *   today          — lemon FILLED. The app's fixed "you are here", always.
+ *   a day you PICK  — lemon STROKE. Today keeps its fill; the day you're reading
+ *                     wears a ring, so "where I am" and "what I'm looking at"
+ *                     never collapse into one ambiguous highlight.
+ * Any day holding something for you carries a dot.
  */
-function DateStrip({ onPick, busy }: { onPick: (d: Date) => void; busy: Set<string> }) {
+function DateStrip({ selected, onPick, busy }: { selected: string; onPick: (d: Date) => void; busy: Set<string> }) {
   const todayStr = todayIso();
-  const weekStart = startOfWeek(new Date());
-  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  // A week back to five weeks on: enough to wander without it feeling endless.
+  const start = addDays(startOfWeek(new Date()), -7);
+  const days = Array.from({ length: 42 }, (_, i) => addDays(start, i));
+  const scroller = useRef<HTMLDivElement>(null);
+  const todayRef = useRef<HTMLButtonElement>(null);
+  // Open on today, not on the range's first (a week ago). Left-align it with a
+  // small breath so the days after it read as "the week ahead".
+  useLayoutEffect(() => {
+    const c = scroller.current, t = todayRef.current;
+    if (c && t) c.scrollLeft = t.offsetLeft - 20;
+  }, []);
   return (
-    // -mx-screen px-screen: bleed to the body's own gutter so the row sits edge
-    // to edge under the greeting.
-    <div className="no-scrollbar -mx-screen flex gap-2 overflow-x-auto overscroll-x-contain px-screen pb-0.5">
+    // -mx-screen px-screen: bleed to the body's own gutter so the row scrolls
+    // edge to edge under the greeting.
+    <div ref={scroller} className="no-scrollbar -mx-screen flex gap-2 overflow-x-auto overscroll-x-contain px-screen pb-0.5">
       {days.map((d) => {
         const di = iso(d);
         const isToday = di === todayStr;
+        const isSel = di === selected;
         const has = busy.has(di);
         return (
           <button
             key={di}
+            ref={isToday ? todayRef : undefined}
             onClick={() => onPick(d)}
             aria-label={d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
-            aria-current={isToday ? "date" : undefined}
+            aria-current={isToday ? "date" : isSel ? "true" : undefined}
             className={clsx(
-              "grid h-[60px] flex-1 place-content-center place-items-center gap-1 rounded-[16px] transition-colors",
+              "grid h-[60px] w-[46px] shrink-0 place-content-center place-items-center gap-1 rounded-[16px] transition-colors",
               isToday ? "bg-lemon text-ink"
+                : isSel ? "bg-white/[.07] text-white ring-2 ring-inset ring-lemon"
                 : "bg-white/[.07] text-white/80 hover:bg-white/[.12]",
             )}
           >

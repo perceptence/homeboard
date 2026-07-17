@@ -3,8 +3,8 @@
 import clsx from "clsx";
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Icon } from "@/components/Icons";
-import { Avatar, Button, Card, Check, Choice, Eyebrow, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
+import { Icon, type IconName } from "@/components/Icons";
+import { Avatar, Button, Card, Check, Choice, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
 import { smooth, spring } from "@/lib/motion";
 import { addDays, ago, badge, clockLabel, dayLabel, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
 import { parseTask } from "@/lib/parse";
@@ -12,6 +12,34 @@ import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
 import type { MemberId, Priority, Task } from "@/lib/types";
 import { ROLE_NEEDS } from "@/lib/types";
+
+/**
+ * The glyph that stands for a task — so a task's detail wears an icon tile in its
+ * title the same way an event's does (events carry an explicit `icon`; tasks are
+ * read from what they are). Title keywords first, then the source domain, then a
+ * generic checklist. Keeps "Take out the trash" and the "Trash night" event
+ * showing the SAME trash glyph — the two used to look like different species.
+ */
+const TASK_GLYPHS: [RegExp, IconName][] = [
+  [/trash|bin|rubbish|recycl/i, "trash"],
+  [/plant|water|garden/i, "plant"],
+  [/pick ?up|school run|drop ?off/i, "kid"],
+  [/homework|study/i, "grad"],
+  [/laundry|fold|wash/i, "spark"],
+  [/mow|lawn|hedge|leaves/i, "plant"],
+  [/cook|dinner|meal|table|groc/i, "cart"],
+  [/vacuum|clean|dust|tidy|sweep/i, "spark"],
+  [/hvac|filter|boiler|service|repair|fix/i, "wrench"],
+  [/bill|insurance|rent|renew/i, "bill"],
+];
+const SOURCE_GLYPHS: Record<string, IconName> = {
+  Automation: "bolt", Meals: "cart", "Home maintenance": "wrench", "Home care": "plant",
+  Cleaning: "spark", Laundry: "spark", Kids: "kid", Bills: "bill", Calendar: "cal",
+};
+function taskGlyph(t: Task): IconName {
+  for (const [re, name] of TASK_GLYPHS) if (re.test(t.title)) return name;
+  return (t.source ? SOURCE_GLYPHS[t.source] : undefined) ?? "tasks";
+}
 
 
 /** All sheets for both surfaces. Phone gets a bottom sheet; iPad gets a centred modal. */
@@ -52,7 +80,12 @@ function TaskSheet({ id }: { id: number }) {
 
   return (
     <>
-      <h2 className="font-tight text-h1">{task.title}</h2>
+      {/* Icon tile + title — the SAME header an event's detail wears, so a task
+          and an event read as one family. */}
+      <span className="flex items-center gap-3">
+        <IconTile name={taskGlyph(task)} tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">{task.title}</h2>
+      </span>
 
       {/* Three facts, one row, equal columns. `flex-wrap gap-5` sized each to its
           own content, so the row's rhythm changed with the length of a name. */}
@@ -254,9 +287,13 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
  * An event's detail — the same three-fact row as a task, because it wears the
  * same card.
  *
- * What it deliberately does NOT have is "Mark done". An event is something you
- * show up to, not something you finish; the card already makes that call by
- * putting "Remind me" where a task keeps "Done".
+ * ITS ACTIONS MIRROR THE NOTIFICATION. Opening this from the island used to
+ * strand you on a lone "Remind me" while the island itself offered Done / On my
+ * way — two doors to the same event, two different sets of verbs. Now they
+ * match: a journey shows "On my way" (start the live trip) and "Done"; a
+ * thing-at-home shows "Done". "Remind me" stays as the quiet way to be nudged
+ * later — the sheet's version of snooze, and the only action that makes sense
+ * before there's ever a reminder to snooze.
  */
 function EventSheet({ id }: { id: string }) {
   const s = useHousehold();
@@ -266,7 +303,13 @@ function EventSheet({ id }: { id: string }) {
 
   return (
     <>
-      <h2 className="font-tight text-h1">{e.title}</h2>
+      <span className="flex items-center gap-3">
+        {/* The thing's glyph — same one the island shows, so the sheet you land
+            on from the notification reads as the same object. Same tile as every
+            other: 40px well, 20px glyph, ink on lime. */}
+        <IconTile name={e.icon ?? "cal"} tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">{e.title}</h2>
+      </span>
 
       <div className="mt-4 grid grid-cols-3 gap-2">
         <Fact label="Who">
@@ -275,8 +318,8 @@ function EventSheet({ id }: { id: string }) {
             <span className="truncate">{who?.name ?? "—"}</span>
           </span>
         </Fact>
-        <Fact label="When">
-          <span className="text-bodysm font-medium">{relative(e.due)}</span>
+        <Fact label={e.journey ? "Heading" : "When"}>
+          <span className="text-bodysm font-medium">{e.journey && e.where ? e.where : relative(e.due)}</span>
         </Fact>
         <Fact label="Time">
           <span className="text-bodysm font-medium">{clockLabel(e.time)}</span>
@@ -289,15 +332,34 @@ function EventSheet({ id }: { id: string }) {
         </p>
       )}
 
-      {/* Same action as the card's button — one notion of the promise. */}
-      <Button
-        tone="dark"
-        size="lg"
-        className="mt-5 w-full"
-        onClick={() => s.remindForEvent(e.id)}
-      >
-        <Icon name="bell" size={16} /> Remind me
-      </Button>
+      {e.done ? (
+        <p className="mt-5 flex items-center justify-center gap-1.5 rounded-2xl bg-ink/[.05] py-3 text-bodysm font-medium text-sub">
+          <Icon name="check" size={16} /> Handled
+        </p>
+      ) : (
+        <>
+          {/* The completion actions — the SAME set the island offers. */}
+          <div className="mt-5 flex gap-2">
+            {e.journey && (
+              <Button tone="dark" size="lg" className="flex-1" onClick={() => s.onWay(e.id)}>
+                <Icon name="arrow" size={16} /> On my way
+              </Button>
+            )}
+            <Button
+              tone={e.journey ? "outline" : "dark"}
+              size="lg"
+              className="flex-1"
+              onClick={() => s.completeEvent(e.id)}
+            >
+              <Icon name="check" size={16} /> Done
+            </Button>
+          </div>
+          {/* The quiet path: be nudged later. */}
+          <Button tone="outline" size="lg" className="mt-2 w-full" onClick={() => s.remindForEvent(e.id)}>
+            <Icon name="bell" size={16} /> Remind me
+          </Button>
+        </>
+      )}
     </>
   );
 }

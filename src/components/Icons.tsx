@@ -5,6 +5,7 @@ import {
   Baby, CreditCard, House, LayoutGrid, ListChecks, type LucideIcon, Package, PawPrint, Repeat,
   ArrowLeftRight, ArrowUpRight, ChevronDown, ChevronUp, ChevronsUp, Plus, Search, Settings, ShoppingCart, Signal, Sparkles, TrendingUp, User, Users, Wifi, Wrench, X, Zap,
   Clock, Heart, KeyRound, Lock, MapPin, Mic, Moon, Scale, Sun, LayoutList,
+  Trash2, Sprout, Music2, GraduationCap, Gift, Stethoscope, Car, Navigation, PartyPopper,
 } from "lucide-react";
 
 /**
@@ -74,6 +75,17 @@ const MAP = {
   lock: Lock,
   heart: Heart,
   scale: Scale,
+  // Event glyphs — what a reminder is ABOUT, so the island can show the thing
+  // instead of the tasked person's own face.
+  trash: Trash2,
+  plant: Sprout,
+  music: Music2,
+  grad: GraduationCap,
+  gift: Gift,
+  care: Stethoscope,       // an appointment — dentist, clinic
+  party: PartyPopper,      // a celebration — birthdays, guests
+  car: Car,                // a journey / "on my way"
+  nav: Navigation,         // live trip heading — the collapsed journey glyph
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof MAP;

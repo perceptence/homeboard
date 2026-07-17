@@ -8,6 +8,7 @@ import type {
   Availability, IslandNote, Presence, Priority, Reminder, Role, ShopItem, Task,
 } from "./types";
 import { ROLE_RANK, ROLE_SET } from "./types";
+import type { IconName } from "@/components/Icons";
 import {
   seedAutomations, seedBills, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
 } from "./seed";
@@ -250,7 +251,7 @@ interface HouseholdState {
   openSheet: (s: Sheet) => void;
   closeSheet: () => void;
   notify: (msg: string | null) => void;
-  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; timeLabel?: string; targetAt?: number; eventId?: string }) => void;
+  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; timeLabel?: string; targetAt?: number; eventId?: string; icon?: IconName; journey?: boolean; where?: string }) => void;
   /** "Remind me" for an event — BOTH doors (the card and the sheet) call this,
    *  so there is exactly one notion of what that button promises. */
   remindForEvent: (id: string) => void;
@@ -260,8 +261,17 @@ interface HouseholdState {
   snoozeIsland: (mins: number) => void;
   /** Done — mark the event handled, log it, dismiss the island. */
   islandDone: () => void;
-  /** "On my way" — tell the household (a feed entry), then dismiss. */
+  /** "On my way" from the island — starts the live trip for the island's event. */
   islandOnMyWay: () => void;
+  /**
+   * Announce a departure and start a LIVE JOURNEY — the island becomes an Uber-
+   * style trip (origin → destination, ticking ETA) the household can watch.
+   * Works from anywhere: the island's own button, or an event's detail sheet.
+   * `id` defaults to the island's current event.
+   */
+  onWay: (id?: string) => void;
+  /** Arrived — end the live trip, mark the event handled, dismiss. */
+  arrive: () => void;
   /** Tap-through — open the event's detail in the app, dismiss the island. */
   islandOpen: () => void;
   /** Mark an event handled. */
@@ -367,9 +377,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   closeSheet: () => set({ sheet: null }),
   notify: (toast) => set({ toast, toastWho: null }),
 
-  scheduleReminder: ({ at, text, who, title, timeLabel, targetAt, eventId }) =>
+  scheduleReminder: ({ at, text, who, title, timeLabel, targetAt, eventId, icon, journey, where }) =>
     set((s) => ({
-      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, timeLabel, targetAt, eventId }],
+      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, timeLabel, targetAt, eventId, icon, journey, where }],
       toast: at - Date.now() < 60_000
         ? "Reminder set — any moment now"
         : `Reminder set for ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
@@ -404,6 +414,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       targetAt: Date.now() + 1500 + 5 * 60_000,
       who: e.who,
       eventId: e.id,
+      icon: e.icon,
+      journey: e.journey,
+      where: e.where,
     });
   },
 
@@ -430,6 +443,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       targetAt: i.targetAt,
       who: i.who ?? Object.keys(s.members)[0],
       eventId: i.eventId,
+      icon: i.icon,
+      journey: i.journey,
+      where: i.where,
     });
     set({ island: null });
   },
@@ -450,18 +466,52 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     set({ island: null, toast: "Nice — handled" });
   },
 
-  islandOnMyWay: () => {
-    const { island, members } = get();
-    if (!island) return;
-    const name = island.who ? members[island.who]?.name : "Someone";
-    // A note the whole household sees — "Dad is on his way." The reminder was
-    // yours; this turns it into something the others know.
+  islandOnMyWay: () => get().onWay(),
+
+  /**
+   * "On my way" → a LIVE JOURNEY. The reminder was yours alone; this turns it
+   * into something the household watches: a feed entry ("Sam is on the way —
+   * Pick up the kids") and a live island that counts an ETA down from ~8 minutes
+   * out, origin (home) → destination, the way a delivery app narrates a courier.
+   *
+   * Works from either door — the island's button (no `id`, uses the current
+   * island) or an event's detail sheet (`id` passed) — so both start the same
+   * trip.
+   */
+  onWay: (id) => {
+    const { island, members, events } = get();
+    const eventId = id ?? island?.eventId;
+    const e = eventId ? events.find((x) => x.id === eventId) : undefined;
+    const who = e?.who ?? island?.who ?? null;
+    const name = who ? members[who]?.name : "Someone";
+    const title = e?.title ?? island?.title ?? "";
+    const where = e?.where ?? island?.where;
+    const now = Date.now();
+    // A real-feeling ETA: eight minutes out, so the household sees it tick.
+    const etaAt = now + 8 * 60_000;
     set((s) => ({
-      island: null,
-      ...logged(s, `${name} is on the way${island.title ? ` — ${island.title}` : ""}`, island.who ?? undefined),
-      toast: "Told the house",
-      toastWho: island.who,
+      sheet: null,
+      island: {
+        title,
+        who,
+        mode: "expanded" as const,
+        phase: "journey" as const,
+        where,
+        icon: (e?.icon ?? island?.icon) as IconName | undefined,
+        eventId,
+        startAt: now,
+        etaAt,
+      },
+      ...logged(s, `${name} is on the way${title ? ` — ${title}` : ""}`, who ?? undefined),
+      toast: "Told the house — trip is live",
+      toastWho: who,
     }));
+  },
+
+  arrive: () => {
+    const { island } = get();
+    if (island?.eventId) get().completeEvent(island.eventId);
+    set({ island: null, toast: "Arrived — nice" });
   },
 
   islandOpen: () => {
@@ -510,6 +560,10 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
           held: due.held,
           mode: "expanded" as const,
           eventId: due.eventId,
+          icon: due.icon,
+          journey: due.journey,
+          where: due.where,
+          phase: "reminder" as const,
         },
         ...logged(s, due.text, due.who),
       };
@@ -961,7 +1015,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // holds bare times ("8:00") that the display heuristic mis-guesses (trash
   // night reads 8:00 AM). Bumping the version discards the stale copy and
   // re-seeds — the honest way to ship a data change with no backend to migrate.
-  version: 2,
+  // 3: events gained journey/where/icon and a "Pick up the kids" event (e9)
+  // replaced the task of the same name; re-seed so both land.
+  version: 3,
   storage: createJSONStorage(() => localStorage),
   skipHydration: true,
   /**

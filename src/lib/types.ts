@@ -1,3 +1,5 @@
+import type { IconName } from "@/components/Icons";
+
 /** Homeboard — domain model.
  *  One household; many lenses. Every surface reads from these types.
  *
@@ -379,6 +381,23 @@ export interface HouseEvent {
    *  "Done" needs somewhere to land, so marking one done records that it was
    *  dealt with and mutes the card. */
   done?: boolean;
+
+  /**
+   * A JOURNEY, not a thing-at-home. Picking up the kids, a dentist run, the
+   * weekly shop — you GO somewhere, and someone at the other end cares that
+   * you're coming. These earn "On my way" (announce it, start a live trip);
+   * Trash night and WFH don't — they're done where you already are, so their
+   * only honest actions are Done and snooze. Categorising this is what stops
+   * the island offering "On my way" for taking the bins out.
+   */
+  journey?: boolean;
+  /** WHERE a journey goes — the destination on the live trip ("School"). Only
+   *  meaningful with `journey`. Origin is always home. */
+  where?: string;
+  /** The glyph that STANDS FOR this event on the island. The notification lands
+   *  on the person who's tasked, so their own avatar tells them nothing — an
+   *  icon for the thing (trash, a child, a plant) does. Falls back to a bell. */
+  icon?: IconName;
 }
 
 export interface Automation {
@@ -421,6 +440,11 @@ export interface Reminder {
   /** The event this reminds about — lets the island's actions (open, done, on my
    *  way) reach the real thing, not just a copy of its text. */
   eventId?: string;
+  /** Snapshotted from the event so the island is self-contained: which glyph to
+   *  show, whether this is a journey (→ offer "On my way"), and where it goes. */
+  icon?: IconName;
+  journey?: boolean;
+  where?: string;
 }
 
 /**
@@ -444,6 +468,24 @@ export interface IslandNote {
   mode: "expanded" | "collapsed";
   /** The event behind it, for the action buttons. */
   eventId?: string;
+  /** The glyph for the thing — an icon in place of the tasked person's avatar. */
+  icon?: IconName;
+  /** This reminder is for a journey → the island offers "On my way". */
+  journey?: boolean;
+
+  /**
+   * WHAT KIND of live activity this is.
+   *   reminder — the default: a thing coming up, with a countdown.
+   *   journey  — someone said "On my way": a live trip, origin → destination,
+   *              ticking down an ETA the way Uber/DoorDash do. The others can
+   *              watch it move.
+   */
+  phase?: "reminder" | "journey";
+  /** Journey only. Destination name; the trip's start and its arrival ETA (epoch
+   *  ms) — together they drive the live progress bar and the "8 min" readout. */
+  where?: string;
+  startAt?: number;
+  etaAt?: number;
 }
 
 export interface ActivityEntry {

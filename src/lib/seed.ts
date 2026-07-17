@@ -39,7 +39,8 @@ export const seedTasks: Task[] = [
   { id: 1, title: "Take out the trash", owner: "sam", when: "Tonight", due: d(0), done: false, priority: "med", recurring: "Weekly", minAge: 8, source: "Automation" },
   { id: 2, title: "Pick dinner & cook", owner: "maya", when: "6:30 PM", due: d(0), done: false, priority: "med", requires: "full", source: "Meals" },
   { id: 3, title: "Water the plants", owner: "leo", when: "After school", due: d(0), done: false, priority: "low", recurring: "Every 3 days", minAge: 5, source: "Home care" },
-  { id: 4, title: "Pick up the kids", owner: "sam", when: "3:15 PM", due: d(0), done: false, priority: "high", requires: "full", source: "Calendar" },
+  /* "Pick up the kids" moved to seedEvents (e9) — a pickup is a journey you show
+     up to, not a checkbox chore, and it's where "On my way" earns its place. */
   { id: 5, title: "Mow the lawn", owner: null, suggest: "sam", when: "Morning", due: d(2), done: false, priority: "low", recurring: "Seasonal", requires: "full", source: "Home maintenance" },
   { id: 6, title: "Fold the laundry", owner: "maya", when: "Morning", due: d(0), done: true, priority: "low", minAge: 6, source: "Laundry" },
   { id: 7, title: "Set the table", owner: "ada", when: "6:00 PM", due: d(0), done: true, priority: "low", minAge: 4, source: "Meals" },
@@ -87,15 +88,27 @@ export const seedMaint: MaintItem[] = [
   { id: "m4", title: "Descale dishwasher", asset: "Kitchen", due: d(38), status: "up", cadence: "Every 3 mo" },
 ];
 
+/**
+ * `journey` splits these in two. A journey is somewhere you GO, with someone at
+ * the far end who cares that you're coming — it earns "On my way" and a live
+ * trip. The rest happen where you already are (Trash night, WFH), so their only
+ * honest actions are Done and snooze. `icon` is what the notification shows in
+ * place of the tasked person's own face.
+ *
+ * "Pick up the kids" (e9) used to be a Task — but a pickup is a show-up thing,
+ * not a checkbox, and it's the canonical journey: Sam gets the nudge, taps "On
+ * my way", and the trip to School goes live for the household to watch.
+ */
 export const seedEvents: HouseEvent[] = [
-  { id: "e1", due: d(0), title: "Dentist", time: "4:00 PM", who: "leo" },
-  { id: "e2", due: d(0), title: "Trash night", time: "8:00 PM", who: "sam", recurring: "Weekly" },
-  { id: "e3", due: d(1), title: "WFH", time: "all day", who: "sam", recurring: "Every Mon" },
-  { id: "e4", due: d(2), title: "Recital", time: "5:30 PM", who: "ada" },
-  { id: "e5", due: d(3), title: "Grocery run", time: "10:00 AM", who: "maya", recurring: "Weekly" },
-  { id: "e6", due: d(5), title: "Guests — the Kims", time: "6:00 PM", who: "maya" },
-  { id: "e7", due: d(33), title: "Ada's birthday", time: "all day", who: "ada", recurring: "Yearly" },
-  { id: "e8", due: d(61), title: "School term starts", time: "8:30 AM", who: "leo" },
+  { id: "e1", due: d(0), title: "Dentist", time: "4:00 PM", who: "leo", journey: true, where: "The dental clinic", icon: "care" },
+  { id: "e2", due: d(0), title: "Trash night", time: "8:00 PM", who: "sam", recurring: "Weekly", icon: "trash" },
+  { id: "e9", due: d(0), title: "Pick up the kids", time: "3:15 PM", who: "sam", journey: true, where: "School", icon: "kid" },
+  { id: "e3", due: d(1), title: "WFH", time: "all day", who: "sam", recurring: "Every Mon", icon: "house" },
+  { id: "e4", due: d(2), title: "Recital", time: "5:30 PM", who: "ada", journey: true, where: "The auditorium", icon: "music" },
+  { id: "e5", due: d(3), title: "Grocery run", time: "10:00 AM", who: "maya", recurring: "Weekly", journey: true, where: "The market", icon: "cart" },
+  { id: "e6", due: d(5), title: "Guests — the Kims", time: "6:00 PM", who: "maya", icon: "party" },
+  { id: "e7", due: d(33), title: "Ada's birthday", time: "all day", who: "ada", recurring: "Yearly", icon: "gift" },
+  { id: "e8", due: d(61), title: "School term starts", time: "8:30 AM", who: "leo", icon: "grad" },
 ];
 
 export const seedAutomations: Automation[] = [
