@@ -50,6 +50,12 @@ export function PhoneShell() {
   const [tail, setTail] = useState(0);
   const ahead = aheadFor(s, meId, scope, anchor, query);
 
+  /** Which days hold something for the viewer — the DateStrip's presence dots.
+   *  Cheap enough to build each render; it's a walk over two small arrays. */
+  const busyDays = new Set<string>();
+  for (const t of s.tasks) if (holder(t) === meId && !t.done) busyDays.add(t.due);
+  for (const e of s.events) if (e.who === meId) busyDays.add(e.due);
+
   // The nav is glass over a moving list — it has to look at what it's sitting on.
   // Re-sampled on scroll inside the hook; these deps catch the changes scroll
   // can't see (a new route's content, the bar blooming to a new width).
@@ -183,6 +189,7 @@ export function PhoneShell() {
               <TitleBlock size="page" tone="onDark" eyebrow={today()} title={`${greeting()}, ${me.name}`} />
             )}
             {route === "ahead" && (
+              <>
               <TitleBlock
                 size="page" tone="onDark"
                 eyebrow={
@@ -222,6 +229,10 @@ export function PhoneShell() {
                     : `${ahead.count} ${ahead.count === 1 ? "thing" : "things"} this ${scope.toLowerCase()}`
                 }
               />
+              {!ahead.searching && scope === "Week" && (
+                <DateStrip anchor={anchor} onPick={(d) => setAnchor(d)} busy={busyDays} />
+              )}
+              </>
             )}
             {route === "you" && (
               /* The HOUSEHOLD, not the role.
@@ -749,6 +760,56 @@ function Step({ dir, onClick }: { dir: -1 | 1; onClick: () => void }) {
 
 const SCOPE = ["Week", "Month", "Quarter", "Year"] as const;
 type Scope = Period;
+
+/**
+ * The day ruler for Ahead's Week view — a horizontal strip of the next fortnight.
+ * Today wears lemon (it's the app's "you are here"), the day you're viewing gets a
+ * ring, and any day that holds something for you carries a dot. Tapping jumps the
+ * list to that day.
+ *
+ * It shows only under Week scope: at day granularity it's a natural companion to a
+ * week; against Month/Quarter (the list is months there) a 14-day ruler would be
+ * saying something the list isn't.
+ */
+function DateStrip({ anchor, onPick, busy }: { anchor: Date; onPick: (d: Date) => void; busy: Set<string> }) {
+  const todayStr = todayIso();
+  const anchorStr = iso(anchor);
+  const days = Array.from({ length: 14 }, (_, i) => addDays(new Date(), i));
+  return (
+    // -mx-5 px-5: bleed to the header's own padding so cards scroll off the edges,
+    // not into a 20px dead margin.
+    <div className="no-scrollbar -mx-5 mt-3.5 flex gap-2 overflow-x-auto overscroll-x-contain px-5 pb-0.5">
+      {days.map((d) => {
+        const di = iso(d);
+        const isToday = di === todayStr;
+        const isAnchor = di === anchorStr;
+        const has = busy.has(di);
+        return (
+          <button
+            key={di}
+            onClick={() => onPick(d)}
+            aria-label={d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+            aria-current={isToday ? "date" : undefined}
+            className={clsx(
+              "grid h-[60px] w-[46px] shrink-0 place-content-center place-items-center gap-1 rounded-[16px] transition-colors",
+              isToday ? "bg-lemon text-ink"
+                : isAnchor ? "bg-white/[.18] text-white ring-1 ring-inset ring-white/40"
+                : "bg-white/[.07] text-white/80 hover:bg-white/[.12]",
+            )}
+          >
+            <span className="text-[17px] font-semibold leading-none tabular-nums">{d.getDate()}</span>
+            <span className="text-[10px] font-medium uppercase leading-none tracking-[0.06em] opacity-65">
+              {d.toLocaleDateString("en-GB", { weekday: "short" })}
+            </span>
+            {/* The presence dot. On the lemon 'today' card it goes ink so it reads;
+                elsewhere it's lemon — the one spot of the app's colour on the strip. */}
+            <span aria-hidden className={clsx("h-[3px] w-[3px] rounded-pill", has ? (isToday ? "bg-ink/45" : "bg-lemon") : "bg-transparent")} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 /** One row in the Ahead list — a task, an event or an upkeep item, all dated. */
 type Item =

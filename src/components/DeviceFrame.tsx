@@ -394,13 +394,16 @@ function DynamicIsland() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, y: pull, transition: { opacity: { duration: 0.22 }, y: { type: "spring", stiffness: 500, damping: 40 } } }}
             exit={{ opacity: 0, transition: { duration: 0.16 } }}
-            className="flex h-full flex-col justify-center gap-2.5 px-4 py-3"
+            className="flex h-full flex-col justify-center gap-2.5 px-5 py-3.5"
           >
             {/* TOP ROW — flanks the camera. A 3-column grid keeps the centre
                 column dead-centre on the ISLAND, which is centred on screen, which
                 is exactly where the TrueDepth camera sits. Content wraps around it
                 (leading | camera | trailing), the way a real Live Activity does —
-                the middle is hardware, so nothing lives there. */}
+                the middle is hardware, so nothing lives there.
+                `pr-1` on the trailing side: the 42px corner curve bites into the
+                top-right exactly where the timer sits, so it's inset a little
+                further than the leading side to keep it off the curve. */}
             <div className="grid grid-cols-[1fr_auto_1fr] items-center">
               <div className="flex min-w-0 items-center gap-2.5 pr-2">
                 {who ? (
@@ -428,7 +431,7 @@ function DynamicIsland() {
               </span>
 
               {countdown && (
-                <span className="flex flex-col items-end pl-2">
+                <span className="flex flex-col items-end pl-2 pr-1">
                   <span className="text-[18px] font-bold leading-none tabular-nums text-lemon">{countdown}</span>
                   {!arrived && <span className="mt-0.5 text-[10px] uppercase tracking-[0.1em] text-white/40">to go</span>}
                 </span>
