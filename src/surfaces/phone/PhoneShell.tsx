@@ -553,16 +553,17 @@ function PhoneToday() {
       <motion.div variants={listItem}>
         <Card tone="lemon">
           <div className="flex items-center">
-            {/* Circle then text, same as every other icon row in the app — and it
-                balances the two 40px ActionButtons opposite.
-                `neutral` — the same soft grey well the You cards use. An icon well
-                is furniture for the glyph; it identifies the card, it doesn't
-                decorate it, so it reads the same on lemon as on white.
+            {/* `onTint`, not `neutral`. The grey well (#F5F4F8) is designed to sit
+                on WHITE, where a hair of difference reads as recessed. On lemon it
+                just goes pale and muddy — near-white on vivid yellow has nowhere to
+                stand. `onTint` is the well built for tinted cards: a 7% ink wash, so
+                the contrast is dark-on-light (the direction that always reads) and
+                the dark glyph sits in it cleanly.
                 Text steps 14 -> 16 and ink/55 -> ink/70: beside a 40px circle a
                 caption reads as a stray label rather than the date this card is
                 about. */}
             <div className="flex items-center gap-3">
-              <IconTile name="cal" tone="neutral" />
+              <IconTile name="cal" tone="onTint" />
               <span className="text-body font-medium text-ink/70">
                 {d.day} {d.weekday}
               </span>

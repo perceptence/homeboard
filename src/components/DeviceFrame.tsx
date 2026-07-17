@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { AnimatePresence, motion } from "framer-motion";
 import { Avatar } from "@/components/ui";
 import { Icon } from "@/components/Icons";
+import { clockLabel } from "@/lib/dates";
 import { useHousehold } from "@/lib/store";
 
 /**
@@ -204,14 +205,37 @@ function PhoneChrome({ children, chromeGap }: { children: ReactNode; chromeGap: 
  * The activity feed keeps the record — the island is a mouth, not an inbox.
  */
 function DynamicIsland() {
-  const island = useHousehold((s) => s.island);
+  const rawIsland = useHousehold((s) => s.island);
   const members = useHousehold((s) => s.members);
   const dismiss = useHousehold((s) => s.dismissIsland);
   const setMode = useHousehold((s) => s.setIslandMode);
+  /** Whose phone we're looking at. The island is phone-only, so the persona is
+   *  always a member id here. */
+  const viewingId = useHousehold((s) => s.persona);
+
+  /**
+   * A reminder belongs to a PERSON. Sam's reminder is Sam's business — it must
+   * not appear on Maya's phone just because the clock fired while we were looking
+   * at it. The store still holds the island (fired reminders persist until
+   * dismissed), so switching back to Sam brings it right back; it's only HIDDEN
+   * here, not lost. House-level notes (no `who`) show on whoever's phone.
+   */
+  const island = rawIsland && (!rawIsland.who || rawIsland.who === viewingId) ? rawIsland : null;
 
   /** The live clock — LOCAL to this component, so the countdown ticks without
    *  the store (and therefore the app) re-rendering every second. */
   const [now, setNow] = useState(() => Date.now());
+  /**
+   * Reset the clock the INSTANT an island with a countdown appears — before
+   * paint, via layout effect. `now` was frozen at component mount (app load),
+   * minutes before the reminder fires, so the very first frame showed
+   * `targetAt − staleNow` = a number several minutes too large (5:22, 6:03…),
+   * which then snapped down to the truth (4:59) on the first interval tick. This
+   * kills that flash: the stale frame never paints.
+   */
+  useLayoutEffect(() => {
+    if (island?.targetAt) setNow(Date.now());
+  }, [island?.targetAt]);
   useEffect(() => {
     if (!island?.targetAt) return;
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -341,10 +365,12 @@ function DynamicIsland() {
           : "pointer-events-none bg-[#0b0c09]")
       }
       style={{
-        // Three silhouettes: hardware 120×34 · collapsed live pill 244×34
-        // (status-bar height, still speaking) · expanded 380×76 (edge to edge
-        // less the 11px iOS margin).
-        width: !island ? 120 : expanded ? 380 : 244,
+        // Three silhouettes: hardware 120×34 · collapsed live pill 196×34
+        // (status-bar height) · expanded 380×76 (edge to edge less the 11px iOS
+        // margin). 196 was 244 — wide enough that its right edge sat on the wifi
+        // and battery glyphs. Centred, it now clears the clock on the left and
+        // the status icons on the right, the way a real live pill sits between.
+        width: !island ? 120 : expanded ? 380 : 196,
         height: !island || !expanded ? 34 : 76,
         borderRadius: !island || !expanded ? 20 : 38,
       }}
@@ -370,10 +396,11 @@ function DynamicIsland() {
               </span>
             )}
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-semibold leading-tight text-white">{island.title}</span>
+              {/* 16px, not 15 — the app has no 15px; body is 16. */}
+              <span className="block truncate text-[16px] font-semibold leading-tight text-white">{island.title}</span>
               <span className="block text-[12px] leading-tight text-white/55">
                 {island.held ? "Held during quiet hours"
-                  : island.timeLabel ? `at ${island.timeLabel}`
+                  : island.timeLabel ? `at ${clockLabel(island.timeLabel)}`
                   : "Reminder"}
               </span>
             </span>
@@ -381,18 +408,19 @@ function DynamicIsland() {
               <span className="shrink-0 text-right">
                 {/* Lemon throughout, not just on arrival — the countdown is the
                     one number on this whole card worth a colour, the whole time
-                    it's counting. Saving lemon for "arrived" made the 4:59 that
-                    matters just as much read as plain white. */}
-                <span className="block font-tight text-[24px] leading-none tabular-nums text-lemon">
+                    it's counting. 18px/bold: 24 was oversized for a two-line
+                    card, and a heavier weight holds the read at the smaller size. */}
+                <span className="block text-[18px] font-bold leading-none tabular-nums text-lemon">
                   {countdown}
                 </span>
                 {!arrived && <span className="mt-0.5 block text-[10px] uppercase tracking-[0.1em] text-white/40">to go</span>}
               </span>
             )}
-            {/* The grabber — the one visual hint that this thing swipes. Sheets
-                across the app use the same mark for the same reason. */}
+            {/* The grabber — the one visual hint that this thing swipes. At the
+                BOTTOM edge: you grab the bottom lip and push up to tuck it, so
+                the handle belongs where the gesture starts. */}
             {canTuck && (
-              <span aria-hidden className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-pill bg-white/25" />
+              <span aria-hidden className="absolute bottom-1.5 left-1/2 h-1 w-9 -translate-x-1/2 rounded-pill bg-white/25" />
             )}
           </motion.span>
         )}

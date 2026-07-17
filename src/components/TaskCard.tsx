@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { motion } from "framer-motion";
-import { badge, relative } from "@/lib/dates";
+import { badge, clockLabel, relative } from "@/lib/dates";
 import { holder, useHousehold } from "@/lib/store";
 import type { HouseEvent, MaintItem, Task } from "@/lib/types";
 import { Icon } from "./Icons";
@@ -70,7 +70,7 @@ export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean 
         onOpen={() => openSheet({ type: "task", id: task.id })}
         subtitle={
           <>
-            {task.when}
+            {clockLabel(task.when)}
             {task.recurring && (
               <>
                 <Icon name="repeat" size={14} />
@@ -129,7 +129,7 @@ export function EventCard({ event, showOwner }: { event: HouseEvent; showOwner?:
         onOpen={() => openSheet({ type: "event", id: event.id })}
         subtitle={
           <>
-            {event.time}
+            {clockLabel(event.time)}
             {event.recurring && (
               <>
                 <Icon name="repeat" size={14} />

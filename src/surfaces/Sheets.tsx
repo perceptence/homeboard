@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/Icons";
 import { Avatar, Button, Card, Check, Choice, Eyebrow, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
 import { smooth, spring } from "@/lib/motion";
-import { addDays, ago, badge, dayLabel, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
+import { addDays, ago, badge, clockLabel, dayLabel, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
@@ -67,7 +67,7 @@ function TaskSheet({ id }: { id: number }) {
           </button>
         </Fact>
         <Fact label="When">
-          <span className="text-bodysm font-medium">{task.when || "Any time"}</span>
+          <span className="text-bodysm font-medium">{clockLabel(task.when || "Any time")}</span>
         </Fact>
         <Fact label="Priority">
           <span className={clsx("flex items-center gap-1 text-bodysm font-medium",
@@ -142,7 +142,7 @@ function RebalanceSheet() {
         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-caption text-sub">
           {task.source && <span className="text-ink">{task.source}</span>}
           <span>{relative(task.due)}</span>
-          {task.when !== "Any time" && <>· <span>{task.when}</span></>}
+          {task.when !== "Any time" && <>· <span>{clockLabel(task.when)}</span></>}
         </div>
 
         {/* Both faces, and the direction. Who LOSES it matters as much as who
@@ -279,7 +279,7 @@ function EventSheet({ id }: { id: string }) {
           <span className="text-bodysm font-medium">{relative(e.due)}</span>
         </Fact>
         <Fact label="Time">
-          <span className="text-bodysm font-medium">{e.time}</span>
+          <span className="text-bodysm font-medium">{clockLabel(e.time)}</span>
         </Fact>
       </div>
 

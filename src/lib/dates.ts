@@ -199,3 +199,26 @@ export const dayLabel = (at: number): string => {
   if (diff < 7) return fmt(d, { weekday: "long" });
   return fmt(d, { day: "numeric", month: "short" });
 };
+
+/**
+ * A clock time, always with AM/PM. The app displayed times two ways — tasks
+ * carried "3:15 PM", events carried a bare "8:00" — so half the surface said the
+ * meridiem and half didn't. This is the single normaliser at every display site.
+ *
+ *   "8:00"      -> "8:00 PM"   (bare: household hours — see below)
+ *   "3:15 PM"   -> "3:15 PM"   (already marked; case tidied)
+ *   "Morning"   -> "Morning"   (not a clock time; untouched)
+ *
+ * For a BARE time the meridiem is a guess, and a guess is worse than a wrong
+ * label people can fix: seeded events carry their own AM/PM (see seed.ts) so
+ * this heuristic only ever runs on times a person typed. 7am–6pm reads as the
+ * daytime it almost always is; the rest fills in the obvious side.
+ */
+export const clockLabel = (t: string): string => {
+  const m = t.match(/^\s*(\d{1,2}):(\d{2})\s*(AM|PM)?\s*$/i);
+  if (!m) return t;
+  const h = Number(m[1]);
+  if (m[3]) return `${h}:${m[2]} ${m[3].toUpperCase()}`;
+  const pm = h === 12 || (h >= 1 && h <= 6);
+  return `${h}:${m[2]} ${pm ? "PM" : "AM"}`;
+};

@@ -883,7 +883,11 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     }),
 }), {
   name: "homeboard",
-  version: 1,
+  // 2: seed event times gained explicit AM/PM. Persisted state predating this
+  // holds bare times ("8:00") that the display heuristic mis-guesses (trash
+  // night reads 8:00 AM). Bumping the version discards the stale copy and
+  // re-seeds — the honest way to ship a data change with no backend to migrate.
+  version: 2,
   storage: createJSONStorage(() => localStorage),
   skipHydration: true,
   /**

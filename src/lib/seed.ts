@@ -88,14 +88,14 @@ export const seedMaint: MaintItem[] = [
 ];
 
 export const seedEvents: HouseEvent[] = [
-  { id: "e1", due: d(0), title: "Dentist", time: "4:00", who: "leo" },
-  { id: "e2", due: d(0), title: "Trash night", time: "8:00", who: "sam", recurring: "Weekly" },
+  { id: "e1", due: d(0), title: "Dentist", time: "4:00 PM", who: "leo" },
+  { id: "e2", due: d(0), title: "Trash night", time: "8:00 PM", who: "sam", recurring: "Weekly" },
   { id: "e3", due: d(1), title: "WFH", time: "all day", who: "sam", recurring: "Every Mon" },
-  { id: "e4", due: d(2), title: "Recital", time: "5:30", who: "ada" },
-  { id: "e5", due: d(3), title: "Grocery run", time: "10:00", who: "maya", recurring: "Weekly" },
-  { id: "e6", due: d(5), title: "Guests — the Kims", time: "6:00", who: "maya" },
+  { id: "e4", due: d(2), title: "Recital", time: "5:30 PM", who: "ada" },
+  { id: "e5", due: d(3), title: "Grocery run", time: "10:00 AM", who: "maya", recurring: "Weekly" },
+  { id: "e6", due: d(5), title: "Guests — the Kims", time: "6:00 PM", who: "maya" },
   { id: "e7", due: d(33), title: "Ada's birthday", time: "all day", who: "ada", recurring: "Yearly" },
-  { id: "e8", due: d(61), title: "School term starts", time: "8:30", who: "leo" },
+  { id: "e8", due: d(61), title: "School term starts", time: "8:30 AM", who: "leo" },
 ];
 
 export const seedAutomations: Automation[] = [
