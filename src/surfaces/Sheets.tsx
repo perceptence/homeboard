@@ -100,9 +100,10 @@ function TaskSheet({ id }: { id: number }) {
         </div>
       )}
 
-      {/* THE SAME VERBS AS THE NOTIFICATION. A journey task leads with "On my
-          way" (starts the live trip — arrival completes it by itself); every
-          task keeps Done, and "Remind me" is the quiet path to the island. */}
+      {/* THE SAME VERBS AS THE NOTIFICATION. "On my way" only when someone is
+          WAITING at the far end — it tells them, runs the live trip on their
+          phones, and opens Maps for the driver; arrival completes it by itself.
+          Every task keeps Done; "Remind me" is the quiet path to the island. */}
       {task.done ? (
         <Button tone="outline" size="lg" className="mt-5 w-full" onClick={() => s.toggleTask(id)}>
           <Icon name="undo" size={16} /> Mark not done
@@ -110,13 +111,13 @@ function TaskSheet({ id }: { id: number }) {
       ) : (
         <>
           <div className="mt-5 flex gap-2">
-            {task.journey && (
+            {!!task.waiting?.length && (
               <Button tone="dark" size="lg" className="flex-1" onClick={() => s.onWay(task.id)}>
                 <Icon name="car" size={16} /> On my way
               </Button>
             )}
             <Button
-              tone={task.journey ? "outline" : "dark"}
+              tone={task.waiting?.length ? "outline" : "dark"}
               size="lg"
               className="flex-1"
               onClick={() => s.toggleTask(id)}
@@ -251,7 +252,9 @@ function ShopSheet() {
    * that's ENTIRELY crossed has nothing left to ask, so it sinks whole.
    */
   const CATS: { cat: ShopCategory; glyph: IconName }[] = [
-    { cat: "Groceries", glyph: "cart" }, { cat: "Supplies", glyph: "box" }, { cat: "Pet", glyph: "pet" },
+    // veg, not cart: the aisle is FOOD — the cart is the act of shopping, and
+    // it's already on the sheet's own header doing that job.
+    { cat: "Groceries", glyph: "veg" }, { cat: "Supplies", glyph: "box" }, { cat: "Pet", glyph: "pet" },
   ];
   const groups = CATS
     .map(({ cat, glyph }) => {
@@ -419,15 +422,18 @@ function EventSheet({ id }: { id: string }) {
         </p>
       ) : (
         <>
-          {/* The completion actions — the SAME set the island offers. */}
+          {/* The completion actions — the SAME set the island offers. "On my
+              way" only with someone in `waiting` at the far end: Padel is a
+              journey, but Marco isn't in the household — announcing to nobody
+              is theatre. */}
           <div className="mt-5 flex gap-2">
-            {e.journey && (
+            {!!e.waiting?.length && (
               <Button tone="dark" size="lg" className="flex-1" onClick={() => s.onWay(e.id)}>
                 <Icon name="car" size={16} /> On my way
               </Button>
             )}
             <Button
-              tone={e.journey ? "outline" : "dark"}
+              tone={e.waiting?.length ? "outline" : "dark"}
               size="lg"
               className="flex-1"
               onClick={() => s.completeEvent(e.id)}

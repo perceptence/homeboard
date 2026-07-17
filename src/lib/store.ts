@@ -252,7 +252,7 @@ interface HouseholdState {
   openSheet: (s: Sheet) => void;
   closeSheet: () => void;
   notify: (msg: string | null) => void;
-  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; timeLabel?: string; targetAt?: number; eventId?: string; taskId?: number; icon?: IconName; journey?: boolean; where?: string }) => void;
+  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; timeLabel?: string; targetAt?: number; eventId?: string; taskId?: number; icon?: IconName; journey?: boolean; where?: string; waiting?: MemberId[] }) => void;
   /** "Remind me" for an event — BOTH doors (the card and the sheet) call this,
    *  so there is exactly one notion of what that button promises. */
   remindForEvent: (id: string) => void;
@@ -381,9 +381,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   closeSheet: () => set({ sheet: null }),
   notify: (toast) => set({ toast, toastWho: null }),
 
-  scheduleReminder: ({ at, text, who, title, timeLabel, targetAt, eventId, taskId, icon, journey, where }) =>
+  scheduleReminder: ({ at, text, who, title, timeLabel, targetAt, eventId, taskId, icon, journey, where, waiting }) =>
     set((s) => ({
-      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, timeLabel, targetAt, eventId, taskId, icon, journey, where }],
+      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, timeLabel, targetAt, eventId, taskId, icon, journey, where, waiting }],
       toast: at - Date.now() < 60_000
         ? "Reminder set — any moment now"
         : `Reminder set for ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
@@ -421,6 +421,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       icon: e.icon,
       journey: e.journey,
       where: e.where,
+      waiting: e.waiting,
     });
   },
 
@@ -440,6 +441,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       icon: taskGlyph(t),
       journey: t.journey,
       where: t.where,
+      waiting: t.waiting,
     });
   },
 
@@ -470,6 +472,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       icon: i.icon,
       journey: i.journey,
       where: i.where,
+      waiting: i.waiting,
     });
     set({ island: null });
   },
@@ -516,11 +519,27 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     const name = who ? members[who]?.name : "Someone";
     const title = t?.title ?? e?.title ?? island?.title ?? "";
     const where = t?.where ?? e?.where ?? island?.where;
+    const waiting = t?.waiting ?? e?.waiting ?? island?.waiting;
     const now = Date.now();
-    // A real-feeling ETA: eight minutes out, so the household sees it tick.
+    // A real-feeling ETA: eight minutes out, so the wait is watchable.
     // Arrival is the trip's own event (location would fire it for real) — the
     // island auto-arrives when this lands; there is no "Arrived" button.
     const etaAt = now + 8 * 60_000;
+
+    /**
+     * THE TRAVELER GETS MAPS, NOT A WIDGET. They're about to drive — the useful
+     * thing on their screen is directions, so the default maps app opens with
+     * the destination loaded. The LIVE TRIP belongs to the people in `waiting`
+     * (the island carries it and renders on THEIR phones — see DynamicIsland's
+     * audience rule): the kids watch Dad come; Dad watches the road.
+     */
+    if (typeof window !== "undefined" && where) {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(where)}`, "_blank", "noopener");
+    }
+    const names = (waiting ?? []).map((m) => members[m]?.name).filter(Boolean);
+    const told = names.length === 0 ? "the house"
+      : names.length === 1 ? names[0]
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
     set((s) => ({
       sheet: null,
       island: {
@@ -534,9 +553,10 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         taskId,
         startAt: now,
         etaAt,
+        waiting,
       },
       ...logged(s, `${name} is on the way${title ? ` — ${title}` : ""}`, who ?? undefined),
-      toast: "Told the house — trip is live",
+      toast: `Told ${told} — Maps is up`,
       toastWho: who,
     }));
   },
@@ -604,6 +624,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
           icon: due.icon,
           journey: due.journey,
           where: due.where,
+          waiting: due.waiting,
           phase: "reminder" as const,
         },
         ...logged(s, due.text, due.who),
@@ -1063,7 +1084,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // being a TASK (a journey one). Re-seed.
   // 5: shopping gained an age-gated item (wine, minAge 18). Re-seed.
   // 6: "Auto" source label; demo events seeded relative to now. Re-seed.
-  version: 6,
+  // 7: "On my way" needs an audience — `waiting` landed on the pickup. Re-seed.
+  version: 7,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.

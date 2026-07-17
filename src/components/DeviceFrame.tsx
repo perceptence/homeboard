@@ -234,13 +234,21 @@ function DynamicIsland() {
   const viewingId = useHousehold((s) => s.persona);
 
   /**
-   * A reminder belongs to a PERSON. Sam's reminder is Sam's business — it must
-   * not appear on Maya's phone just because the clock fired while we were looking
-   * at it. The store still holds the island (fired reminders persist until
-   * dismissed), so switching back to Sam brings it right back; it's only HIDDEN
-   * here, not lost. House-level notes (no `who`) show on whoever's phone.
+   * WHOSE PHONE SHOWS THIS.
+   *
+   * A reminder belongs to the PERSON it nudges — Sam's reminder must not appear
+   * on Maya's phone just because the clock fired while we were looking at it.
+   * House-level notes (no `who`) show on whoever's phone.
+   *
+   * A live JOURNEY inverts that: it renders for the AUDIENCE — the people in
+   * `waiting`, the ones actually waiting at the far end. The kids watch Dad
+   * come; Dad's phone is in Maps, driving. The store still holds the island
+   * either way; it's only HIDDEN per-viewer here, not lost.
    */
-  const island = rawIsland && (!rawIsland.who || rawIsland.who === viewingId) ? rawIsland : null;
+  const island = rawIsland && (rawIsland.phase === "journey"
+    ? !!rawIsland.waiting?.includes(viewingId as string)
+    : (!rawIsland.who || rawIsland.who === viewingId))
+    ? rawIsland : null;
 
   /** The live clock — LOCAL to this component, so the countdown ticks without
    *  the store (and therefore the app) re-rendering every second. */
@@ -269,8 +277,9 @@ function DynamicIsland() {
 
   /* ── the live journey ("On my way") ─────────────────────────────────────── */
   const journey = island?.phase === "journey";
-  /** A reminder for a journey event → the expanded card offers "On my way". */
-  const isJourneyEvent = !!island?.journey;
+  /** "On my way" needs an AUDIENCE, not just a journey: someone in `waiting`
+   *  to hear it. A parcel locker doesn't care that you're coming. */
+  const offerOnWay = !!island?.journey && !!island?.waiting?.length;
   /** The glyph that stands for the thing — shown instead of the tasked person's
    *  own avatar, which tells them nothing (the notification is already theirs). */
   const glyph: IconName = island?.icon ?? "bell";
@@ -595,7 +604,7 @@ function DynamicIsland() {
                 {/* Every button wears its icon — car (the trip), check (done),
                     bell (+2 min IS "remind me again"). One rule, no stragglers. */}
                 <div className="flex gap-1.5">
-                  {isJourneyEvent && (
+                  {offerOnWay && (
                     <IslandButton onClick={(e) => { e.stopPropagation(); onMyWay(); }}>
                       <Icon name="car" size={14} /> On my way
                     </IslandButton>

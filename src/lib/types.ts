@@ -303,14 +303,21 @@ export interface Task {
   minAge?: number;
 
   /**
-   * A JOURNEY task — you GO somewhere to do it (a pickup, an appointment run),
-   * and someone at the far end cares that you're coming. Earns "On my way" and
-   * the live trip, exactly as journey events do. "Pick up the kids" IS a task —
-   * it just also happens somewhere else.
+   * A JOURNEY task — you GO somewhere to do it (a pickup, an appointment run).
+   * Journeys get a heading and, when driven, a map. "Pick up the kids" IS a
+   * task — it just also happens somewhere else.
    */
   journey?: boolean;
   /** WHERE the journey goes ("School"). Only meaningful with `journey`. */
   where?: string;
+  /**
+   * WHO IS AT THE FAR END — the audience for "On my way". An announcement
+   * needs someone to hear it: the kids waiting at school get the notification
+   * and the live trip; a parcel locker does not care that you're coming. No
+   * `waiting` → no "On my way" — the journey is still a journey, it's just
+   * nobody's news.
+   */
+  waiting?: MemberId[];
   /** Explicit glyph override. Most tasks derive theirs from title/source. */
   icon?: IconName;
 
@@ -403,16 +410,17 @@ export interface HouseEvent {
 
   /**
    * A JOURNEY, not a thing-at-home. Picking up the kids, a dentist run, the
-   * weekly shop — you GO somewhere, and someone at the other end cares that
-   * you're coming. These earn "On my way" (announce it, start a live trip);
-   * Trash night and WFH don't — they're done where you already are, so their
-   * only honest actions are Done and snooze. Categorising this is what stops
-   * the island offering "On my way" for taking the bins out.
+   * weekly shop — you GO somewhere. Trash night and WFH don't; they're done
+   * where you already are.
    */
   journey?: boolean;
   /** WHERE a journey goes — the destination on the live trip ("School"). Only
    *  meaningful with `journey`. Origin is always home. */
   where?: string;
+  /** WHO IS AT THE FAR END — the audience for "On my way" (see Task.waiting).
+   *  Padel with a friend is a journey, but the friend isn't in the household:
+   *  nobody to notify, so no announcement. */
+  waiting?: MemberId[];
   /** The glyph that STANDS FOR this event on the island. The notification lands
    *  on the person who's tasked, so their own avatar tells them nothing — an
    *  icon for the thing (trash, a child, a plant) does. Falls back to a bell. */
@@ -462,11 +470,13 @@ export interface Reminder {
   /** …or the task, when the thing being reminded about is a Task. One of the
    *  two, never both. */
   taskId?: number;
-  /** Snapshotted from the source so the island is self-contained: which glyph to
-   *  show, whether this is a journey (→ offer "On my way"), and where it goes. */
+  /** Snapshotted from the source so the island is self-contained: which glyph
+   *  to show, whether this is a journey, where it goes, and who's at the far
+   *  end (no `waiting` → the island offers no "On my way"). */
   icon?: IconName;
   journey?: boolean;
   where?: string;
+  waiting?: MemberId[];
 }
 
 /**
@@ -494,15 +504,23 @@ export interface IslandNote {
   taskId?: number;
   /** The glyph for the thing — an icon in place of the tasked person's avatar. */
   icon?: IconName;
-  /** This reminder is for a journey → the island offers "On my way". */
+  /** This reminder is for a journey (heading, map on departure). */
   journey?: boolean;
+  /**
+   * WHO'S AT THE FAR END. Dual duty, one meaning — the people the trip is FOR:
+   *   reminder phase — non-empty `waiting` is what earns the "On my way" button.
+   *   journey phase  — these are the AUDIENCE: the live trip renders on THEIR
+   *                    phones (the kids watch Dad come), not the traveler's —
+   *                    the traveler is in Maps, driving.
+   */
+  waiting?: MemberId[];
 
   /**
    * WHAT KIND of live activity this is.
    *   reminder — the default: a thing coming up, with a countdown.
    *   journey  — someone said "On my way": a live trip, origin → destination,
-   *              ticking down an ETA the way Uber/DoorDash do. The others can
-   *              watch it move.
+   *              ticking down an ETA the way Uber/DoorDash do, shown to the
+   *              people in `waiting`.
    */
   phase?: "reminder" | "journey";
   /** Journey only. Destination name; the trip's start and its arrival ETA (epoch

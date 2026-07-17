@@ -60,10 +60,10 @@ export const seedTasks: Task[] = [
   { id: 1, title: "Take out the trash", owner: "sam", when: "8:00 PM", due: d(0), done: false, priority: "med", recurring: "Weekly", minAge: 8, source: "Auto · Calendar" },
   { id: 2, title: "Pick dinner & cook", owner: "maya", when: "6:30 PM", due: d(0), done: false, priority: "med", requires: "full", source: "Meals" },
   { id: 3, title: "Water the plants", owner: "leo", when: "After school", due: d(0), done: false, priority: "low", recurring: "Every 3 days", minAge: 5, source: "Home care" },
-  /* A JOURNEY task — "On my way" and the live trip hang off it. It IS a task
-     (it briefly lived as a calendar event; wrong — it's a job someone holds),
-     it just happens somewhere else. */
-  { id: 4, title: "Pick up the kids", owner: "sam", when: "3:15 PM", due: d(0), done: false, priority: "high", requires: "full", source: "Calendar", journey: true, where: "School", icon: "kid" },
+  /* THE canonical journey-with-an-audience: the kids are WAITING at school.
+     "On my way" notifies them, the live trip runs on their phones, and Sam gets
+     Maps — he's the one driving. `waiting` is what earns the button. */
+  { id: 4, title: "Pick up the kids", owner: "sam", when: "3:15 PM", due: d(0), done: false, priority: "high", requires: "full", source: "Calendar", journey: true, where: "School", waiting: ["leo", "ada"], icon: "kid" },
   { id: 5, title: "Mow the lawn", owner: null, suggest: "sam", when: "Morning", due: d(2), done: false, priority: "low", recurring: "Seasonal", requires: "full", source: "Home maintenance" },
   { id: 6, title: "Fold the laundry", owner: "maya", when: "Morning", due: d(0), done: true, priority: "low", minAge: 6, source: "Laundry" },
   { id: 7, title: "Set the table", owner: "ada", when: "6:00 PM", due: d(0), done: true, priority: "low", minAge: 4, source: "Meals" },
@@ -115,11 +115,12 @@ export const seedMaint: MaintItem[] = [
 ];
 
 /**
- * `journey` splits these in two. A journey is somewhere you GO, with someone at
- * the far end who cares that you're coming — it earns "On my way" and a live
- * trip. The rest happen where you already are (WFH), so their only honest
- * actions are Done and snooze. `icon` is what the notification shows in place
- * of the tasked person's own face.
+ * `journey` = somewhere you GO (a heading, a map). But "On my way" needs MORE
+ * than a journey — it needs `waiting`: someone in the household at the far end
+ * to hear it. Padel with Marco is a journey, but Marco isn't in the app; a
+ * parcel locker cares about nothing. Neither gets the button — announcing a
+ * trip to nobody is theatre. `icon` is what the notification shows in place of
+ * the tasked person's own face.
  *
  * No trash here, no pickup here — both are TASKS (jobs someone holds), not
  * calendar entries; duplicating them across the two lists asked Sam to do the

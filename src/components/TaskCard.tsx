@@ -98,13 +98,13 @@ export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean 
                 <Avatar member={owner} />
               </button>
             )}
-            {/* THE PRIMARY ACTION, not a default. A journey task's first verb is
-                "On my way" (it starts the live trip; arrival completes it) — a
-                card offering "Done" for a pickup you haven't left for yet is
-                answering the wrong question. Done still lives in the detail.
-                Every action button wears its icon — one rule, no stragglers.
-                (`light` is WHITE — invisible on a white card; hence dark.) */}
-            {task.journey && !task.done ? (
+            {/* THE PRIMARY ACTION, not a default. A journey task WITH SOMEONE
+                WAITING leads with "On my way" — it notifies them, starts their
+                live trip, and opens Maps for the driver. No `waiting`, no
+                announcement: a journey to a parcel locker is just a task, and
+                its verb is Done. Every action button wears its icon — one rule,
+                no stragglers. (`light` is WHITE — invisible on a white card.) */}
+            {!!task.waiting?.length && !task.done ? (
               <Button tone="dark" onClick={() => onWay(task.id)}>
                 <Icon name="car" size={14} /> On my way
               </Button>
