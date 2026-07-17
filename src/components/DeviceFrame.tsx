@@ -193,6 +193,22 @@ function PhoneChrome({ children, chromeGap }: { children: ReactNode; chromeGap: 
 
 
 /**
+ * THE CAMERA DEAD ZONE — where no pixels can be drawn.
+ *
+ * The physical TrueDepth sensor cutout is a software-merged pill — a FaceID pill
+ * on the left, a camera circle on the right. The design-community consensus
+ * (Apple publishes no exact figure) is ~52pt wide on the Pro and ~62pt on the
+ * Pro Max. Our frame is 402pt wide — that's the iPhone 16/17 **Pro**, not the
+ * Max — so the dead zone is 52.
+ *
+ * This is the answer to "how many dead pixels": ~52 wide × ~37 tall, dead
+ * centre, and NOTHING may render inside it. Both island states flank it —
+ * leading content to its left, trailing to its right, the band itself left to
+ * the hardware (two faint dots stand in for the sensors).
+ */
+const DEAD_ZONE = 52;
+
+/**
  * The Dynamic Island — no longer scenery.
  *
  * It was a static black pill drawn for realism. Now it's where reminders land:
@@ -375,11 +391,12 @@ function DynamicIsland() {
           : expanded
             ? "0 0 0 1px rgba(244,255,122,0.14), 0 0 28px rgba(244,255,122,0.22), 0 22px 55px rgba(0,0,0,0.75)"
             : "0 10px 30px rgba(0,0,0,0.6)",
-        // Four silhouettes now. Expanded grew to 384×118 to seat two rows around
-        // the camera. Real Dynamic Island expands to ~371pt wide on a 393pt screen
-        // (≈full width less an 11pt margin each side) and up to ~160pt tall — 384
-        // on our 402pt screen, 118 for two comfortable rows, sits right in that box.
-        width: !island ? 120 : expanded ? 384 : 196,
+        // Four silhouettes. Expanded 384×118 seats two rows around the camera.
+        // Collapsed is now 158, not 196: with the 62px dead zone in the middle
+        // and only an avatar + countdown flanking it, a wider pill just floated
+        // the content with empty edges. 158 hugs the camera the way a real
+        // compact Live Activity does.
+        width: !island ? 120 : expanded ? 384 : 158,
         height: !island ? 34 : expanded ? 118 : 34,
         borderRadius: !island || !expanded ? 20 : 42,
       }}
@@ -405,11 +422,17 @@ function DynamicIsland() {
                 top-right exactly where the timer sits, so it's inset a little
                 further than the leading side to keep it off the curve. */}
             <div className="grid grid-cols-[1fr_auto_1fr] items-center">
-              <div className="flex min-w-0 items-center gap-2.5 pr-2">
+              {/* gap-2 + a 32px avatar (not 36): with the dead zone claiming the
+                  centre, the leading column is capped at the trailing column's
+                  width by the symmetric grid, and "Trash night" was landing right
+                  on that cap — the DOM read it as fitting (92==92) but the loaded
+                  font rendered a hair wider and clipped. Trimming the avatar and
+                  gap buys the title ~12px of clear headroom. */}
+              <div className="flex min-w-0 items-center gap-2 pr-2">
                 {who ? (
-                  <Avatar member={who} size={36} />
+                  <Avatar member={who} size={32} />
                 ) : (
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
                     <Icon name="bell" size={16} />
                   </span>
                 )}
@@ -423,9 +446,10 @@ function DynamicIsland() {
                 </span>
               </div>
 
-              {/* The camera. Two dark sensors in the dead zone — a quiet nod to
-                  the hardware that owns this strip. */}
-              <span aria-hidden className="flex shrink-0 items-center gap-1.5 px-2">
+              {/* THE DEAD ZONE — the camera lives here. A fixed-width band so
+                  content genuinely clears the sensor, not a shrug-width gap; two
+                  faint dots stand in for the FaceID pill + camera circle. */}
+              <span aria-hidden className="flex shrink-0 items-center justify-center gap-1.5" style={{ width: DEAD_ZONE }}>
                 <span className="h-2 w-2 rounded-pill bg-white/[.08]" />
                 <span className="h-[7px] w-[7px] rounded-pill bg-white/[.05]" />
               </span>
@@ -456,15 +480,28 @@ function DynamicIsland() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, transition: { duration: 0.22, delay: 0.05 } }}
             exit={{ opacity: 0, transition: { duration: 0.16 } }}
-            className="flex h-full items-center gap-2 pl-1.5 pr-3"
+            // FLANKS THE CAMERA. This was one flex row — avatar, a long title,
+            // then the countdown — running straight across the sensor cutout,
+            // which is exactly what you caught: the title sat on dead pixels.
+            // Now a 3-column grid with the dead zone fixed in the centre; the
+            // avatar hugs its left edge, the countdown its right, and the title
+            // is GONE from this state (there's no room beside a 62px hole, and a
+            // real compact Live Activity shows a glyph + a value, never a
+            // sentence — the words come back on expand).
+            className="grid h-full grid-cols-[1fr_auto_1fr] items-center px-2"
           >
-            {who && <Avatar member={who} size={26} />}
-            <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/85">{island.title}</span>
-            {countdown && (
-              <span className="shrink-0 text-[12px] font-semibold tabular-nums text-lemon">
-                {countdown}
-              </span>
-            )}
+            <span className="flex justify-end pr-1.5">
+              {who && <Avatar member={who} size={26} />}
+            </span>
+            <span aria-hidden className="flex items-center justify-center gap-1.5" style={{ width: DEAD_ZONE }}>
+              <span className="h-2 w-2 rounded-pill bg-white/[.08]" />
+              <span className="h-[7px] w-[7px] rounded-pill bg-white/[.05]" />
+            </span>
+            <span className="flex justify-start pl-1.5">
+              {countdown && (
+                <span className="text-[13px] font-semibold tabular-nums text-lemon">{countdown}</span>
+              )}
+            </span>
           </motion.span>
         )}
       </AnimatePresence>
