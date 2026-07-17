@@ -398,19 +398,39 @@ export interface Reminder {
   id: number;
   /** When to fire, epoch ms. */
   at: number;
+  /** The full sentence, for the activity log. */
   text: string;
+  /** The thing itself, for the island ("Pick up the kids"). Falls back to text. */
+  title?: string;
+  /** The moment the reminder is ABOUT — the event's time, not the fire time.
+   *  This is what the island counts down to. A reminder fires 30 minutes early;
+   *  counting to the fire time would hit zero as the island opened. */
+  targetAt?: number;
   /** Whose reminder it is — whose quiet hours apply, whose phone it lands on. */
   who: MemberId;
   /** It came due during quiet hours and was pushed past them. */
   held?: boolean;
 }
 
-/** What the Dynamic Island is currently saying. One at a time — it's a mouth,
- *  not a queue; the activity feed is the queue. */
+/**
+ * What the Dynamic Island is tracking. One at a time — it's a mouth, not a
+ * queue; the activity feed is the queue.
+ *
+ * A LIVE ACTIVITY, not a message: it has two states and a clock.
+ *   expanded  — edge to edge under the bezel: the thing, its time, a countdown.
+ *   collapsed — status-bar height, still naming the thing, still counting.
+ * Tapping moves between them; only a countdown that has ARRIVED dismisses on
+ * tap, because until then the island still has something true to say.
+ */
 export interface IslandNote {
   title: string;
-  body?: string;
+  /** "3:15 PM" — the moment it's about, as a person says it. */
+  timeLabel?: string;
+  /** Countdown target, epoch ms. Absent → plain notification, no clock. */
+  targetAt?: number;
   who: MemberId | null;
+  held?: boolean;
+  mode: "expanded" | "collapsed";
 }
 
 export interface ActivityEntry {

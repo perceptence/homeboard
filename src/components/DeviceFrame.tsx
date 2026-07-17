@@ -207,28 +207,57 @@ function DynamicIsland() {
   const island = useHousehold((s) => s.island);
   const members = useHousehold((s) => s.members);
   const dismiss = useHousehold((s) => s.dismissIsland);
+  const setMode = useHousehold((s) => s.setIslandMode);
 
-  // NO auto-dismiss. A reminder is the app interrupting a person — the person
-  // decides when it's been heard. Tap puts it away; until then it stays, exactly
-  // like the platform it's imitating. (It self-dismissed after 4.5s at first,
-  // which made every reminder a race to read.)
+  /** The live clock — LOCAL to this component, so the countdown ticks without
+   *  the store (and therefore the app) re-rendering every second. */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!island?.targetAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [island?.targetAt]);
+
+  const arrived = !!island?.targetAt && now >= island.targetAt;
+
+  // The moment arrives while collapsed → the island re-opens itself. That's the
+  // one time it may interrupt again: the thing it was counting to is HERE.
+  useEffect(() => {
+    if (island?.mode === "collapsed" && arrived) setMode("expanded");
+  }, [arrived, island?.mode, setMode]);
+
   const who = island?.who ? members[island.who] : undefined;
+  const expanded = island?.mode === "expanded";
+
+  /** "2h 14m" → "42m" → "58s" → "Now". */
+  const countdown = (() => {
+    if (!island?.targetAt) return null;
+    const left = island.targetAt - now;
+    if (left <= 0) return "Now";
+    const sec = Math.ceil(left / 1000);
+    if (sec < 60) return `${sec}s`;
+    const min = Math.round(sec / 60);
+    if (min < 60) return `${min}m`;
+    return `${Math.floor(min / 60)}h ${min % 60}m`;
+  })();
+
+  /** Tap: expanded + still counting → tuck into the status bar and keep counting.
+   *  Expanded + arrived (or no clock at all) → it has said everything; dismiss.
+   *  Collapsed → bring it back. */
+  const onTap = () => {
+    if (!island) return;
+    if (!expanded) return setMode("expanded");
+    if (island.targetAt && !arrived) return setMode("collapsed");
+    dismiss();
+  };
 
   return (
     <motion.button
       layout
-      aria-live="polite"
-      onClick={island ? dismiss : undefined}
+      onClick={island ? onTap : undefined}
       transition={{ type: "spring", stiffness: 380, damping: 32 }}
-      // Centred by MARGINS (left-0 right-0 mx-auto), never by transform:
-      // framer's `layout` animates via transform and silently overwrites any
-      // translate you put in className — the pill drifted half its width right
-      // and sat on the battery. The screenshot caught it; the DOM probe didn't,
-      // because the element's size was correct and only its x was wrong.
-      // OPEN ≠ CLOSED SURFACE. Closed it's hardware — true black, invisible
-      // against the ink header, exactly right. Open it's a NOTIFICATION and has
-      // to read against that same near-black: lifted charcoal, a hairline ring,
-      // and a real drop shadow. Black-on-ink was a 2% contrast whisper.
+      // Centred by MARGINS (inset-x-0 mx-auto), never transform — framer's
+      // `layout` owns transform and drifts the pill onto the battery.
       className={
         "absolute inset-x-0 top-[14px] z-[95] mx-auto overflow-hidden text-left " +
         (island
@@ -236,32 +265,63 @@ function DynamicIsland() {
           : "pointer-events-none bg-[#0b0c09]")
       }
       style={{
-        width: island ? 340 : 120,
-        height: island ? 64 : 34,
-        borderRadius: island ? 32 : 20,
+        // Three silhouettes: hardware 120×34 · collapsed live pill 244×34
+        // (status-bar height, still speaking) · expanded 380×76 (edge to edge
+        // less the 11px iOS margin).
+        width: !island ? 120 : expanded ? 380 : 244,
+        height: !island || !expanded ? 34 : 76,
+        borderRadius: !island || !expanded ? 20 : 38,
       }}
     >
-      <AnimatePresence>
-        {island && (
+      <AnimatePresence mode="wait">
+        {island && expanded && (
           <motion.span
+            key="open"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { delay: 0.12 } }}
-            exit={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { delay: 0.1 } }}
+            exit={{ opacity: 0, transition: { duration: 0.1 } }}
             className="flex h-full items-center gap-3 px-4"
           >
             {who ? (
-              <Avatar member={who} size={36} />
+              <Avatar member={who} size={40} />
             ) : (
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-white/10 text-white">
                 <Icon name="bell" size={18} />
               </span>
             )}
             <span className="min-w-0 flex-1">
-              <span className="block text-[13px] font-semibold leading-tight text-white">{island.title}</span>
-              {island.body && (
-                <span className="block truncate text-[12px] leading-tight text-white/60">{island.body}</span>
-              )}
+              <span className="block truncate text-[15px] font-semibold leading-tight text-white">{island.title}</span>
+              <span className="block text-[12px] leading-tight text-white/55">
+                {island.held ? "Held during quiet hours"
+                  : island.timeLabel ? `at ${island.timeLabel}`
+                  : "Reminder"}
+              </span>
             </span>
+            {countdown && (
+              <span className="shrink-0 text-right">
+                <span className={"block font-tight text-[24px] leading-none tabular-nums " + (arrived ? "text-lemon" : "text-white")}>
+                  {countdown}
+                </span>
+                {!arrived && <span className="mt-0.5 block text-[10px] uppercase tracking-[0.1em] text-white/40">to go</span>}
+              </span>
+            )}
+          </motion.span>
+        )}
+        {island && !expanded && (
+          <motion.span
+            key="tucked"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { delay: 0.1 } }}
+            exit={{ opacity: 0, transition: { duration: 0.1 } }}
+            className="flex h-full items-center gap-2 pl-1.5 pr-3"
+          >
+            {who && <Avatar member={who} size={26} />}
+            <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/85">{island.title}</span>
+            {countdown && (
+              <span className={"shrink-0 text-[12px] font-semibold tabular-nums " + (arrived ? "text-lemon" : "text-white/70")}>
+                {countdown}
+              </span>
+            )}
           </motion.span>
         )}
       </AnimatePresence>

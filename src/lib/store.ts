@@ -250,11 +250,12 @@ interface HouseholdState {
   openSheet: (s: Sheet) => void;
   closeSheet: () => void;
   notify: (msg: string | null) => void;
-  scheduleReminder: (r: { at: number; text: string; who: MemberId }) => void;
+  scheduleReminder: (r: { at: number; text: string; who: MemberId; title?: string; targetAt?: number }) => void;
   /** "Remind me" for an event — BOTH doors (the card and the sheet) call this,
    *  so there is exactly one notion of what that button promises. */
   remindForEvent: (id: string) => void;
   dismissIsland: () => void;
+  setIslandMode: (mode: "expanded" | "collapsed") => void;
   /** The clock. Called every second by <Ticker/>; fires what's due, holds what's quiet. */
   tick: () => void;
   setQuery: (q: string) => void;
@@ -356,9 +357,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   closeSheet: () => set({ sheet: null }),
   notify: (toast) => set({ toast, toastWho: null }),
 
-  scheduleReminder: ({ at, text, who }) =>
+  scheduleReminder: ({ at, text, who, title, targetAt }) =>
     set((s) => ({
-      reminders: [...s.reminders, { id: ++nextId, at, text, who }],
+      reminders: [...s.reminders, { id: ++nextId, at, text, who, title, targetAt }],
       toast: at - Date.now() < 60_000
         ? "Reminder set — any moment now"
         : `Reminder set for ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
@@ -377,17 +378,20 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
      */
     const m = e.time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
     let at = Date.now() + 8_000;
+    let targetAt: number | undefined;
     if (m) {
       let h = Number(m[1]) % 12;
       if (m[3] ? /pm/i.test(m[3]) : h >= 1 && h <= 7) h += 12;
       const target = new Date(); target.setHours(h, Number(m[2]), 0, 0);
+      targetAt = +target;
       const thirtyBefore = +target - 30 * 60_000;
       if (thirtyBefore > Date.now()) at = thirtyBefore;
     }
-    s.scheduleReminder({ at, text: `${e.title} at ${e.time}`, who: e.who });
+    s.scheduleReminder({ at, text: `${e.title} at ${e.time}`, title: e.title, targetAt, who: e.who });
   },
 
   dismissIsland: () => set({ island: null }),
+  setIslandMode: (mode) => set((s) => (s.island ? { island: { ...s.island, mode } } : {})),
 
   /**
    * Delivery. One reminder per tick — the island is a mouth, not a queue — and
@@ -420,9 +424,14 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       return {
         reminders: s.reminders.filter((r) => r.id !== due.id),
         island: {
-          title: due.held ? "While you were quiet" : "Reminder",
-          body: due.text,
+          title: due.title ?? due.text,
+          timeLabel: due.targetAt
+            ? new Date(due.targetAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+            : undefined,
+          targetAt: due.targetAt,
           who: due.who,
+          held: due.held,
+          mode: "expanded" as const,
         },
         ...logged(s, due.text, due.who),
       };
