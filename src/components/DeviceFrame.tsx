@@ -554,7 +554,7 @@ function DynamicIsland() {
                     arrive() itself. The only human verb left is bailing out. */}
                 <div className="flex gap-1.5">
                   <IslandButton onClick={(e) => { e.stopPropagation(); dismiss(); }}>
-                    Cancel trip
+                    <Icon name="x" size={14} /> Cancel trip
                   </IslandButton>
                 </div>
               </div>
@@ -592,17 +592,19 @@ function DynamicIsland() {
                     it starts the live trip. A thing-at-home (trash, WFH) gets
                     just Done + snooze; offering "On my way" for the bins made no
                     sense. */}
+                {/* Every button wears its icon — car (the trip), check (done),
+                    bell (+2 min IS "remind me again"). One rule, no stragglers. */}
                 <div className="flex gap-1.5">
                   {isJourneyEvent && (
                     <IslandButton onClick={(e) => { e.stopPropagation(); onMyWay(); }}>
-                      <Icon name="arrow" size={14} /> On my way
+                      <Icon name="car" size={14} /> On my way
                     </IslandButton>
                   )}
                   <IslandButton onClick={(e) => { e.stopPropagation(); done(); }} tone="solid">
                     <Icon name="check" size={14} /> Done
                   </IslandButton>
                   <IslandButton onClick={(e) => { e.stopPropagation(); snooze(2); }}>
-                    +2 min
+                    <Icon name="bell" size={14} /> +2 min
                   </IslandButton>
                 </div>
               </div>

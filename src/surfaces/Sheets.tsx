@@ -105,14 +105,14 @@ function TaskSheet({ id }: { id: number }) {
           task keeps Done, and "Remind me" is the quiet path to the island. */}
       {task.done ? (
         <Button tone="outline" size="lg" className="mt-5 w-full" onClick={() => s.toggleTask(id)}>
-          Mark not done
+          <Icon name="undo" size={16} /> Mark not done
         </Button>
       ) : (
         <>
           <div className="mt-5 flex gap-2">
             {task.journey && (
               <Button tone="dark" size="lg" className="flex-1" onClick={() => s.onWay(task.id)}>
-                <Icon name="arrow" size={16} /> On my way
+                <Icon name="car" size={16} /> On my way
               </Button>
             )}
             <Button
@@ -379,7 +379,7 @@ function EventSheet({ id }: { id: string }) {
           <div className="mt-5 flex gap-2">
             {e.journey && (
               <Button tone="dark" size="lg" className="flex-1" onClick={() => s.onWay(e.id)}>
-                <Icon name="arrow" size={16} /> On my way
+                <Icon name="car" size={16} /> On my way
               </Button>
             )}
             <Button
@@ -588,6 +588,7 @@ function HandoffSheet({ id }: { id?: number }) {
                           className="mt-4 w-full"
                           onClick={() => chosen && s.setOwner(t.id, chosen)}
                         >
+                          <Icon name="handoff" size={16} />
                           {chosen ? `Hand to ${s.members[chosen].name}` : "Pick someone"}
                         </Button>
                       </div>

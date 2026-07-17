@@ -5,7 +5,7 @@ import {
   Baby, CreditCard, House, LayoutGrid, ListChecks, type LucideIcon, Package, PawPrint, Repeat,
   ArrowLeftRight, ArrowUpRight, ChevronDown, ChevronUp, ChevronsUp, Plus, Search, Settings, ShoppingCart, Signal, Sparkles, TrendingUp, User, Users, Wifi, Wrench, X, Zap,
   Clock, Heart, KeyRound, Lock, MapPin, Mic, Moon, Scale, Sun, LayoutList,
-  Trash2, Sprout, Music2, GraduationCap, Gift, Stethoscope, Car, Navigation, PartyPopper, Utensils,
+  Trash2, Sprout, Music2, GraduationCap, Gift, Stethoscope, Car, Navigation, PartyPopper, Utensils, RotateCcw,
 } from "lucide-react";
 
 /**
@@ -87,6 +87,7 @@ const MAP = {
   car: Car,                // a journey / "on my way"
   nav: Navigation,         // live trip heading — the collapsed journey glyph
   dine: Utensils,          // a meal — plates and cutlery, not a shopping cart
+  undo: RotateCcw,         // take it back — un-doing a done
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof MAP;

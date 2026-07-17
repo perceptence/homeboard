@@ -513,6 +513,22 @@ function PhoneToday() {
     .filter((e) => e.who === meId && e.due === sel)
     .sort((a, b) => timeMinutes(a.time) - timeMinutes(b.time));
 
+  /**
+   * THE TWO-HOUR HORIZON. The page's order is urgency, not species: whatever is
+   * ON you inside the next two hours (tasks and events alike, overdue included —
+   * a 3:15 pickup at 4 o'clock is MORE pressing, not less) sits directly under
+   * the hero, before the house-keeping cards. Everything further out waits below
+   * the progress card. Only today has a "next two hours"; on other days it all
+   * reads as later.
+   */
+  const nowMin = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+  const cards = [
+    ...mine.map((t) => ({ key: `t${t.id}`, at: timeMinutes(t.when), el: <TaskCard task={t} /> })),
+    ...events.map((e) => ({ key: `e${e.id}`, at: timeMinutes(e.time), el: <EventCard event={e} /> })),
+  ].sort((a, b) => a.at - b.at);
+  const soon = onSel ? cards.filter((c) => c.at >= 0 && c.at <= nowMin + 120) : [];
+  const later = cards.filter((c) => !soon.includes(c));
+
   /** Which days hold something for me — the ruler's presence dots. Across the
    *  whole range, not just this week. Cheap: a walk over two small arrays. */
   const busy = new Set<string>();
@@ -643,6 +659,14 @@ function PhoneToday() {
         </Card>
       </motion.div>
 
+      {/* WITHIN THE NEXT TWO HOURS — the pressing things ride directly under the
+          hero, ahead of the house-keeping cards. One thing, one card. */}
+      {soon.map((c) => (
+        <motion.div key={c.key} variants={listItem}>
+          {c.el}
+        </motion.div>
+      ))}
+
       {/* THE SHARED LIST (mint) — the one collective thing on a personal phone.
           It was a cart in the header crowding the greeting; a thing everyone
           shares shouldn't hide in a corner of personal chrome. As a card it can
@@ -678,13 +702,6 @@ function PhoneToday() {
         </Card>
       </motion.div>
 
-      {/* ONE TASK, ONE CARD — never grouped into a shared box. */}
-      {mine.map((t) => (
-        <motion.div key={t.id} variants={listItem}>
-          <TaskCard task={t} />
-        </motion.div>
-      ))}
-
       {/* PROGRESS CARD (lavender) */}
       <motion.div variants={listItem}>
         <Card tone="lavender">
@@ -707,9 +724,11 @@ function PhoneToday() {
         </Card>
       </motion.div>
 
-      {events.map((e) => (
-        <motion.div key={e.id} variants={listItem}>
-          <EventCard event={e} />
+      {/* THE REST OF THE DAY — everything past the two-hour horizon (and the
+          whole day, when you're reading a day that isn't today). */}
+      {later.map((c) => (
+        <motion.div key={c.key} variants={listItem}>
+          {c.el}
         </motion.div>
       ))}
     </div>

@@ -51,7 +51,7 @@ const sourceOf = (t: Task) =>
   t.source ?? (t.recurring ? "Routine" : t.suggest ? "Suggested" : "Added by you");
 
 export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean }) {
-  const { members, toggleTask, openSheet } = useHousehold();
+  const { members, toggleTask, onWay, openSheet } = useHousehold();
   const did = holder(task);
   const owner = did ? members[did] : undefined;
   /** Cover has to be VISIBLE or it's indistinguishable from a reassignment —
@@ -96,10 +96,21 @@ export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean 
                 <Avatar member={owner} />
               </button>
             )}
-            {/* `light` is WHITE — invisible on a white card. Same trap as "Remind me". */}
-            <Button tone={task.done ? "outline" : "dark"} onClick={() => toggleTask(task.id)}>
-              {task.done ? "Undo" : "Done"}
-            </Button>
+            {/* THE PRIMARY ACTION, not a default. A journey task's first verb is
+                "On my way" (it starts the live trip; arrival completes it) — a
+                card offering "Done" for a pickup you haven't left for yet is
+                answering the wrong question. Done still lives in the detail.
+                Every action button wears its icon — one rule, no stragglers.
+                (`light` is WHITE — invisible on a white card; hence dark.) */}
+            {task.journey && !task.done ? (
+              <Button tone="dark" onClick={() => onWay(task.id)}>
+                <Icon name="car" size={14} /> On my way
+              </Button>
+            ) : (
+              <Button tone={task.done ? "outline" : "dark"} onClick={() => toggleTask(task.id)}>
+                <Icon name={task.done ? "undo" : "check"} size={14} /> {task.done ? "Undo" : "Done"}
+              </Button>
+            )}
           </>
         }
       />
