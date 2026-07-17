@@ -257,6 +257,13 @@ export interface Task {
       sorting, grouping and the date badge. */
   due: string;
   done: boolean;
+  /**
+   * WHEN it was finished, epoch ms — stamped by toggleTask, cleared on undo.
+   * Without this the app cannot answer "how did this week go": the progress
+   * card was counting every task ever completed as "today", and its
+   * Weekly/Monthly toggle animated while changing nothing.
+   */
+  completedAt?: number;
   priority: Priority;
   recurring?: string;
   /** Where this task came from — the domain that raised it. Shown as the card eyebrow. */
@@ -375,6 +382,35 @@ export interface Automation {
   title: string;
   description: string;
   on: boolean;
+}
+
+/**
+ * A promise to speak up later. This is the app's whole notification layer —
+ * there's no backend, so "push" means: the store keeps the promise, a 1s ticker
+ * checks it, and the Dynamic Island delivers it.
+ *
+ * QUIET HOURS FINALLY HAVE A CONSUMER. A reminder that comes due inside the
+ * member's quiet window is HELD — rescheduled to the window's end — and says so
+ * when it lands. That's the contract the Availability card has been promising
+ * ("No reminders 11:00 PM – 7:00 AM") since the field was modelled.
+ */
+export interface Reminder {
+  id: number;
+  /** When to fire, epoch ms. */
+  at: number;
+  text: string;
+  /** Whose reminder it is — whose quiet hours apply, whose phone it lands on. */
+  who: MemberId;
+  /** It came due during quiet hours and was pushed past them. */
+  held?: boolean;
+}
+
+/** What the Dynamic Island is currently saying. One at a time — it's a mouth,
+ *  not a queue; the activity feed is the queue. */
+export interface IslandNote {
+  title: string;
+  body?: string;
+  who: MemberId | null;
 }
 
 export interface ActivityEntry {

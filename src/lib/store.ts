@@ -1,10 +1,11 @@
 "use client";
 
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   ActivityEntry, Automation, Bill, DraftPerson, HouseEvent, HouseholdAxes, HouseholdPreset,
   InventoryItem, IpadRoute, MaintItem, Member, MemberId, OnboardingDraft, Persona, PhoneRoute,
-  Availability, Presence, Priority, Role, ShopItem, Task,
+  Availability, IslandNote, Presence, Priority, Reminder, Role, ShopItem, Task,
 } from "./types";
 import { ROLE_RANK, ROLE_SET } from "./types";
 import {
@@ -13,7 +14,7 @@ import {
 import { addDays, iso, isToday, relative, relativeInline, todayIso } from "./dates";
 
 export interface Sheet {
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance";
+  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop";
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;
@@ -44,8 +45,6 @@ export const canAssign = (m: Member, t: Assignable): boolean => {
   return m.age === undefined || m.age >= (t.minAge ?? 0);
 };
 
-/** Why a person can't take this on — shown in the assign sheet. Says what the
- *  task NEEDS, never what the person is. */
 /**
  * Why a person isn't offered this — said as CARE, not as a verdict on them.
  *
@@ -118,6 +117,19 @@ const inWorkHours = (when: string): boolean => {
   if (!m) return false;
   const h = (Number(m[1]) % 12) + (/pm/i.test(m[3]) ? 12 : 0);
   return h >= 9 && h < 18;
+};
+
+/** The epoch ms at which the member's CURRENT quiet window ends. Only meaningful
+ *  while inQuietHours(m) is true. Handles the wrap: at 23:00 inside a 22:00→07:00
+ *  window the answer is 07:00 TOMORROW; at 06:00 it's 07:00 today. */
+export const quietEndsAt = (m: Member, now: number): number => {
+  const q = m.availability?.quiet;
+  if (!q) return now;
+  const [h, min] = q.to.split(":").map(Number);
+  const end = new Date(now);
+  end.setHours(h, min, 0, 0);
+  if (+end <= now) end.setDate(end.getDate() + 1);
+  return +end;
 };
 
 /** Are we inside a quiet window right now? Wraps past midnight (22:00 → 07:00). */
@@ -224,6 +236,10 @@ interface HouseholdState {
   toast: string | null;
   /** Whose face rides along with the toast, when it's about a person. */
   toastWho: MemberId | null;
+  /** Scheduled, not yet delivered. Persisted — a reminder survives a reload. */
+  reminders: Reminder[];
+  /** What the Dynamic Island is showing right now. Ephemeral. */
+  island: IslandNote | null;
   query: string;
   unread: number;
   navTick: number;
@@ -234,6 +250,13 @@ interface HouseholdState {
   openSheet: (s: Sheet) => void;
   closeSheet: () => void;
   notify: (msg: string | null) => void;
+  scheduleReminder: (r: { at: number; text: string; who: MemberId }) => void;
+  /** "Remind me" for an event — BOTH doors (the card and the sheet) call this,
+   *  so there is exactly one notion of what that button promises. */
+  remindForEvent: (id: string) => void;
+  dismissIsland: () => void;
+  /** The clock. Called every second by <Ticker/>; fires what's due, holds what's quiet. */
+  tick: () => void;
   setQuery: (q: string) => void;
   markRead: () => void;
 
@@ -287,7 +310,16 @@ const logged = (s: HouseholdState, text: string, who?: MemberId) => ({
   unread: s.unread + 1,
 });
 
-export const useHousehold = create<HouseholdState>((set, get) => ({
+/**
+ * PERSISTED. The store was in-memory only — every reload wiped the household
+ * back to the seed, which is fine for a demo reel and useless for a home.
+ *
+ * `skipHydration` is load-bearing: persist normally rehydrates the moment the
+ * client bundle evaluates, BEFORE React hydrates — so the server HTML (seed)
+ * wouldn't match the client tree (persisted state) and React would tear the page
+ * down. <Rehydrate/> in page.tsx does it in an effect, after hydration settles.
+ */
+export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   members: seedMembers,
   tasks: seedTasks,
   shopping: seedShopping,
@@ -309,6 +341,8 @@ export const useHousehold = create<HouseholdState>((set, get) => ({
   sheet: null,
   toast: null,
   toastWho: null,
+  reminders: [],
+  island: null,
   query: "",
   unread: 0,
   navTick: 0,
@@ -319,6 +353,70 @@ export const useHousehold = create<HouseholdState>((set, get) => ({
   openSheet: (sheet) => set({ sheet }),
   closeSheet: () => set({ sheet: null }),
   notify: (toast) => set({ toast, toastWho: null }),
+
+  scheduleReminder: ({ at, text, who }) =>
+    set((s) => ({
+      reminders: [...s.reminders, { id: ++nextId, at, text, who }],
+      toast: at - Date.now() < 60_000
+        ? "Reminder set — any moment now"
+        : `Reminder set for ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`,
+      toastWho: who,
+    })),
+
+  remindForEvent: (id) => {
+    const s = get();
+    const e = s.events.find((x) => x.id === id);
+    if (!e) return;
+    /**
+     * 30 minutes before the event. Seed times are bare ("4:00"), so household
+     * hours are assumed: 1–7 reads PM, 8–12 reads AM. Unparseable ("all day") or
+     * already past → an 8-second demo fuse; this is a portfolio piece, and
+     * "come back at 3:30 to see it" is not a demo.
+     */
+    const m = e.time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+    let at = Date.now() + 8_000;
+    if (m) {
+      let h = Number(m[1]) % 12;
+      if (m[3] ? /pm/i.test(m[3]) : h >= 1 && h <= 7) h += 12;
+      const target = new Date(); target.setHours(h, Number(m[2]), 0, 0);
+      const thirtyBefore = +target - 30 * 60_000;
+      if (thirtyBefore > Date.now()) at = thirtyBefore;
+    }
+    s.scheduleReminder({ at, text: `${e.title} at ${e.time}`, who: e.who });
+  },
+
+  dismissIsland: () => set({ island: null }),
+
+  /**
+   * Delivery. One reminder per tick — the island is a mouth, not a queue — and
+   * quiet hours are enforced HERE, at the moment of delivery, not at scheduling:
+   * quiet hours can change between the promise and the appointed time, and the
+   * setting that exists when the reminder comes due is the one that governs.
+   */
+  tick: () =>
+    set((s) => {
+      const now = Date.now();
+      const due = s.reminders.find((r) => r.at <= now);
+      if (!due) return {};
+
+      const m = s.members[due.who];
+      if (m && inQuietHours(m)) {
+        // Held, not dropped. Re-aim at the quiet window's end.
+        return {
+          reminders: s.reminders.map((r) =>
+            r.id === due.id ? { ...r, at: quietEndsAt(m, now), held: true } : r),
+        };
+      }
+      return {
+        reminders: s.reminders.filter((r) => r.id !== due.id),
+        island: {
+          title: due.held ? "While you were quiet" : "Reminder",
+          body: due.text,
+          who: due.who,
+        },
+        ...logged(s, due.text, due.who),
+      };
+    }),
   setQuery: (query) => set({ query }),
   markRead: () => set({ unread: 0 }),
 
@@ -326,6 +424,9 @@ export const useHousehold = create<HouseholdState>((set, get) => ({
     set((s) => {
       const tasks = s.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t));
       const t = tasks.find((x) => x.id === id)!;
+      // The timestamp follows the checkbox: set on done, gone on undo. It is
+      // the ONLY record of when — `due` is when it was wanted, not when it happened.
+      t.completedAt = t.done ? Date.now() : undefined;
       const members = { ...s.members };
       let toast: string | null = t.done ? "Nice — that's done" : null;
 
@@ -756,6 +857,34 @@ export const useHousehold = create<HouseholdState>((set, get) => ({
         navTick: s.navTick + 1,
       };
     }),
+}), {
+  name: "homeboard",
+  version: 1,
+  storage: createJSONStorage(() => localStorage),
+  skipHydration: true,
+  /**
+   * DATA persists; the moment doesn't. A sheet half-open at save time reopening
+   * a day later is a haunting, not a restore — same for toasts, the island,
+   * search text and the onboarding draft. Persona and routes DO persist: reload
+   * should put the phone back in the hand it was in.
+   */
+  partialize: (s) => ({
+    members: s.members, tasks: s.tasks, shopping: s.shopping, bills: s.bills,
+    inventory: s.inventory, maint: s.maint, events: s.events, automations: s.automations,
+    activity: s.activity, unread: s.unread, reminders: s.reminders,
+    householdName: s.householdName, axes: s.axes, setupComplete: s.setupComplete,
+    persona: s.persona, phoneRoute: s.phoneRoute, ipadRoute: s.ipadRoute,
+  }),
+  onRehydrateStorage: () => (state) => {
+    // The id counter is module state and resets to 1000 on every load, while
+    // persisted tasks keep their old ids — the first task added after a reload
+    // would collide with (and silently toggle) an existing one. Re-seat it past
+    // everything on record.
+    if (!state) return;
+    const top = Math.max(999, ...state.tasks.map((t) => t.id),
+      ...state.shopping.map((i) => Number(String(i.id).replace(/\D/g, "")) || 0));
+    nextId = top;
+  },
 }));
 
 /* ---------------- selectors ---------------- */
@@ -1132,3 +1261,10 @@ export const searchAll = (s: HouseholdState, raw: string): SearchHit[] => {
   });
   return hits;
 };
+
+/** Dev handle. The store is module-scoped, so nothing outside the bundle can
+ *  reach it — which makes "schedule a reminder 3 seconds out and watch the
+ *  island" untestable from a console. Stripped from production by the guard. */
+if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__homeboard = useHousehold;
+}

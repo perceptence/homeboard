@@ -241,6 +241,24 @@ export function PhoneShell() {
             )}
           </div>
           <div className="flex shrink-0 items-center">
+            {/* SHOPPING'S DOOR. The 3-tab reduction orphaned a whole domain: the
+                store derives shoppingList(), the iPad has a full screen, and a
+                member's phone had NO way to see it — you'd stand in the shop
+                looking at an app that knows the list and won't say. It's a sheet,
+                not a fourth tab: the axis is now → later → me, and a shopping
+                list is a thing you consult, not a place you live. */}
+            <button
+              onClick={() => s.openSheet({ type: "shop" })}
+              aria-label="Shopping list"
+              className="relative grid h-touch w-touch place-items-center rounded-pill text-white"
+            >
+              <Icon name="cart" size={23} />
+              {shoppingList(s).filter((i) => !i.done).length > 0 && (
+                <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-pill bg-lemon px-1 text-[10px] font-bold leading-none text-ink">
+                  {shoppingList(s).filter((i) => !i.done).length}
+                </span>
+              )}
+            </button>
             {/* Profile lives in the tab bar — it doesn't need a second door. */}
             <button
               onClick={() => { s.openSheet({ type: "activity" }); s.markRead(); }}
@@ -494,9 +512,25 @@ function PhoneToday() {
   const mine = s.tasks.filter((t) => holder(t) === meId && !t.done && isToday(t.due)).sort((a, b) => a.due.localeCompare(b.due));
   const events = s.events.filter((e) => e.who === meId && isToday(e.due));
 
-  const doneToday = s.tasks.filter((t) => holder(t) === meId && t.done).length;
-  const total = mine.length + doneToday;
-  const pct = total ? Math.round((doneToday / total) * 100) : 100;
+  /**
+   * HONEST PROGRESS, at last. This card used to lie three ways at once: the
+   * Weekly/Monthly toggle animated and changed nothing (`span` was read by no
+   * calculation), "done" counted every task ever completed (no time filter
+   * existed to apply), and the % divided across two different windows. Now both
+   * numbers come from the SAME window the toggle names:
+   *
+   *   done = completedAt inside the span   (when it actually happened)
+   *   open = due inside the span, not done (what the span still expects)
+   */
+  const range = periodRange(span === "Weekly" ? "Week" : "Month");
+  const doneInSpan = s.tasks.filter(
+    (t) => holder(t) === meId && t.done && t.completedAt && t.completedAt >= +range.from && t.completedAt < +range.to,
+  ).length;
+  const openInSpan = s.tasks.filter(
+    (t) => holder(t) === meId && !t.done && inRange(t.due, range),
+  ).length;
+  const total = doneInSpan + openInSpan;
+  const pct = total ? Math.round((doneInSpan / total) * 100) : 100;
   const progress = readProgress(pct);
 
   /**
