@@ -567,34 +567,49 @@ function PhoneToday() {
   const dayWord = onSel ? "today" : selDate.toLocaleDateString("en-GB", { weekday: "long" });
 
   /**
-   * EDGE SWIPES — the page itself pages through days. A horizontal drag that
-   * STARTS at the screen's left or right edge (the gutter, where no card
-   * competes for the touch) steps the selected day: from the left edge, swipe
-   * right → yesterday; from the right edge, swipe left → tomorrow. Same model
-   * as flipping through a book, and it keeps the strip and the page in lockstep
-   * because both are just `sel`.
+   * SWIPE ANYWHERE to page through days: left → tomorrow, right → yesterday,
+   * strip and page in lockstep because both are just `sel`.
+   *
+   * Two hard-won rules in here:
+   *  - COMMIT ON MOVE, not on pointerup. On touch, the instant the browser
+   *    claims the gesture for scrolling it fires pointercancel and the up you
+   *    were waiting for never arrives — an edge-swipe judged at pointerup
+   *    simply doesn't fire on a phone. (That, plus only listening to a 28px
+   *    edge strip, is why v1 "didn't move days".) `touch-pan-y` keeps the
+   *    browser to vertical scrolling so horizontal moves stay ours to read.
+   *  - A gesture that wanders >48px vertically is a scroll and is disqualified
+   *    for good; one that runs 56px horizontally first is a page-turn, once.
+   *    Taps never travel that far, so cards and buttons are unaffected.
+   * The day ruler opts out (data-swipe-exempt): it has its own horizontal
+   * scroll, and paging the day underneath it mid-drag would be chaos.
    */
-  const swipe = useRef<{ x: number; y: number; } | null>(null);
-  const onEdgeDown = (e: React.PointerEvent) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const relX = e.clientX - r.left;
-    swipe.current = relX < 28 || relX > r.width - 28 ? { x: e.clientX, y: e.clientY } : null;
+  const swipe = useRef<{ x: number; y: number; spent: boolean } | null>(null);
+  const onSwipeDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("[data-swipe-exempt]")) { swipe.current = null; return; }
+    swipe.current = { x: e.clientX, y: e.clientY, spent: false };
   };
-  const onEdgeUp = (e: React.PointerEvent) => {
-    const from = swipe.current;
-    swipe.current = null;
-    if (!from) return;
-    const dx = e.clientX - from.x;
-    // A deliberate horizontal stroke, not a wobbly vertical scroll.
-    if (Math.abs(dx) < 48 || Math.abs(e.clientY - from.y) > 40) return;
-    setSel(iso(addDays(selDate, dx < 0 ? 1 : -1)));
+  const onSwipeMove = (e: React.PointerEvent) => {
+    const g = swipe.current;
+    if (!g || g.spent) return;
+    const dx = e.clientX - g.x, dy = e.clientY - g.y;
+    if (Math.abs(dy) > 48) { swipe.current = null; return; } // it's a scroll
+    if (Math.abs(dx) >= 56) {
+      g.spent = true; // one page-turn per gesture
+      setSel(iso(addDays(selDate, dx < 0 ? 1 : -1)));
+    }
   };
+  const onSwipeEnd = () => { swipe.current = null; };
 
   return (
-    // A real box (not `contents`): the edge-swipe needs a rect to measure
-    // "started at the edge" against. Reproduces the parent's column-and-gap so
-    // the cards sit exactly as before.
-    <div className="flex flex-col gap-tile" onPointerDown={onEdgeDown} onPointerUp={onEdgeUp}>
+    // A real box (not `contents`) so the gesture has a surface; reproduces the
+    // parent's column-and-gap so the cards sit exactly as before.
+    <div
+      className="flex touch-pan-y flex-col gap-tile"
+      onPointerDown={onSwipeDown}
+      onPointerMove={onSwipeMove}
+      onPointerUp={onSwipeEnd}
+      onPointerCancel={onSwipeEnd}
+    >
       {/* THE DAY RULER — scroll it, tap a day, and the page below repaints for
           that day. The date it points at lives in `sel`. */}
       <motion.div variants={listItem}>
@@ -851,7 +866,7 @@ function DateStrip({ selected, onPick, busy }: { selected: string; onPick: (d: D
   return (
     // -mx-screen px-screen: bleed to the body's own gutter so the row scrolls
     // edge to edge under the greeting.
-    <div ref={scroller} className="no-scrollbar -mx-screen flex gap-2 overflow-x-auto overscroll-x-contain px-screen pb-0.5">
+    <div ref={scroller} data-swipe-exempt className="no-scrollbar -mx-screen flex gap-2 overflow-x-auto overscroll-x-contain px-screen pb-0.5">
       {days.map((d) => {
         const di = iso(d);
         const isToday = di === todayStr;

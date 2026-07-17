@@ -3,15 +3,15 @@
 import clsx from "clsx";
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Icon } from "@/components/Icons";
+import { Icon, type IconName } from "@/components/Icons";
 import { Avatar, Button, Card, Check, Choice, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
-import { smooth, spring } from "@/lib/motion";
+import { smooth } from "@/lib/motion";
 import { addDays, ago, badge, clockLabel, dayLabel, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
 import { taskGlyph } from "@/lib/glyphs";
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
-import type { MemberId, Priority, ShopCategory, Task } from "@/lib/types";
+import type { MemberId, Priority, ShopCategory, ShopItem, Task } from "@/lib/types";
 import { ROLE_NEEDS } from "@/lib/types";
 
 /** All sheets for both surfaces. Phone gets a bottom sheet; iPad gets a centred modal. */
@@ -232,18 +232,33 @@ function ShopSheet() {
   };
 
   /**
-   * Grouped by aisle, and each group ORDERS ITSELF like a person shops:
-   * what the house is running out of first, then the rest, then what's already
-   * crossed off — kept in its group (not exiled to a far section) so un-checking
-   * a fat-thumbed tap is one glance away. A group that's ENTIRELY crossed has
-   * nothing left to ask of you, so it sinks to the bottom of the list whole.
+   * WHO'S HOLDING THE PHONE gates the CHECKING, never the ADDING. Asking for a
+   * thing and buying it are different acts: everyone may put wants on the list;
+   * ticking one off claims "bought", and that claim isn't Ada's to make (guided
+   * — she's not doing the shop), and isn't Leo's for the wine (the till would
+   * refuse him; minAge, the same field tasks use). On the shared iPad nobody
+   * specific is claiming anything, so nothing is gated.
    */
-  const CATS: ShopCategory[] = ["Groceries", "Supplies", "Pet"];
+  const me = s.persona !== "ipad" ? s.members[s.persona] : undefined;
+  const cantShop = me?.role === "guided";
+  const tooYoung = (i: ShopItem) => !!i.minAge && me?.age != null && me.age < i.minAge;
+  const gated = (i: ShopItem) => cantShop || tooYoung(i);
+
+  /**
+   * Grouped by aisle, and each group ORDERS ITSELF like a person shops:
+   * running-low first, then the rest, then what's already crossed off — kept in
+   * its group so un-checking a fat-thumbed tap is one glance away. A group
+   * that's ENTIRELY crossed has nothing left to ask, so it sinks whole.
+   */
+  const CATS: { cat: ShopCategory; glyph: IconName }[] = [
+    { cat: "Groceries", glyph: "cart" }, { cat: "Supplies", glyph: "box" }, { cat: "Pet", glyph: "pet" },
+  ];
   const groups = CATS
-    .map((cat) => {
+    .map(({ cat, glyph }) => {
       const items = list.filter((i) => i.category === cat);
       return {
-        cat,
+        cat, glyph,
+        left: items.filter((i) => !i.done).length,
         allDone: items.length > 0 && items.every((i) => i.done),
         items: [
           ...items.filter((i) => !i.done && i.low),
@@ -256,14 +271,27 @@ function ShopSheet() {
     .sort((a, b) => Number(a.allDone) - Number(b.allDone));
 
   const Row = (i: (typeof list)[number]) => (
-    <div key={i.id} className="flex min-h-touch items-center gap-3 py-1.5">
-      <Check done={i.done} onClick={() => s.toggleShopItem(i.id)} />
-      <span className={clsx("min-w-0 flex-1 text-bodysm font-medium", i.done && "text-sub line-through")}>
-        {i.title}
+    <div key={i.id} className="flex min-h-touch items-center gap-3 border-t border-ink/[.05] py-2 first:border-t-0">
+      {gated(i) ? (
+        /* A dashed ring with a small lock: "someone else ticks this one". Not
+           red, not an error — nothing failed, it's just not this person's claim
+           to make. */
+        <span aria-label="Checked off by someone older" className="grid h-6 w-6 shrink-0 place-items-center rounded-pill border-2 border-dashed border-ink/20 text-sub">
+          <Icon name="lock" size={11} />
+        </span>
+      ) : (
+        <Check done={i.done} onClick={() => s.toggleShopItem(i.id)} />
+      )}
+      <span className="min-w-0 flex-1">
+        <span className={clsx("block truncate text-bodysm font-medium", i.done && "text-sub line-through")}>
+          {i.title}
+        </span>
+        {i.note && !i.done && <span className="block text-caption text-sub">{i.note}</span>}
       </span>
       {/* The house asked, not a person — inventory ran low and the automation put
           it here. Worth a word: an item nobody remembers adding looks like a glitch. */}
       {i.low && !i.done && <Pill tone="tag">Running low</Pill>}
+      {i.minAge && !i.done ? <Pill tone="tag">{i.minAge}+</Pill> : null}
     </div>
   );
 
@@ -277,14 +305,27 @@ function ShopSheet() {
       <p className="mt-1.5 text-bodysm text-sub">
         {open.length ? `${open.length} to get · shared with everyone` : "All bought — nice work"}
       </p>
+      {/* Said once, kindly, up front — not repeated as a nag on every row. */}
+      {cantShop && (
+        <p className="mt-2 flex items-center gap-1.5 text-caption text-sub">
+          <Icon name="spark" size={14} className="shrink-0" />
+          Add anything the house needs — ticking off happens at the shop.
+        </p>
+      )}
 
-      <div className="mt-4 space-y-5">
+      {/* Each aisle is a soft card with its glyph and its own count — the list
+          reads like the shop is laid out, not like one long receipt. */}
+      <div className="mt-4 space-y-3">
         {groups.map((g) => (
-          <div key={g.cat}>
-            <Eyebrow className={clsx(g.allDone && "opacity-50")}>
-              {g.cat}{g.allDone && " · all bought"}
-            </Eyebrow>
-            <div className="mt-1">{g.items.map(Row)}</div>
+          <div key={g.cat} className={clsx("rounded-card bg-surface p-4", g.allDone && "opacity-60")}>
+            <div className="flex items-center gap-2">
+              <Icon name={g.glyph} size={16} className="text-sub" />
+              <Eyebrow>{g.cat}</Eyebrow>
+              <span className="ml-auto text-caption tabular-nums text-sub">
+                {g.allDone ? "all bought" : `${g.left} to get`}
+              </span>
+            </div>
+            <div className="mt-2">{g.items.map(Row)}</div>
           </div>
         ))}
       </div>
@@ -482,13 +523,18 @@ function HandoffSheet({ id }: { id?: number }) {
           {mine.map((t) => {
             const isOpen = openId === t.id;
             return (
-              <motion.div
+              /* A PLAIN div, deliberately. This wore `layout` + a spring, which
+                 fought the inner height tween frame by frame — the card sprang
+                 while its content eased, and the expand JERKED before the button
+                 landed. The height tween alone grows the card and pushes its
+                 siblings smoothly; nothing here reorders, so layout had no job. */
+              <div
                 key={t.id}
-                layout
-                transition={spring}
                 className={clsx(
-                  "overflow-hidden rounded-2xl border bg-card transition-colors duration-300 ease-out",
-                  isOpen ? "border-ink" : "border-ink/[.08]",
+                  // A grey WELL on the white sheet (bg-card is white — on white it
+                  // vanished, which is most of why this list read as generic).
+                  "overflow-hidden rounded-card bg-surface ring-1 transition-shadow duration-300 ease-out",
+                  isOpen ? "ring-ink" : "ring-transparent",
                 )}
               >
                 <button
@@ -518,8 +564,13 @@ function HandoffSheet({ id }: { id?: number }) {
                       </>
                     }
                   />
-                  <motion.span animate={{ rotate: isOpen ? 90 : 0 }} transition={smooth} className="shrink-0 text-sub">
-                    <Icon name="fwd" size={16} />
+                  {/* The disclosure sits in its own small well — a control, not a
+                      stray glyph floating at the row's edge. */}
+                  <motion.span
+                    animate={{ rotate: isOpen ? 90 : 0 }} transition={smooth}
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-pill bg-ink/[.05] text-sub"
+                  >
+                    <Icon name="fwd" size={14} />
                   </motion.span>
                 </button>
 
@@ -547,12 +598,15 @@ function HandoffSheet({ id }: { id?: number }) {
                                   title={blocked ?? undefined}
                                   onClick={() => setTaker(m.id)}
                                   className={clsx(
+                                    // WHITE chips (bg-card) on the grey well —
+                                    // they were white-on-white before the well
+                                    // existed, which is why they didn't read.
                                     "flex h-touch items-center gap-2 rounded-pill border px-3 text-bodysm font-medium transition-colors duration-300 ease-out",
                                     blocked
-                                      ? "cursor-not-allowed border-ink/[.08] bg-card text-sub opacity-45"
+                                      ? "cursor-not-allowed border-ink/[.06] bg-card text-sub opacity-45"
                                       : sel
                                         ? "border-ink bg-ink text-white"
-                                        : "border-ink/[.08] bg-card text-sub hover:text-ink",
+                                        : "border-transparent bg-card text-ink shadow-e1 hover:shadow-e2",
                                   )}
                                 >
                                   <Avatar member={m} size={22} />
@@ -595,7 +649,7 @@ function HandoffSheet({ id }: { id?: number }) {
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </motion.div>
+              </div>
             );
           })}
         </div>

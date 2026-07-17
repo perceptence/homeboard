@@ -1061,7 +1061,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // replaced the task of the same name; re-seed so both land.
   // 4: the trash pair merged into one dual-sourced task; pickup went back to
   // being a TASK (a journey one). Re-seed.
-  version: 4,
+  // 5: shopping gained an age-gated item (wine, minAge 18). Re-seed.
+  version: 5,
   storage: createJSONStorage(() => localStorage),
   skipHydration: true,
   /**

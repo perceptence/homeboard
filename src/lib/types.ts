@@ -349,6 +349,13 @@ export interface ShopItem {
   done: boolean;
   note?: string;
   auto?: boolean;
+  /**
+   * CAPABILITY gate, same field and same meaning as a Task's: the checkout will
+   * refuse this to a minor (alcohol, medicines), so the app shouldn't pretend
+   * otherwise. Gates CHECKING OFF only — anyone may ADD to the list; asking for
+   * a thing and buying it are different acts.
+   */
+  minAge?: number;
 }
 
 export type BillStatus = "due" | "upcoming" | "scheduled" | "paid";
