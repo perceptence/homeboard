@@ -250,11 +250,35 @@ function DynamicIsland() {
      entirely; the outer button's transform stays layout's alone. */
   const [pull, setPull] = useState(0);
   const dragFrom = useRef<number | null>(null);
+  // The commit decision reads THIS, never the `pull` state. Down/move/up can
+  // arrive as one rapid native burst — CDP automation proved it, but a fast
+  // real thumb does the same — and React may not have re-rendered (so onPointerUp
+  // is still the closure from BEFORE the move) by the time pointerup fires. A
+  // ref has no closure to go stale; it's written and read as the same value
+  // always. `pull` state stays for the animated visual offset alone.
+  const pullNow = useRef(0);
+  /**
+   * THE REAL BUG (found by instrumenting every step, not guessing): completing
+   * a swipe fired `setMode("collapsed")` correctly, and it stuck — then the
+   * pill was expanded again a moment later. Not a logic error in the drag at
+   * all: a `<button>` that receives pointerdown and pointerup on the SAME
+   * element fires a native `click` afterward REGARDLESS of how far the pointer
+   * moved between them — the browser doesn't know or care that a gesture
+   * happened. That click reached `onTap`, which (now reading the freshly
+   * re-rendered collapsed state) saw "a tap on a tucked pill" and dutifully
+   * re-expanded it. The swipe was undoing itself, one click behind its own
+   * gesture. This ref suppresses exactly that one trailing click — nothing else.
+   */
+  const suppressClick = useRef(false);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!canTuck) return;
     dragFrom.current = e.clientY;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    // Capture can legitimately throw (a pointer that's already gone by the time
+    // this runs — a fast tap-and-release, some synthetic/testing dispatches) and
+    // it must never take the gesture down with it; the up/cancel handlers don't
+    // depend on capture succeeding.
+    try { (e.target as HTMLElement).setPointerCapture(e.pointerId); } catch { /* not fatal */ }
   };
   const onPointerMove = (e: React.PointerEvent) => {
     if (dragFrom.current === null) return;
@@ -262,15 +286,24 @@ function DynamicIsland() {
     // drags through honey — a hint that the gesture has somewhere to land,
     // not a rubber band that snaps you back at the edge of the world.
     const raw = Math.min(0, e.clientY - dragFrom.current);
-    setPull(raw > -40 ? raw : -40 - (-raw - 40) * 0.25);
+    const next = raw > -40 ? raw : -40 - (-raw - 40) * 0.25;
+    pullNow.current = next;
+    setPull(next);
+    // Any real movement marks this gesture as a drag, so the click the browser
+    // fires on release gets swallowed rather than read as a fresh tap — a
+    // lower bar than the -22px COMMIT threshold on purpose: even a cancelled
+    // drag (snapped back) was still a drag, not a tap, and must not also act
+    // like one.
+    if (next < -4) suppressClick.current = true;
   };
   const endDrag = (committed: boolean) => {
     if (dragFrom.current === null) return;
     dragFrom.current = null;
+    pullNow.current = 0;
     setPull(0);
     if (committed) setMode("collapsed");
   };
-  const onPointerUp = () => endDrag(pull < -22);
+  const onPointerUp = () => endDrag(pullNow.current < -22);
   const onPointerCancel = () => endDrag(false);
 
   /** A true tap (no meaningful pointer travel) still does its old jobs:
@@ -278,6 +311,7 @@ function DynamicIsland() {
    *  ONLY way to tuck a live one now — there's nothing left for a tap to do
    *  while it's still counting. */
   const onTap = () => {
+    if (suppressClick.current) { suppressClick.current = false; return; }
     if (!island || canTuck) return;
     if (!expanded) return setMode("expanded");
     dismiss();
@@ -300,7 +334,10 @@ function DynamicIsland() {
       className={
         "absolute inset-x-0 top-[14px] z-[95] mx-auto overflow-hidden text-left touch-none " +
         (island
-          ? "bg-[#1c1d22] shadow-[0_18px_48px_rgba(0,0,0,0.65)] ring-1 ring-white/[.16]"
+          // The ring existed to buy contrast against the ink header before the
+          // surface itself was lifted off true black. Now that #1c1d22 carries
+          // its own separation, the hairline was just a second, redundant edge.
+          ? "bg-[#1c1d22] shadow-[0_18px_48px_rgba(0,0,0,0.65)]"
           : "pointer-events-none bg-[#0b0c09]")
       }
       style={{
@@ -342,7 +379,11 @@ function DynamicIsland() {
             </span>
             {countdown && (
               <span className="shrink-0 text-right">
-                <span className={"block font-tight text-[24px] leading-none tabular-nums " + (arrived ? "text-lemon" : "text-white")}>
+                {/* Lemon throughout, not just on arrival — the countdown is the
+                    one number on this whole card worth a colour, the whole time
+                    it's counting. Saving lemon for "arrived" made the 4:59 that
+                    matters just as much read as plain white. */}
+                <span className="block font-tight text-[24px] leading-none tabular-nums text-lemon">
                   {countdown}
                 </span>
                 {!arrived && <span className="mt-0.5 block text-[10px] uppercase tracking-[0.1em] text-white/40">to go</span>}
@@ -366,7 +407,7 @@ function DynamicIsland() {
             {who && <Avatar member={who} size={26} />}
             <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/85">{island.title}</span>
             {countdown && (
-              <span className={"shrink-0 text-[12px] font-semibold tabular-nums " + (arrived ? "text-lemon" : "text-white/70")}>
+              <span className="shrink-0 text-[12px] font-semibold tabular-nums text-lemon">
                 {countdown}
               </span>
             )}
