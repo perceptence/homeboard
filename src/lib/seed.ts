@@ -9,6 +9,10 @@ import { addDays, iso } from "./dates";
  */
 const d = (offset: number) => iso(addDays(new Date(), offset));
 
+/** Epoch ms N days back — for `completedAt`, so the You tab's "this week"
+ *  contribution reflects a real, recent history at demo start (not a cold zero). */
+const doneAgo = (days: number) => Date.now() - days * 86_400_000;
+
 /**
  * A clock label N minutes from NOW — for demo events that must land inside the
  * "next two hours" horizon whatever the wall clock says when the app seeds.
@@ -65,8 +69,14 @@ export const seedTasks: Task[] = [
      Maps — he's the one driving. `waiting` is what earns the button. */
   { id: 4, title: "Pick up the kids", owner: "sam", when: "3:15 PM", due: d(0), done: false, priority: "high", requires: "full", source: "Calendar", journey: true, where: "School", waiting: ["leo", "ada"], icon: "kid" },
   { id: 5, title: "Mow the lawn", owner: null, suggest: "sam", when: "Morning", due: d(2), done: false, priority: "low", recurring: "Seasonal", requires: "full", source: "Home maintenance" },
-  { id: 6, title: "Fold the laundry", owner: "maya", when: "Morning", due: d(0), done: true, priority: "low", minAge: 6, source: "Laundry" },
-  { id: 7, title: "Set the table", owner: "ada", when: "6:00 PM", due: d(0), done: true, priority: "low", minAge: 4, source: "Meals" },
+  { id: 6, title: "Fold the laundry", owner: "maya", when: "Morning", due: d(0), done: true, completedAt: doneAgo(0), priority: "low", minAge: 6, source: "Laundry" },
+  { id: 7, title: "Set the table", owner: "ada", when: "6:00 PM", due: d(0), done: true, completedAt: doneAgo(0), priority: "low", minAge: 4, source: "Meals" },
+  /* Sam's recent history — done this week, so the You tab's contribution and
+     "lighter/heavier" read off a real past, not a cold start. Home maintenance
+     is his patch, so that's where his effort shows. */
+  { id: 20, title: "Sweep the garage", owner: "sam", when: "Morning", due: d(-1), done: true, completedAt: doneAgo(1), priority: "low", source: "Home maintenance" },
+  { id: 21, title: "Change the porch bulb", owner: "sam", when: "Evening", due: d(-2), done: true, completedAt: doneAgo(2), priority: "low", source: "Home maintenance" },
+  { id: 22, title: "Refill the water softener", owner: "sam", when: "Morning", due: d(-4), done: true, completedAt: doneAgo(4), priority: "low", source: "Home maintenance" },
   { id: 8, title: "Replace HVAC filter", owner: "sam", when: "Morning", due: d(4), done: false, priority: "med", recurring: "Quarterly", requires: "full", source: "Home maintenance" },
   { id: 9, title: "Vacuum living room", owner: "leo", when: "Afternoon", due: d(2), done: false, priority: "low", recurring: "Weekly", minAge: 8, source: "Cleaning" },
   { id: 10, title: "Homework check", owner: "maya", when: "7:30 PM", due: d(0), done: false, priority: "med", requires: "full", source: "Kids" },

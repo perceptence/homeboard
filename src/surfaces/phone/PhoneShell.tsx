@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { SAFE_TOP } from "@/components/DeviceFrame";
@@ -9,7 +9,7 @@ import { EventCard, MaintCard, TaskCard } from "@/components/TaskCard";
 import { ActionButton, Avatar, Button, Card, Check, Choice, Em, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, Sentence, TabToggle, TitleBlock } from "@/components/ui";
 import { listItem, listStagger, press, smooth, spring } from "@/lib/motion";
 import {
-  addDays, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
+  addDays, clockLabel, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
   periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel, type Period,
 } from "@/lib/dates";
 import { awayOn, coveredFor, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
@@ -1319,108 +1319,138 @@ function PhoneYou() {
 
   const jobs = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];
 
+  /* ══════════════ DYNAMIC SIGNALS ══════════════
+     Everything below is COMPUTED, so the tab changes as the week does. No
+     fabricated data: completions from `completedAt`, shares from the same
+     Balancer the load card trusts, insights from tasks that are genuinely
+     overdue / recurring / owned. This is what turns a profile into a read. */
+  const week = periodRange("Week");
+  const myTasks = s.tasks.filter((t) => holder(t) === meId);
+  const openMine = myTasks.filter((t) => !t.done);
+  const doneThisWeek = myTasks.filter(
+    (t) => t.done && t.completedAt && t.completedAt >= +week.from && t.completedAt < +week.to,
+  ).length;
+
+  // Fairness as a SHARE of the week's live workload — the number the brief asks
+  // for, off the same board the faces show.
+  const houseLoad = board.reduce((sum, b) => sum + b.n, 0);
+  const share = houseLoad ? Math.round((mine / houseLoad) * 100) : 0;
+  const fairShare = houseLoad / Math.max(1, board.length);
+  const overloaded = board.length > 1 && mine > fairShare * 1.3;
+  const lighter = board.length > 1 && mine > 0 && mine < fairShare * 0.7;
+
+  // Where your effort goes — the domain you touch most (real, from `source`).
+  const areaTally = new Map<string, number>();
+  for (const t of myTasks) if (t.source) areaTally.set(t.source.split("·")[0].trim(), (areaTally.get(t.source.split("·")[0].trim()) ?? 0) + 1);
+  const topArea = [...areaTally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+
+  // A real "you helped" signal: whose away-work you're covering.
+  const coveringNames = [...new Set(
+    s.tasks.filter((t) => t.coveredBy === meId && !t.done).map((t) => (t.owner ? s.members[t.owner]?.name : null)).filter(Boolean),
+  )] as string[];
+
+  // Your recurring jobs ARE your routines — the cadence the app keeps for you.
+  const routines = openMine.filter((t) => t.recurring);
+  // The next thing you actually owe today; anything of yours that's slipped.
+  const nextToday = openMine.filter((t) => isToday(t.due)).sort((a, b) => timeMinutes(a.when) - timeMinutes(b.when))[0];
+  const overdue = openMine.filter((t) => t.due < todayIso()).sort((a, b) => a.due.localeCompare(b.due))[0];
+  // A capable teammate carrying well over their share — but only worth flagging
+  // to someone who ISN'T themselves the heaviest (don't ask the most-loaded
+  // person to take on more), and only if they genuinely have more than you.
+  const stretched = board.find(({ m, n }) => m.id !== meId && !overloaded && n > mine && n > fairShare * 1.4 && n >= 3);
+
+  /* THE ANCHOR — one true sentence about how the day actually looks, chosen in
+     priority order. This is the emotional hero, not a label. */
+  const anchor =
+    covered.length ? `${listOf(coverNames)} ${coverNames.length === 1 ? "has" : "have"} tonight covered. You can switch off.`
+    : presence === "away" ? "Enjoy your time away — nothing new will land."
+    : mine === 0 ? "You’re all clear. Nothing’s on your plate."
+    : overloaded ? "You’re carrying more than your share right now."
+    : lighter ? "Lighter than usual this week. Take a breath."
+    : !nextToday ? "You’re ahead of schedule — nothing left for today."
+    : "Everything’s running smoothly.";
+
+  /* THE ONE AI INSIGHT — the "does this understand me" beat. Deliberately NOT
+     about fairness (the load card owns that, and three overload lines is a nag):
+     it surfaces something the rest of the screen doesn't already say. Priority
+     order; `null` if nothing rises to it. */
+  const insight: { text: ReactNode; verb?: string; run?: () => void } | null =
+    overdue ? { text: <><b>{overdue.title}</b> slipped past — it was due {relative(overdue.due).toLowerCase()}.</>, verb: "Open it", run: () => s.openSheet({ type: "task", id: overdue.id }) }
+    : coveringNames.length ? { text: <>You’re covering {coveringNames.length} of {listOf(coveringNames)}’s {coveringNames.length === 1 ? "job" : "jobs"} while they’re away.</> }
+    : stretched ? { text: <><b>{stretched.m.name}</b> is carrying the most this week. Lend a hand?</>, verb: "Take one on", run: () => s.openSheet({ type: "handoff" }) }
+    : routines.length ? { text: <>{routines.length} of your jobs run on repeat — <b>{routines[0].title.toLowerCase()}</b> {routines[0].recurring!.toLowerCase()}. The app keeps the clock.</> }
+    : nextToday ? { text: <>Next up: <b>{nextToday.title}</b>{nextToday.when ? `, ${clockLabel(nextToday.when)}` : ""}.</> }
+    : null;
   return (
     <>
-      {/* 1 · YOUR LOAD — comparative, and with a verb.
-          Compact on purpose: this card was ~300px and said "5" THREE times — a
-          display numeral, a 28px sentence repeating it, and the bars saying it
-          again — over an icon tile that carried no information. The bars ARE the
-          insight; everything stacked above them was preamble. One line of voice,
-          then the evidence, then the verb. */}
-      {/* Always WHITE, never lemon. Lemon is the day's hero (DESIGN §2) — the
-          app's affirmative tone — so painting the card with it when you're
-          carrying too much said "great news!" about an imbalance. This app has
-          no alert slab on purpose: `danger` is a label, never a fill. The
-          sentence names the problem and the dark button offers the fix; that's
-          the whole signal, and it doesn't need to shout in the day's colour. */}
-      <motion.div variants={listItem}>
-        <Card>
-          {/* Icon LEADS, text sits to its right — the row shape the progress card
-              already uses, and the one that reads as "a labelled thing" rather than
-              a glyph parked above a paragraph. Stacking it made every card open with
-              40px of nothing.
-              `scale` is the same glyph as "Even it out": the card's subject and its
-              verb, said once. */}
-          {/* Icon on its own line, then the eyebrow/title pair, then the data —
-              the progress card's shape, applied across the whole profile so every
-              card on this tab opens the same way. */}
-          <IconTile name="scale" tone="lemon" />
-          {/* No subtext: the stat block IS the detail, and it says its own unit. */}
-          <TitleBlock className="mt-6" eyebrow="Your load" title={headline} />
+      {/* ══ HERO — the emotional anchor. Typography only, on the app's night;
+          a true read on your day, not a label. The name lives in the page
+          header above, so here we greet and then SAY SOMETHING. ══ */}
+      <motion.div variants={listItem} className="px-1 pb-1 pt-1">
+        <div className="text-caption uppercase tracking-[0.12em] text-white/40">{greeting()}</div>
+        <Sentence className="mt-2 text-white">{anchor}</Sentence>
+      </motion.div>
 
-          {/* THE HOUSE, AS PEOPLE. Not a chart of any kind.
-              ─────────────────────────────────────────────────────────────────
-              Two attempts died here and both were the same mistake wearing
-              different ink. A stacked bar with a legend: you decode a swatch
-              into a name into a share. Rows of dots: still a bar chart, just
-              with gaps — marks on a shared baseline, ranked. Both asked a
-              seven-year-old to read an encoding, and both made the household a
-              leaderboard where Ada comes last with nothing.
-
-              A home doesn't rank its people. It looks at them.
-
-              So: everyone's face, and the number of things they're holding. The
-              number IS the count — there's no encoding to undo, no axis, no
-              proportion, no legend. Faces are the app's own identity language
-              (the switcher, every task card); this card was the one place that
-              turned people into coloured rectangles.
-
-              The VERDICT lives in the subtext, not in the picture. This app's
-              whole promise is absorbing the mental load — so it should say "that's
-              more than anyone else" rather than draw four shapes and leave you to
-              work it out. Reading a chart IS the mental load. */}
-          {/* YOU, then everyone else. A flat row of four gave your number the
-              same weight as Leo's, on a card called YOUR load reached from a tab
-              called You — the house is context for your number, not a peer of
-              it. So yours is the headline and the rest are the reference beside
-              it, which is also the order the sentence above already reads in. */}
-          <div className="mt-3 flex items-center gap-4">
-            <div className="flex shrink-0 items-center gap-3">
-              {/* MEASURED against the stack beside it, not estimated: the
-                  numeral's line box is taller than its 34px because the
-                  baseline-aligned "tasks" caption drags the row to its own
-                  20px line-height. Arithmetic said 58; the DOM said 72. */}
-              <Avatar member={me} size={72} />
-              {/* Label ABOVE the value — the eyebrow→value grammar every other
-                  block on this tab uses. "You" was hanging underneath as a
-                  caption, which read as a footnote to the number rather than the
-                  thing the number belongs to. Same <Eyebrow> the cards use, so
-                  it can't drift from them. */}
-              <div>
-                <Eyebrow>You</Eyebrow>
-                <div className="mt-0.5 flex items-baseline gap-1.5">
-                  <span className="font-tight text-[34px] leading-none tabular-nums">{mine}</span>
-                  {/* THE UNIT. Nothing on this card said what any of these
-                      numbers counted — "6" over "Maya 5" could have been points,
-                      stars, or days. Said once, on the hero; the column beside it
-                      inherits the unit by sitting in the same object. */}
-                  <span className="text-caption text-sub">{mine === 1 ? "task" : "tasks"}</span>
-                </div>
+      {/* ══ THE ONE THING THE APP NOTICED — lemon is the app's own voice (and the
+          single accent this screen spends, per the lemon diet). A statement, an
+          optional verb: the "it understands me" beat. ══ */}
+      {insight && (
+        <motion.div variants={listItem}>
+          <Card tone="lemon">
+            <div className="flex items-start gap-3">
+              <Icon name="spark" size={20} className="mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-body leading-snug">{insight.text}</p>
+                {insight.verb && (
+                  <button
+                    onClick={insight.run}
+                    className="mt-3 inline-flex items-center gap-1 rounded-pill bg-ink px-3.5 py-2 text-caption font-semibold text-white transition-colors hover:bg-ink/90"
+                  >
+                    {insight.verb} <Icon name="fwd" size={13} />
+                  </button>
+                )}
               </div>
             </div>
+          </Card>
+        </motion.div>
+      )}
 
-            {/* The hairline does the comparing — it's what makes these READ as
-                "everyone else" rather than as three more entries in a list. */}
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-l border-ink/[.08] pl-4">
-              {others.map(({ m, n }) => (
-                <span key={m.id} className="flex items-center gap-2 text-caption">
-                  <Avatar member={m} size={20} />
-                  <span className="truncate text-sub">{m.name}</span>
-                  {/* Same weight as the hero's numeral — same family, same 400,
-                      full ink. They were text-ink/60, which made everyone else's
-                      work look like faint reference data next to yours; the
-                      SIZE carries the hierarchy, so the colour doesn't have to
-                      whisper. A zero is a fact too, and gets to be as solid. */}
-                  <span className="ml-auto shrink-0 font-tight text-[18px] leading-none tabular-nums text-ink">
-                    {n}
-                  </span>
-                </span>
-              ))}
+      {/* ══ YOUR LOAD — fairness as a SHARE, the house as evidence, a verb.
+          The number that changes as the week moves; the faces are the proof. ══ */}
+      <motion.div variants={listItem}>
+        <Card>
+          <Eyebrow>Your load this week</Eyebrow>
+          {houseLoad === 0 ? (
+            <Sentence className="mt-1">Nothing on anyone yet.</Sentence>
+          ) : (
+            <>
+              <Sentence className="mt-1">You’re carrying <Em>{share}%</Em>.</Sentence>
+              <p className="mt-1 text-bodysm text-sub">
+                {board.length < 2 ? "It’s all yours right now."
+                  : overloaded ? `More than a fair share${move ? ` — the app can shift one to ${move.to.name}` : ""}.`
+                  : lighter ? "Below your usual — room to take one on."
+                  : "A fair share of the house."}
+              </p>
+            </>
+          )}
+
+          {/* Faces as the evidence: you, then everyone else, ranked. No bars —
+              the number IS the count (DESIGN: no charts on the phone). */}
+          <div className="mt-4 flex items-end gap-5">
+            <div className="flex shrink-0 flex-col items-center gap-1.5">
+              <Avatar member={me} size={56} />
+              <span className="font-tight text-[22px] leading-none tabular-nums">{mine}</span>
             </div>
+            {others.map(({ m, n }) => (
+              <div key={m.id} className="flex flex-col items-center gap-1.5 pb-[2px]">
+                <Avatar member={m} size={34} />
+                <span className="font-tight text-[15px] leading-none tabular-nums text-sub">{n}</span>
+              </div>
+            ))}
           </div>
 
           {mine > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               {canEven && (
                 <Button tone="dark" onClick={() => s.openSheet({ type: "rebalance" })}>
                   <Icon name="scale" size={14} /> Even it out
@@ -1434,68 +1464,48 @@ function PhoneYou() {
         </Card>
       </motion.div>
 
-      {/* 2 · WHERE YOU ARE — the one card on this tab that changes what the app
-          DOES. Presence feeds suggestTaker directly, so every chip here moves
-          real work: say you're home and the next delivery job finds you.
+      {/* ══ THIS WEEK — contribution as one big number and an honest line. NOT
+          gamified, NOT time-tracked (we count completions, not minutes). Lavender:
+          the reflective tone. A different SHAPE — number-led, short. ══ */}
+      <motion.div variants={listItem}>
+        <Card tone="lavender">
+          <Eyebrow>This week</Eyebrow>
+          <div className="mt-1.5 flex items-baseline gap-2">
+            <span className="font-tight text-display leading-none tabular-nums"><Em>{doneThisWeek}</Em></span>
+            <span className="text-body text-ink/60">{doneThisWeek === 1 ? "thing done" : "things done"}</span>
+          </div>
+          <p className="mt-2 text-bodysm text-ink/70">
+            {doneThisWeek === 0
+              ? "A fresh week — nothing ticked off yet."
+              : <>Most of it in <b className="font-medium text-ink">{topArea ?? "the house"}</b>{coveringNames.length ? `, and covering for ${listOf(coveringNames)}` : ""}.</>}
+          </p>
+        </Card>
+      </motion.div>
 
-          STATE FIRST, CONTROLS FOLDED. This is the same shape as the New Task
-          sheet: say what's true, then hide the machinery behind "Adjust". Four
-          chips and a quiet-hours row were 130px of permanently-open controls for
-          something you touch once a day at most — and on most days, not at all.
-          A picker that's open when you're not using it isn't availability, it's
-          furniture.
-
-          What stays visible is what you'd actually want at a glance: the state,
-          and what the app will do about it. */}
+      {/* ══ WHERE YOU ARE — the one card that changes what the app DOES; the
+          effect line says how. Controls fold behind Adjust (unchanged). ══ */}
       <motion.div variants={listItem}>
         <Card>
-          {/* Quiet hours belongs in the SUMMARY, not just behind the fold —
-              same rule the away date already taught us: folding a control away
-              must not fold its VALUE away. Someone who set quiet hours should
-              never have to open a panel to find out whether they're still on.
+          {/* Eyebrow-led like every card on this tab now (no icon tile) — and
+              the effect line is the point: how this changes what the app does. */}
+          <Eyebrow>Where you are</Eyebrow>
+          <Sentence className="mt-1">{PRESENCE_TITLE[presence]}</Sentence>
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-bodysm text-sub">
+            <span>
+              {presence === "away" && needsCover.length
+                ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${needsCover.length} ${needsCover.length === 1 ? "task" : "tasks"} still on you.`
+                : presence === "away" && covered.length
+                  ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${listOf(coverNames)} ${coverNames.length === 1 ? "has" : "have"} it covered.`
+                  : PRESENCE_EFFECT[presence](av.to)}
+            </span>
+            {av.quiet && (
+              <span className="flex items-center gap-1">
+                <Icon name="moon" size={12} className="shrink-0" />
+                Quiet {to12(av.quiet.from)} – {to12(av.quiet.to)}
+              </span>
+            )}
+          </p>
 
-              Only when it's SET. "No quiet hours" is a null fact, and a summary
-              that lists the settings you haven't touched is an inventory, not a
-              summary. Unset, the control behind Adjust is the only mention —
-              which is the right weight for something nobody's chosen yet. */}
-          <IconTile name="pin" tone="lemon" />
-          <TitleBlock
-            className="mt-6"
-            eyebrow="Where you are"
-            title={PRESENCE_TITLE[presence]}
-            subtext={
-              <>
-                {/* "Nothing new lands on you" is true and, with five tasks due
-                    inside the span, beside the point. Lead with the work that's
-                    still yours — that's the thing you'd want to know before you
-                    got on the plane. */}
-                <span>
-                  {presence === "away" && needsCover.length
-                    ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${needsCover.length} ${needsCover.length === 1 ? "task" : "tasks"} still on you.`
-                    : presence === "away" && covered.length
-                      // The verb agrees with the NAMES, not the tasks. Two tasks
-                      // covered by one person is still "Sam has it covered".
-                      ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${listOf(coverNames)} ${coverNames.length === 1 ? "has" : "have"} it covered.`
-                      : PRESENCE_EFFECT[presence](av.to)}
-                </span>
-                {/* No middot. The effect line is long enough to wrap, which
-                    strands a separator alone at the end of a line — and the
-                    glyph already marks where one fact ends and the next begins,
-                    on one line or two. */}
-                {av.quiet && (
-                  <span className="flex items-center gap-1">
-                    <Icon name="moon" size={12} className="shrink-0" />
-                    Quiet {to12(av.quiet.from)} – {to12(av.quiet.to)}
-                  </span>
-                )}
-              </>
-            }
-          />
-
-          {/* OUTSIDE the fold, deliberately. Everything else in this card is a
-              setting you went looking for; this is the app telling you work will
-              be stranded. That doesn't wait behind "Adjust" — same reasoning as
-              "Even it out" on the load card: the verb sits with the problem. */}
           {needsCover.length > 0 && (
             <Button tone="dark" className="mt-3" onClick={() => s.coverAway(meId)}>
               <Icon name="handoff" size={14} />
@@ -1503,9 +1513,6 @@ function PhoneYou() {
             </Button>
           )}
 
-          {/* Same control, same words, same chevron as the New Task sheet's
-              readback. Two disclosures that behave differently would be two
-              things to learn. */}
           <button
             onClick={() => setWhereOpen((v) => !v)}
             aria-expanded={whereOpen}
@@ -1531,8 +1538,6 @@ function PhoneYou() {
                     <Choice
                       key={key}
                       selected={presence === key}
-                      // Re-picking `away` keeps the return date; picking anything else
-                      // drops it — the store insists, and it's right to.
                       onClick={() => s.setPresence(meId, key, key === "away" ? { from: av.from, to: av.to } : undefined)}
                     >
                       {label}
@@ -1554,13 +1559,6 @@ function PhoneYou() {
                   </div>
                 )}
 
-                {/* Quiet hours. Honest label: nothing consumes this yet — the app has
-                    no push, and a toast is feedback for your own tap, which must never
-                    be silenced. It's here because the household's answer to "don't wake
-                    the kids" shouldn't have to wait for the notification plumbing.
-
-                    It lives behind the same fold because it's the rarest control on the
-                    tab: you set it once, ever. */}
                 <div className="mt-4 border-t border-ink/[.06] pt-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
@@ -1574,8 +1572,6 @@ function PhoneYou() {
                     </PickerChip>
                   </div>
                   <PickerPanel open={quietOpen}>
-                    {/* One wheel, not two stacked — two clocks is 360px of panel for a
-                        pair of numbers. The edge you're editing is a choice. */}
                     <div className="flex flex-wrap gap-2">
                       <Choice selected={quietEdge === "from"} onClick={() => setQuietEdge("from")}>From {to12(quiet.from)}</Choice>
                       <Choice selected={quietEdge === "to"} onClick={() => setQuietEdge("to")}>To {to12(quiet.to)}</Choice>
@@ -1602,64 +1598,30 @@ function PhoneYou() {
         </Card>
       </motion.div>
 
-      {/* 3 · YOUR PATCH — the standing agreement. Today says what's on, Ahead
-          says what's coming; only this says what's YOURS, with no tasks in it.
-          Read-only for now: it's a household agreement, not a preference. */}
-      <motion.div variants={listItem}>
-        <Card>
-          {/* The title truncates rather than wraps, and that's safe HERE
-              specifically: the pills below name every domain in full, so a long
-              patch loses nothing to the ellipsis. */}
-          <IconTile name="grid" tone="lemon" />
-          <TitleBlock
-            className="mt-6"
-            eyebrow="Your patch"
-            title={jobs.length
-              ? `You look after ${listOf(me.responsibility?.domains.length
-                  ? me.responsibility.domains
-                  : me.responsibility?.spaces ?? [])}`
-              : "Nothing’s yours yet"}
-            subtext={jobs.length ? undefined : `${ownerName(s)} can hand you a domain or a room.`}
-          />
-          {jobs.length > 0 && (
+      {/* ══ YOU LOOK AFTER — the standing patch, said as a sentence with its
+          domains as chips. Renamed from "Your patch" per the brief. ══ */}
+      {jobs.length > 0 && (
+        <motion.div variants={listItem}>
+          <Card>
+            <Eyebrow>You look after</Eyebrow>
+            <Sentence className="mt-1">
+              {listOf(me.responsibility?.domains.length ? me.responsibility.domains : me.responsibility?.spaces ?? [])}
+            </Sentence>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {jobs.map((j) => <Pill key={j} tone="tag">{j}</Pill>)}
             </div>
-          )}
-        </Card>
-      </motion.div>
+          </Card>
+        </motion.div>
+      )}
 
-      {/* 4 · YOUR ACCESS — the role, in words. The header names it ("Limited");
-          nothing anywhere said what it MEANT, so a limited member had no way to
-          learn why money is invisible to them. */}
+      {/* ══ YOUR ACCESS — static, so it's a FOOTNOTE, not a card. Demoted to the
+          quietest line on the page, exactly its weight. ══ */}
       <motion.div variants={listItem}>
-        <Card>
-          {/* No icon. A padlock next to "Limited" editorialises — it says being
-              limited is a lock-out, when the role model's whole point is that it
-              describes what someone LOOKS AFTER, not what they're shut out of.
-              It also made this the only card on the tab whose eyebrow started
-              40px from the left edge, so the column no longer lined up. */}
-          {/* Icon on line one, with the star tally riding the far end (like the
-              progress card's toggle); the eyebrow/title pair sits below. */}
-          <div className="flex items-center">
-            <IconTile name="key" tone="lemon" />
-            {/* Stars belong to the guided surface — see the role model. */}
-            {me.role === "guided" && (
-              <span className="ml-auto shrink-0 font-tight text-h1 tabular-nums text-star">★ {me.stars ?? 0}</span>
-            )}
-          </div>
-          <TitleBlock
-            className="mt-6"
-            eyebrow="Your access"
-            title={ROLE_LABEL[me.role]}
-            subtext={ROLE_HINT[me.role]}
-          />
-          {me.role !== "owner" && (
-            <p className="mt-3 border-t border-black/[.05] pt-3 text-caption text-sub">
-              Only {ownerName(s)} can change this.
-            </p>
-          )}
-        </Card>
+        <p className="flex items-center gap-1.5 px-1 pb-1 text-caption text-white/40">
+          <Icon name="key" size={12} className="shrink-0" />
+          {ROLE_LABEL[me.role]}
+          {me.role !== "owner" && <span className="text-white/30"> · only {ownerName(s)} can change this</span>}
+        </p>
       </motion.div>
     </>
   );

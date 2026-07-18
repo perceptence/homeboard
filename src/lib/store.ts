@@ -1169,7 +1169,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 7: "On my way" needs an audience — `waiting` landed on the pickup. Re-seed.
   // 8: dentist wears a tooth, yoga a lotus. Re-seed.
   // 9: shopping items carry `by` (whose want it is). Re-seed.
-  version: 9,
+  // 10: seeded `completedAt` history so the You tab's contribution is live. Re-seed.
+  version: 10,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.
