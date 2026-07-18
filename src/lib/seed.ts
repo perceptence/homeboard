@@ -82,13 +82,15 @@ export const seedTasks: Task[] = [
 ];
 
 export const seedShopping: ShopItem[] = [
-  { id: "s3", title: "Bananas", category: "Groceries", low: false, done: false },
-  { id: "s4", title: "Chicken thighs", category: "Groceries", low: false, done: false, note: "for tonight" },
+  /* `by` = whose want this is. The house's own asks arrive via `low` instead —
+     two kinds of wanter, each with its own mark. */
+  { id: "s3", title: "Bananas", category: "Groceries", low: false, done: false, by: "leo" },
+  { id: "s4", title: "Chicken thighs", category: "Groceries", low: false, done: false, note: "for tonight", by: "maya" },
   /* Age-gated: the till will refuse this to Leo, so the app does too — he can
      see it (and add things like it); ticking it off is for the adults. */
-  { id: "s7", title: "Wine for the Kims", category: "Groceries", low: false, done: false, minAge: 18 },
-  { id: "s5", title: "Paper towels", category: "Supplies", low: false, done: false },
-  { id: "s6", title: "Coffee", category: "Groceries", low: false, done: true },
+  { id: "s7", title: "Wine for the Kims", category: "Groceries", low: false, done: false, minAge: 18, by: "maya" },
+  { id: "s5", title: "Paper towels", category: "Supplies", low: false, done: false, by: "sam" },
+  { id: "s6", title: "Coffee", category: "Groceries", low: false, done: true, by: "maya" },
 ];
 
 export const seedBills: Bill[] = [

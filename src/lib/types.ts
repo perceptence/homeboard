@@ -357,6 +357,13 @@ export interface ShopItem {
   note?: string;
   auto?: boolean;
   /**
+   * WHO ASKED. The list is the household's one truly shared surface, and a
+   * want has a wanter: the house's own asks already say "Running low"; a
+   * person's ask shows their face. Absent on auto/low items (the house asked)
+   * and on iPad-added ones (nobody specific was holding the pen).
+   */
+  by?: MemberId;
+  /**
    * CAPABILITY gate, same field and same meaning as a Task's: the checkout will
    * refuse this to a minor (alcohol, medicines), so the app shouldn't pretend
    * otherwise. Gates CHECKING OFF only — anyone may ADD to the list; asking for

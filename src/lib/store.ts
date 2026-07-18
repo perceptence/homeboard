@@ -295,6 +295,8 @@ interface HouseholdState {
 
   toggleShopItem: (id: string) => void;
   addShopItem: (title: string, category: ShopItem["category"]) => void;
+  /** Sweep the crossed-off items away — the after-shopping reset. */
+  clearBought: () => void;
 
   payBill: (id: string) => void;
   restock: (id: string) => void;
@@ -748,12 +750,31 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     set((s) => ({ shopping: s.shopping.map((i) => (i.id === id ? { ...i, done: !i.done } : i)) })),
 
   addShopItem: (title, category) =>
-    set((s) => ({
-      shopping: [{ id: `s${++nextId}`, title, category, low: false, done: false }, ...s.shopping],
-      // The sheet STAYS OPEN — people add three things, not one. (It used to
-      // set `sheet: null` here, which slammed the list shut on every Add.)
-      toast: "Added to shopping",
-    })),
+    set((s) => {
+      // A want has a wanter: stamp whoever's phone did the asking (the shared
+      // iPad stays anonymous — nobody specific was holding the pen), and tell
+      // the feed — a shared list the house can't see changing isn't shared.
+      const by = s.persona !== "ipad" ? s.persona : undefined;
+      const name = by ? s.members[by]?.name ?? "Someone" : "The house";
+      return {
+        shopping: [{ id: `s${++nextId}`, title, category, low: false, done: false, by }, ...s.shopping],
+        // The sheet STAYS OPEN — people add three things, not one. (It used to
+        // set `sheet: null` here, which slammed the list shut on every Add.)
+        toast: "Added to shopping",
+        ...logged(s, `${name} added ${title} to the shopping list`, by),
+      };
+    }),
+
+  clearBought: () =>
+    set((s) => {
+      const n = s.shopping.filter((i) => i.done).length;
+      if (!n) return {};
+      return {
+        shopping: s.shopping.filter((i) => !i.done),
+        toast: `Cleared ${n} bought`,
+        ...logged(s, `Cleared ${n} bought ${n === 1 ? "item" : "items"} off the shopping list`),
+      };
+    }),
 
   payBill: (id) =>
     set((s) => {
@@ -1105,7 +1126,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 6: "Auto" source label; demo events seeded relative to now. Re-seed.
   // 7: "On my way" needs an audience — `waiting` landed on the pickup. Re-seed.
   // 8: dentist wears a tooth, yoga a lotus. Re-seed.
-  version: 8,
+  // 9: shopping items carry `by` (whose want it is). Re-seed.
+  version: 9,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.

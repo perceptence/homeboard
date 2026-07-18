@@ -14,6 +14,14 @@ import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker
 import type { MemberId, Priority, ShopCategory, ShopItem, Task } from "@/lib/types";
 import { ROLE_NEEDS } from "@/lib/types";
 
+/** Where a typed shopping item files itself — read from the words, shown live
+ *  on the aisle chips, and one tap overrides it. Pet words win over Supplies
+ *  words ("dog shampoo" is the dog's). Default: food. */
+const inferCat = (t: string): ShopCategory =>
+  /dog|cat|pet|litter|kibble|chew|juno/i.test(t) ? "Pet"
+  : /soap|towel|paper|deterg|clean|spray|sponge|foil|batter|bulb|bin|bag|tissue|shampoo|toothpaste|brush|wipe|polish/i.test(t) ? "Supplies"
+  : "Groceries";
+
 /** All sheets for both surfaces. Phone gets a bottom sheet; iPad gets a centred modal. */
 export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
   const s = useHousehold();
@@ -229,15 +237,26 @@ function RebalanceSheet() {
 function ShopSheet() {
   const s = useHousehold();
   const [text, setText] = useState("");
+  /** Explicit aisle pick; null = go with the live guess (effCat below). */
+  const [cat, setCat] = useState<ShopCategory | null>(null);
   const list = shoppingList(s);
   const open = list.filter((i) => !i.done);
   const done = list.filter((i) => i.done);
 
+  /**
+   * EVERYTHING TYPED used to file under Groceries — hardcoded, so "dish soap"
+   * landed with the food. Now the aisle is READ from the words, the guess is
+   * SHOWN live on the chips under the input (type "sponges", watch Supplies
+   * light up), and one tap overrides it. Visible inference: the app shows its
+   * working instead of being quietly wrong.
+   */
+  const effCat: ShopCategory = cat ?? inferCat(text);
   const add = () => {
     const t = text.trim();
     if (!t) return;
-    s.addShopItem(t, "Groceries");
+    s.addShopItem(t, effCat);
     setText("");
+    setCat(null);
   };
 
   /**
@@ -303,6 +322,10 @@ function ShopSheet() {
           it here. Worth a word: an item nobody remembers adding looks like a glitch. */}
       {i.low && !i.done && <Pill tone="tag">Running low</Pill>}
       {i.minAge && !i.done ? <Pill tone="tag">{i.minAge}+</Pill> : null}
+      {/* WHOSE want this is — a want has a wanter, and on the one truly shared
+          surface "who asked for this?" deserves an answer at a glance. The
+          house's asks wear the pill above instead; both kinds are attributed. */}
+      {i.by && !i.low && !i.done && <Avatar member={s.members[i.by]} size={18} />}
     </div>
   );
 
@@ -347,6 +370,29 @@ function ShopSheet() {
         ))}
       </div>
 
+      {/* A list with nothing on it says so warmly, not with blank space. */}
+      {groups.length === 0 && (
+        <div className="mt-4 flex flex-col items-center gap-2 rounded-card bg-card px-6 py-10 text-center">
+          <span className="grid h-12 w-12 place-items-center rounded-pill bg-lemon text-ink">
+            <Icon name="cart" size={22} />
+          </span>
+          <p className="mt-1 text-bodysm font-medium">Nothing on the list</p>
+          <p className="text-caption text-sub">Add the first thing below — everyone sees it.</p>
+        </div>
+      )}
+
+      {/* THE AFTER-SHOP SWEEP. Crossed items stay visible mid-aisle (un-checking
+          a fat thumb needs them) — but they shouldn't haunt the list for weeks:
+          one quiet control clears the cart when the trip's done. */}
+      {done.length > 0 && (
+        <button
+          onClick={() => s.clearBought()}
+          className="mt-3 flex items-center gap-1.5 text-caption font-medium text-sub transition-colors hover:text-ink"
+        >
+          <Icon name="trash" size={14} /> Clear {done.length} bought
+        </button>
+      )}
+
       {/* The add row lives at the BOTTOM — under the list it feeds, where the
           next blank line of a paper list would be. Adding keeps the sheet open:
           people add three things, not one. */}
@@ -364,6 +410,40 @@ function ShopSheet() {
           <button onClick={add} className="shrink-0 rounded-pill bg-lemon px-4 py-2 text-caption font-semibold text-ink">Add</button>
         )}
       </label>
+
+      {/* THE AISLE, DECIDED IN THE OPEN. Appears only while typing: the guess
+          from the words is already lit (watch it switch as you type "sponges"),
+          and a tap overrides it. The lit chip is where Add will file it. */}
+      <AnimatePresence initial={false}>
+        {text.trim() && (
+          <motion.div
+            key="aisle"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={smooth}
+            className="overflow-hidden"
+          >
+            <div className="flex items-center gap-1.5 pl-2 pt-2">
+              <span className="mr-1 text-caption text-sub">Aisle</span>
+              {CATS.map(({ cat: c, glyph }) => (
+                <button
+                  key={c}
+                  onClick={() => setCat(c)}
+                  className={clsx(
+                    "flex items-center gap-1 rounded-pill border px-2.5 py-1.5 text-caption font-semibold transition-colors duration-300",
+                    effCat === c
+                      ? "border-ink bg-ink text-white"
+                      : "border-ink/[.08] bg-card text-sub",
+                  )}
+                >
+                  <Icon name={glyph} size={13} /> {c}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
