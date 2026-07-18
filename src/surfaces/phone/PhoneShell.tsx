@@ -226,14 +226,10 @@ export function PhoneShell() {
                 }
               />
             )}
-            {route === "you" && (
-              /* JUST the household — no name. The member card below leads with the
-                 portrait and the name in full, so a page title of "Sam" over a card
-                 that says "Sam" was the name twice. The home is the one thing the
-                 card doesn't say (and on a real phone there's no persona switcher
-                 above to say it), so it stays as the lone eyebrow. */
-              <Eyebrow tone="onDark">{s.householdName}</Eyebrow>
-            )}
+            {/* The You tab carries NO header text — its content leads with the
+                portrait (name + household as its eyebrow), so a header eyebrow
+                here would either hang alone or say the home twice. Just the
+                actions ride the top-right. */}
           </div>
           <div className="flex shrink-0 items-center">
             {/* The gear rides the YOU header — that tab is your dashboard, and
@@ -1214,6 +1210,14 @@ const PRESENCE_EFFECT: Record<Presence, (to?: string) => string> = {
     : "Nothing new lands on you.",
 };
 
+/** The state, in the person's own voice — the "Where you are" card's title. */
+const PRESENCE_TITLE: Record<Presence, string> = {
+  here: "You’re around",
+  wfh: "You’re home today",
+  out: "You’re out today",
+  away: "You’re away",
+};
+
 /** "22:00" -> "10:00 PM". The store keeps 24h because it sorts and compares;
  *  people read 12h. The seam belongs here, at the glass. */
 const to12 = (hhmm: string): string => {
@@ -1263,9 +1267,9 @@ function PhoneYou() {
 
   const jobs = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];
 
-  /* THE MEMBER CARD — one dark object that IS the You tab. The page header owns
-     the household; the card owns the person — nothing is said twice. Committed
-     to dark and pitched for contrast: brighter text, defined dividers. */
+  /* THE YOU TAB — no enclosing card. Identity and standing lay directly on the
+     ink; only Presence — the one thing you actually SET here — gets its own
+     gray card, so the control reads as a control and the readout as a readout. */
   const rhythms = s.tasks.filter((t) => t.owner === meId && t.recurring);
   const openMine = s.tasks.filter((t) => t.owner === meId && !t.done);
   const effect = PRESENCE_EFFECT[presence](av.to);
@@ -1281,22 +1285,22 @@ function PhoneYou() {
   ];
 
   return (
-    <motion.div variants={listItem}>
-      <div className="rounded-card border border-white/[.14] bg-white/[.06] p-inner">
-
-        {/* PORTRAIT — the identity, and the ONLY place the name is said; the You
-            header no longer repeats it, and the role is the access in full. */}
-        <div className="flex items-center gap-3.5">
-          <Avatar member={me} size={60} />
-          <div className="min-w-0">
-            <div className="font-tight text-h1 leading-none text-white">{me.name}</div>
-            <div className="mt-1.5 truncate text-caption text-white/60">{ROLE_LABEL[me.role]}</div>
-          </div>
+    <>
+      {/* HERO — identity laid on the page. It absorbs the household as its own
+          eyebrow, so the header no longer hangs a lone "Rivera Home". Indented to
+          p-inner so the name lines up with the gray card's title below. */}
+      <motion.div variants={listItem} className="flex items-center gap-4 px-inner pb-1 pt-1">
+        <Avatar member={me} size={64} />
+        <div className="min-w-0">
+          <Eyebrow tone="onDark">{s.householdName}</Eyebrow>
+          <div className="mt-hair font-tight text-h1 leading-none text-white">{me.name}</div>
+          <div className="mt-1.5 truncate text-caption text-white/60">{ROLE_LABEL[me.role]}</div>
         </div>
+      </motion.div>
 
-        {/* STANDING — three lenses over one detail area. Tapping a number reveals
-            what's behind it, so the strip is consistent, not one-detailed. */}
-        <div className="mt-6 flex gap-1 rounded-md bg-white/[.05] p-1">
+      {/* STANDING — three lenses over one detail area, on the page (no card). */}
+      <motion.div variants={listItem} className="px-inner pb-2">
+        <div className="flex gap-1 rounded-md bg-white/[.05] p-1">
           {LENSES.map((l) => {
             const on = lens === l.key;
             return (
@@ -1363,11 +1367,16 @@ function PhoneYou() {
             </motion.div>
           </AnimatePresence>
         </div>
+      </motion.div>
 
-        {/* PRESENCE — the one thing you SET here. State lives ONLY here now: the
-            active segment IS the status, so nothing announces it twice. */}
-        <div className="mt-5 border-t border-white/[.12] pt-5">
-          <div className="text-bodysm text-white/75">{effect}</div>
+      {/* WHERE YOU ARE — the one gray card: presence is the thing you SET here.
+          Follows the house icon → title → data pattern; the pin tile is neutral
+          (onDark) so the ONE lemon can be the active state. */}
+      <motion.div variants={listItem}>
+        <div className="rounded-card border border-white/10 bg-white/[.06] p-inner">
+          <IconTile name="pin" tone="onDark" />
+          <TitleBlock className="mt-6" tone="onDark" eyebrow="Where you are" title={PRESENCE_TITLE[presence]} />
+          <p className="mt-2 text-bodysm text-white/70">{effect}</p>
 
           {needsCover.length > 0 && (
             <Button tone="light" className="mt-3" onClick={() => s.coverAway(meId)}>
@@ -1377,7 +1386,7 @@ function PhoneYou() {
           )}
 
           {/* The 4-way selector. Its active state is the composition's ONE lemon. */}
-          <div className="mt-3 flex gap-1 rounded-pill bg-white/[.08] p-1">
+          <div className="mt-4 flex gap-1 rounded-pill bg-white/[.08] p-1">
             {PRESENCE_CHOICES.map(({ key }) => {
               const on = presence === key;
               return (
@@ -1467,8 +1476,8 @@ function PhoneYou() {
             )}
           </PickerPanel>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </>
   );
 }
 
