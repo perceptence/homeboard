@@ -36,11 +36,11 @@ const tAt = (mins: number) => {
  */
 export const seedMembers: Record<MemberId, Member> = {
   maya: {
-    id: "maya", name: "Maya", kind: "person", role: "owner", color: "var(--m-maya)",
+    id: "maya", name: "Maya", email: "maya@rivera.home", kind: "person", role: "owner", color: "var(--m-maya)",
     responsibility: { domains: ["Meals", "Bills"], spaces: ["Kitchen"] },
   },
   sam: {
-    id: "sam", name: "Sam", kind: "person", role: "full", color: "var(--m-sam)",
+    id: "sam", name: "Sam", email: "sam@rivera.home", kind: "person", role: "full", color: "var(--m-sam)",
     responsibility: { domains: ["Home maintenance"], spaces: ["Garden", "Garage"] },
   },
   leo: {

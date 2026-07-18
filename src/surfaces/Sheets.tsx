@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
-import { Avatar, Button, Card, Check, Choice, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
+import { Avatar, AvatarStack, Button, Card, Check, Choice, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
 import { smooth } from "@/lib/motion";
 import { addDays, ago, badge, clockLabel, dayLabel, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
 import { taskGlyph } from "@/lib/glyphs";
@@ -12,7 +12,7 @@ import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
 import type { Member, MemberId, Priority, ShopCategory, ShopItem, Task } from "@/lib/types";
-import { ROLE_NEEDS } from "@/lib/types";
+import { ROLE_HINT, ROLE_LABEL, ROLE_NEEDS } from "@/lib/types";
 
 /** Where a typed shopping item files itself — read from the words, shown live
  *  on the aisle chips, and one tap overrides it. Pet words win over Supplies
@@ -42,6 +42,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
         {sheet?.type === "rebalance" && <RebalanceSheet />}
         {sheet?.type === "shop" && <ShopSheet />}
         {sheet?.type === "activity" && <ActivitySheet />}
+        {sheet?.type === "settings" && <SettingsSheet />}
       </Sheet>
 
       {/* New Task renders its OWN Sheet: its pinned title and footer are part of
@@ -434,6 +435,122 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /**
+ * SETTINGS — the account surface the You tab (now a living dashboard) can't be.
+ *
+ * The dashboard answers "how's my week"; this answers "who am I to the app".
+ * Reached from the gear in the You header. Edits only what's REAL and yours:
+ * your name and email (setProfile). Everything else the app can't honestly
+ * toggle is shown as fact, not a dead switch — role is read-only (the role
+ * model: assigned, never self-granted), reminders are described not faked
+ * (there's no push yet), the household is displayed. Honesty over a toggle farm.
+ */
+function SettingsSheet() {
+  const s = useHousehold();
+  const meId = s.persona !== "ipad" ? s.persona : doers(s)[0]?.id;
+  const me = meId ? s.members[meId] : undefined;
+  if (!me) return null;
+  const owner = Object.values(s.members).find((m) => m.role === "owner");
+  const people = doers(s);
+
+  return (
+    <>
+      <span className="flex items-center gap-3">
+        <IconTile name="gear" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">Settings</h2>
+      </span>
+
+      {/* WHO YOU ARE — the portrait, then the two fields that are actually yours
+          to edit. Inputs commit on blur (a name change ripples to the header). */}
+      <div className="mt-5 flex items-center gap-4">
+        <Avatar member={me} size={64} />
+        <div className="min-w-0">
+          <div className="truncate text-h2">{me.name}</div>
+          <div className="text-caption text-sub">{ROLE_LABEL[me.role]}</div>
+        </div>
+      </div>
+
+      <Eyebrow className="mt-6">Your details</Eyebrow>
+      <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+        <SettingField label="Name" value={me.name} placeholder="Your name" onCommit={(v) => v && s.setProfile({ name: v })} />
+        <SettingField label="Email" value={me.email ?? ""} type="email" placeholder="Add your email" onCommit={(v) => s.setProfile({ email: v })} />
+      </div>
+
+      {/* ACCESS — read-only. A role is assigned, never changed from your own
+          settings; saying so is the honest UI. */}
+      <Eyebrow className="mt-6">Your access</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+        <div className="flex items-center gap-2.5">
+          <Icon name="key" size={16} className="shrink-0 text-sub" />
+          <span className="text-bodysm font-medium">{ROLE_LABEL[me.role]}</span>
+        </div>
+        <p className="mt-1.5 text-caption text-sub">{ROLE_HINT[me.role]}</p>
+        {me.role !== "owner" && owner && (
+          <p className="mt-2 border-t border-ink/[.05] pt-2 text-caption text-sub">Only {owner.name} can change this.</p>
+        )}
+      </div>
+
+      {/* REMINDERS — described, not faked. There's no push layer, so a toggle
+          here would be a lie; the quiet-hours control that DOES work lives on
+          your profile, and this points to it. */}
+      <Eyebrow className="mt-6">Reminders</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+        <div className="flex items-center gap-2.5 text-bodysm">
+          <Icon name="bell" size={16} className="shrink-0 text-sub" />
+          Reminders arrive in the Dynamic Island.
+        </div>
+        <div className="mt-2.5 flex items-center gap-2.5 border-t border-ink/[.05] pt-2.5 text-bodysm">
+          <Icon name="moon" size={16} className="shrink-0 text-sub" />
+          <span className="flex-1">Quiet hours</span>
+          <span className="text-caption text-sub">{me.availability?.quiet ? "On" : "Off"} · set on your profile</span>
+        </div>
+      </div>
+
+      {/* THE HOUSEHOLD — displayed, not managed here (it's a shared thing). */}
+      <Eyebrow className="mt-6">Household</Eyebrow>
+      <div className="mt-2 flex items-center gap-3 rounded-card bg-card p-4 shadow-e1">
+        <AvatarStack members={people} size={30} ringClass="ring-card" />
+        <div className="min-w-0">
+          <div className="truncate text-bodysm font-medium">{s.householdName}</div>
+          <div className="text-caption text-sub">{people.length} people</div>
+        </div>
+      </div>
+
+      <button
+        onClick={() => s.notify("Signed out — this is a demo")}
+        className="mt-6 w-full rounded-card bg-card p-4 text-center text-bodysm font-semibold text-danger shadow-e1 transition-colors hover:bg-danger/[.04]"
+      >
+        Sign out
+      </button>
+      <p className="mt-4 text-center text-caption text-sub">Homeboard · demo build</p>
+    </>
+  );
+}
+
+/** One editable settings row: label left, right-aligned input that commits on
+ *  blur (typing every keystroke into the store would ripple the name across the
+ *  app mid-edit). Local state re-syncs if the store value changes underneath. */
+function SettingField({
+  label, value, placeholder, type = "text", onCommit,
+}: { label: string; value: string; placeholder?: string; type?: string; onCommit: (v: string) => void }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  return (
+    <label className="flex items-center gap-3 px-4 py-3.5">
+      <span className="w-16 shrink-0 text-bodysm font-medium">{label}</span>
+      <input
+        type={type}
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => { const t = v.trim(); if (t !== value) onCommit(t); }}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        placeholder={placeholder}
+        className="min-w-0 flex-1 bg-transparent text-right text-bodysm outline-none placeholder:text-sub/70"
+      />
+    </label>
+  );
+}
+
+/**
  * An event's detail — the same three-fact row as a task, because it wears the
  * same card.
  *
@@ -700,12 +817,13 @@ function HandoffSheet({ id }: { id?: number }) {
                       exit={{ height: 0, opacity: 0 }}
                       transition={smooth}
                     >
-                      {/* THE CARD'S OWN DOCK — now a PICKER: tap selects, the
-                          lemon button reads the decision back, and only that
-                          confirms. Overriding the Balancer is deliberate. */}
+                      {/* THE CARD'S OWN DOCK — a PICKER in the LIGHT palette:
+                          a soft grey well, white face cells, an ink RING for the
+                          pick, and a dark confirm. No black slab, no lemon — the
+                          "black + lime again" the whole app had been trimming. */}
                       <div className="px-3 pb-3">
-                        <div className="rounded-[18px] bg-ink p-3">
-                          <Eyebrow tone="onDark">Hand it to</Eyebrow>
+                        <div className="rounded-[18px] bg-surface p-3">
+                          <Eyebrow>Hand it to</Eyebrow>
                           <div className="mt-2.5 flex gap-1.5">
                             {doers(s)
                               .filter((m) => m.id !== meId)
@@ -720,21 +838,17 @@ function HandoffSheet({ id }: { id?: number }) {
                                     onClick={() => setChoice(m.id)}
                                     aria-pressed={chosen}
                                     className={clsx(
-                                      // ONE lemon in this dock — the readback
-                                      // below. Selection is a white ring, the
-                                      // suggestion just its ✦ caption; three
-                                      // lemon accents in one panel was noise.
-                                      "flex flex-1 flex-col items-center gap-1 rounded-2xl px-1 py-2.5 transition-colors duration-300",
+                                      "flex flex-1 flex-col items-center gap-1 rounded-2xl px-1 py-2.5 transition-shadow duration-300",
                                       why
                                         ? "opacity-40"
                                         : chosen
-                                          ? "bg-white/10 ring-2 ring-inset ring-white/80"
-                                          : "bg-white/[.06] hover:bg-white/[.14]",
+                                          ? "bg-card shadow-e2 ring-2 ring-inset ring-ink"
+                                          : "bg-card shadow-e1 hover:shadow-e2",
                                     )}
                                   >
                                     <Avatar member={m} size={36} />
-                                    <span className="max-w-full truncate text-caption font-semibold text-white">{m.name}</span>
-                                    <span className={clsx("max-w-full truncate text-[10px] leading-none", suggested ? "text-white/70" : "text-white/45")}>
+                                    <span className="max-w-full truncate text-caption font-semibold text-ink">{m.name}</span>
+                                    <span className={clsx("max-w-full truncate text-[10px] leading-none", suggested ? "font-medium text-ink/70" : "text-sub")}>
                                       {why ?? (suggested ? "✦ lightest load" : `${pendingFor(s, m.id)} ${pendingFor(s, m.id) === 1 ? "task" : "tasks"}`)}
                                     </span>
                                   </button>
@@ -742,7 +856,8 @@ function HandoffSheet({ id }: { id?: number }) {
                               })}
                           </div>
 
-                          {/* THE READBACK — the confirmation the manual path owes. */}
+                          {/* THE READBACK — a DARK confirm (not lemon): a clear
+                              primary that reads the decision back. */}
                           <button
                             disabled={!choice}
                             onClick={() => {
@@ -753,7 +868,7 @@ function HandoffSheet({ id }: { id?: number }) {
                             }}
                             className={clsx(
                               "mt-2.5 flex h-touch w-full items-center justify-center gap-1.5 rounded-pill text-bodysm font-semibold transition-colors duration-300",
-                              choice ? "bg-lemon text-ink" : "bg-white/[.08] text-white/40",
+                              choice ? "bg-ink text-white hover:bg-ink/90" : "cursor-not-allowed bg-ink/[.06] text-ink/40",
                             )}
                           >
                             <Icon name="handoff" size={14} />

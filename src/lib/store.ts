@@ -16,7 +16,7 @@ import {
 import { addDays, iso, isToday, relative, relativeInline, todayIso } from "./dates";
 
 export interface Sheet {
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop";
+  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings";
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;
@@ -324,6 +324,8 @@ interface HouseholdState {
   startOnboarding: () => void;
   setStep: (n: number) => void;
   setHouseholdName: (n: string) => void;
+  /** Edit the CURRENT person's own profile fields (name, email) from Settings. */
+  setProfile: (patch: { name?: string; email?: string }) => void;
   setPreset: (p: HouseholdPreset) => void;
   setAxis: (patch: Partial<HouseholdAxes>) => void;
   addPerson: (kind: DraftPerson["kind"], role: Role) => void;
@@ -1019,6 +1021,13 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   setHouseholdName: (householdName) =>
     set((s) => ({ onboarding: { ...s.onboarding, householdName } })),
 
+  setProfile: (patch) =>
+    set((s) => {
+      const id = s.persona !== "ipad" ? s.persona : null;
+      if (!id || !s.members[id]) return {};
+      return { members: { ...s.members, [id]: { ...s.members[id], ...patch } } };
+    }),
+
   /** A preset is a SHORTCUT: it sets the axes and suggests a cast. Both stay
    *  editable afterwards — picking "Family" is a starting point, not a category
    *  you're filed under. */
@@ -1170,7 +1179,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 8: dentist wears a tooth, yoga a lotus. Re-seed.
   // 9: shopping items carry `by` (whose want it is). Re-seed.
   // 10: seeded `completedAt` history so the You tab's contribution is live. Re-seed.
-  version: 10,
+  // 11: members gained `email` (Settings). Re-seed.
+  version: 11,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.

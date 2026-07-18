@@ -244,7 +244,20 @@ export function PhoneShell() {
             )}
           </div>
           <div className="flex shrink-0 items-center">
-            {/* Just the bell now. The shopping cart used to sit here and it was
+            {/* The gear rides the YOU header — that tab is your dashboard, and
+                account/profile/settings live one tap away behind it, off the
+                dashboard rather than cluttering it. Personal chrome, on the
+                personal tab. */}
+            {route === "you" && (
+              <button
+                onClick={() => s.openSheet({ type: "settings" })}
+                aria-label="Settings"
+                className="grid h-touch w-touch place-items-center rounded-pill text-white/70 transition-colors hover:text-white"
+              >
+                <Icon name="gear" size={22} />
+              </button>
+            )}
+            {/* Just the bell. The shopping cart used to sit here and it was
                 crowding the greeting off the edge — a shared-list door doesn't
                 belong in a row of personal chrome anyway. It's a card on Today
                 now (see PhoneToday), which is where a thing everyone shares

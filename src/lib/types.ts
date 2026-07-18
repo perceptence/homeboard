@@ -203,6 +203,9 @@ export interface Member {
   /* identity */
   id: MemberId;
   name: string;
+  /** How the household reaches them — the one bit of contact info the app keeps.
+   *  Optional: a young kid on a shared device may have none. Edited in Settings. */
+  email?: string;
   kind: MemberKind;
   /** Real, and only ever used as a CAPABILITY gate against a task's minAge —
    *  never as a permission. Optional: plenty of adults won't type it in. */
