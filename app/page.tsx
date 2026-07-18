@@ -49,7 +49,6 @@ export default function Page() {
         "flex h-screen flex-col items-center overflow-hidden bg-room px-4 pb-2 pt-2",
       )}
     >
-      <Splash />
       {!onboarding && (
         <div className="mb-2 flex shrink-0 flex-wrap items-center justify-center gap-1 rounded-pill bg-ink/90 p-1.5 shadow-e3 backdrop-blur">
           <span className="px-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">
@@ -79,6 +78,9 @@ export default function Page() {
       )}
 
       <DeviceFrame kind={kind} chromeGap={onboarding ? 90 : 130}>
+        {/* Launch splash — INSIDE the glass. It's the app opening, not the
+            demo page loading, so it belongs on the device's own screen. */}
+        <Splash />
         {onboarding ? (
           <Onboarding />
         ) : (

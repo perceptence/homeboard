@@ -560,10 +560,14 @@ function DynamicIsland() {
 
                 {/* NO "Arrived" button — arrival is the trip's own event (real
                     location services would fire it); the ETA landing calls
-                    arrive() itself. The only human verb left is bailing out. */}
+                    arrive() itself. And this island belongs to the AUDIENCE —
+                    the kids waiting — so their only verb is putting the widget
+                    away. Cancelling the drive is the TRAVELER's call, from the
+                    task itself (see the card/sheet's "Cancel trip"): Leo can't
+                    turn Dad's car around from the kerb. */}
                 <div className="flex gap-1.5">
                   <IslandButton onClick={(e) => { e.stopPropagation(); dismiss(); }}>
-                    <Icon name="x" size={14} /> Cancel trip
+                    <Icon name="x" size={14} /> Dismiss
                   </IslandButton>
                 </div>
               </div>

@@ -59,10 +59,12 @@ function TaskSheet({ id }: { id: number }) {
         <h2 className="min-w-0 font-tight text-h1">{task.title}</h2>
       </span>
 
-      {/* Three facts, one row, equal columns. `flex-wrap gap-5` sized each to its
-          own content, so the row's rhythm changed with the length of a name. */}
+      {/* ONE FACT GRAMMAR for tasks and events alike: Who · Time · a third that
+          is genuinely different per kind (Priority here; Heading on a journey
+          event). The labels used to diverge ("Assigned/When" vs "Who/Time") and
+          two sheets describing the same card read as two apps. */}
       <div className="mt-4 grid grid-cols-3 gap-2">
-        <Fact label="Assigned">
+        <Fact label="Who">
           <button
             onClick={() => s.openSheet({ type: "assign", id })}
             className="flex items-center gap-2 text-bodysm font-medium"
@@ -71,7 +73,7 @@ function TaskSheet({ id }: { id: number }) {
             <span className="truncate">{owner?.name ?? "Anyone"}</span>
           </button>
         </Fact>
-        <Fact label="When">
+        <Fact label="Time">
           <span className="text-bodysm font-medium">{clockLabel(task.when || "Any time")}</span>
         </Fact>
         <Fact label="Priority">
@@ -111,7 +113,13 @@ function TaskSheet({ id }: { id: number }) {
       ) : (
         <>
           <div className="mt-5 flex gap-2">
-            {!!task.waiting?.length && (
+            {/* While the trip is live this is the TRAVELER's cancel door —
+                the audience's island can only dismiss. */}
+            {s.island?.phase === "journey" && s.island.taskId === task.id ? (
+              <Button tone="outline" size="lg" className="flex-1" onClick={() => s.cancelTrip()}>
+                <Icon name="x" size={16} /> Cancel trip
+              </Button>
+            ) : !!task.waiting?.length && (
               <Button tone="dark" size="lg" className="flex-1" onClick={() => s.onWay(task.id)}>
                 <Icon name="car" size={16} /> On my way
               </Button>
@@ -316,22 +324,25 @@ function ShopSheet() {
         </p>
       )}
 
-      {/* Each aisle: its glyph, its name, its own count — FLUSH with the sheet's
-          gutter. These wore grey wells with 16px padding; on the sheet's own
-          grey the well was invisible, so all it did was indent every row 16px
-          out of line with the title and the add field. The grouping is carried
-          by the headers and the space between, not by a box. */}
-      <div className="mt-4 space-y-5">
+      {/* Each aisle is a WHITE card on the grey sheet — the same list-in-a-sheet
+          system the hand-off wears, so the two read as one app. (The last
+          attempt used surface-toned wells: invisible on the sheet's own grey,
+          all inset and no card. White is the tone that reads here, and 16px
+          inside a VISIBLE card is ordinary card anatomy, not stray indent.)
+          Header: the aisle's glyph in a lemon tile, its name, its own count. */}
+      <div className="mt-4 space-y-3">
         {groups.map((g) => (
-          <div key={g.cat} className={clsx(g.allDone && "opacity-60")}>
-            <div className="flex items-center gap-2">
-              <Icon name={g.glyph} size={16} className="text-sub" />
+          <div key={g.cat} className={clsx("rounded-card bg-card p-4", g.allDone && "opacity-60")}>
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-pill bg-lemon text-ink">
+                <Icon name={g.glyph} size={15} />
+              </span>
               <Eyebrow>{g.cat}</Eyebrow>
               <span className="ml-auto text-caption tabular-nums text-sub">
                 {g.allDone ? "all bought" : `${g.left} to get`}
               </span>
             </div>
-            <div className="mt-1">{g.items.map(Row)}</div>
+            <div className="mt-1.5">{g.items.map(Row)}</div>
           </div>
         ))}
       </div>
@@ -395,6 +406,8 @@ function EventSheet({ id }: { id: string }) {
         <h2 className="min-w-0 font-tight text-h1">{e.title}</h2>
       </span>
 
+      {/* Same grammar as a task's sheet: Who · Time · the kind-specific third
+          (Heading on a journey, the day otherwise). */}
       <div className="mt-4 grid grid-cols-3 gap-2">
         <Fact label="Who">
           <span className="flex items-center gap-2 text-bodysm font-medium">
@@ -402,11 +415,11 @@ function EventSheet({ id }: { id: string }) {
             <span className="truncate">{who?.name ?? "—"}</span>
           </span>
         </Fact>
-        <Fact label={e.journey ? "Heading" : "When"}>
-          <span className="text-bodysm font-medium">{e.journey && e.where ? e.where : relative(e.due)}</span>
-        </Fact>
         <Fact label="Time">
           <span className="text-bodysm font-medium">{clockLabel(e.time)}</span>
+        </Fact>
+        <Fact label={e.journey ? "Heading" : "Day"}>
+          <span className="truncate text-bodysm font-medium">{e.journey && e.where ? e.where : relative(e.due)}</span>
         </Fact>
       </div>
 
@@ -528,29 +541,32 @@ function HandoffSheet({ id }: { id?: number }) {
       {mine.length === 0 ? (
         <p className="py-10 text-center text-bodysm text-sub">Nothing to hand off.</p>
       ) : (
-        <div className="mt-4 flex flex-col gap-2">
+        /* ONE white card holding every row — six separate boxes read as six
+           separate decisions; a single card says "one list, pick from it". Rows
+           part with hairlines, the way Worth-a-look does on the iPad. */
+        <div className="mt-4 overflow-hidden rounded-card bg-card">
           {mine.map((t) => {
             const isOpen = openId === t.id;
+            /* THE RIGHT RAIL ANSWERS THE SHEET'S OWN QUESTION. "Which one
+               should someone else take?" — so every row previews WHO that
+               someone would be. Six identical chevrons said nothing; a face
+               per row is the decision, glanceable before any tap. */
+            const pick = suggestTaker(s, t);
+            const taker = pick ? s.members[pick.id] : undefined;
             return (
               /* A PLAIN div, deliberately. This wore `layout` + a spring, which
                  fought the inner height tween frame by frame — the card sprang
                  while its content eased, and the expand JERKED before the button
                  landed. The height tween alone grows the card and pushes its
                  siblings smoothly; nothing here reorders, so layout had no job. */
-              <div
-                key={t.id}
-                className={clsx(
-                  // WHITE cards — the sheet body is bg-surface (grey), so white
-                  // is the tone that actually reads on it. (A surface-toned well
-                  // here was grey-on-grey: invisible.)
-                  "overflow-hidden rounded-card bg-card ring-1 transition-shadow duration-300 ease-out",
-                  isOpen ? "ring-ink" : "ring-transparent",
-                )}
-              >
+              <div key={t.id} className="border-t border-ink/[.06] first:border-t-0">
                 <button
                   onClick={() => open(t)}
                   aria-expanded={isOpen}
-                  className="flex min-h-touch w-full items-center gap-3 px-3 py-3 text-left"
+                  className={clsx(
+                    "flex min-h-touch w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-300",
+                    isOpen && "bg-surface/60",
+                  )}
                 >
                   {/* THE STANDARD CARD GRAMMAR — the same trio every task card
                       wears (eyebrow · title · when + priority), with the task's
@@ -575,13 +591,17 @@ function HandoffSheet({ id }: { id?: number }) {
                       </>
                     }
                   />
-                  {/* The disclosure sits in its own small well — a control, not a
-                      stray glyph floating at the row's edge. */}
+                  {taker && (
+                    <span className="flex shrink-0 flex-col items-center gap-1">
+                      <Avatar member={taker} size={26} />
+                      <span className="text-[10px] font-medium leading-none text-sub">{taker.name}</span>
+                    </span>
+                  )}
                   <motion.span
                     animate={{ rotate: isOpen ? 90 : 0 }} transition={smooth}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-pill bg-ink/[.05] text-sub"
+                    className="shrink-0 text-sub/60"
                   >
-                    <Icon name="fwd" size={14} />
+                    <Icon name="fwd" size={16} />
                   </motion.span>
                 </button>
 
@@ -593,7 +613,9 @@ function HandoffSheet({ id }: { id?: number }) {
                       exit={{ height: 0, opacity: 0 }}
                       transition={smooth}
                     >
-                      <div className="border-t border-ink/[.08] px-4 pb-4 pt-3">
+                      {/* The open section wears the same soft tint as its row —
+                          one continuous band, so "what's expanded" has one edge. */}
+                      <div className="bg-surface/60 px-4 pb-4 pt-1">
                         <Eyebrow>Hand to</Eyebrow>
 
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -609,15 +631,14 @@ function HandoffSheet({ id }: { id?: number }) {
                                   title={blocked ?? undefined}
                                   onClick={() => setTaker(m.id)}
                                   className={clsx(
-                                    // GREY chips (bg-surface) on the white card
-                                    // — the inverse of the card-on-sheet pairing,
-                                    // so each layer reads against the one under it.
+                                    // WHITE chips on the open section's grey
+                                    // tint — each layer against the one under it.
                                     "flex h-touch items-center gap-2 rounded-pill border px-3 text-bodysm font-medium transition-colors duration-300 ease-out",
                                     blocked
-                                      ? "cursor-not-allowed border-ink/[.06] bg-surface text-sub opacity-45"
+                                      ? "cursor-not-allowed border-ink/[.06] bg-card text-sub opacity-45"
                                       : sel
                                         ? "border-ink bg-ink text-white"
-                                        : "border-transparent bg-surface text-ink hover:bg-ink/[.08]",
+                                        : "border-transparent bg-card text-ink shadow-e1",
                                   )}
                                 >
                                   <Avatar member={m} size={22} />

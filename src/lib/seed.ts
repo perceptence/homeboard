@@ -127,12 +127,12 @@ export const seedMaint: MaintItem[] = [
  * same job twice.
  */
 export const seedEvents: HouseEvent[] = [
-  { id: "e1", due: d(0), title: "Dentist", time: "4:00 PM", who: "leo", journey: true, where: "The dental clinic", icon: "care" },
+  { id: "e1", due: d(0), title: "Dentist", time: "4:00 PM", who: "leo", journey: true, where: "The dental clinic", icon: "tooth" },
   /* Seeded RELATIVE to now (tAt) so they always sit inside the two-hour
      horizon — the demo's "soon" band has something to show whenever it runs. */
   { id: "e10", due: d(0), title: "Padel with Marco", time: tAt(70), who: "sam", journey: true, where: "The club", icon: "heart" },
   { id: "e11", due: d(0), title: "Parcel at the locker", time: tAt(110), who: "sam", journey: true, where: "The locker", icon: "box" },
-  { id: "e12", due: d(0), title: "Yoga", time: tAt(80), who: "maya", journey: true, where: "The studio", icon: "heart" },
+  { id: "e12", due: d(0), title: "Yoga", time: tAt(80), who: "maya", journey: true, where: "The studio", icon: "yoga" },
   { id: "e3", due: d(1), title: "WFH", time: "all day", who: "sam", recurring: "Every Mon", icon: "house" },
   { id: "e4", due: d(2), title: "Recital", time: "5:30 PM", who: "ada", journey: true, where: "The auditorium", icon: "music" },
   { id: "e5", due: d(3), title: "Grocery run", time: "10:00 AM", who: "maya", recurring: "Weekly", journey: true, where: "The market", icon: "cart" },

@@ -907,15 +907,23 @@ function DateStrip({ selected, onPick, busy }: { selected: string; onPick: (d: D
   const firstCentre = useRef(true);
   /**
    * THE DAY YOU'RE READING SITS DEAD CENTRE. Wherever the selection moves — a
-   * tap, an edge swipe — the strip glides so that day is the strip's midpoint,
-   * with its neighbours flanking it. Instant on mount (no opening cinematics),
-   * smooth after.
+   * tap, an edge swipe — the strip glides so that day is the strip's midpoint.
+   * Instant on mount (no opening cinematics), smooth after.
+   *
+   * Measured from RECTS, not offsetLeft: offsetLeft answers to the nearest
+   * POSITIONED ancestor (the page wrapper), while scrolling answers to this
+   * box — the strip's -mx bleed sits between the two, so the offset route
+   * centred 4px short and the day sat just right of centre, always. Rects
+   * give the visible error directly; dividing by the frame's scale converts
+   * it back to scroll units, and the correction is exact by construction.
    */
   useLayoutEffect(() => {
     const c = scroller.current, t = selRef.current;
     if (!c || !t) return;
-    const left = t.offsetLeft - (c.clientWidth - t.offsetWidth) / 2;
-    c.scrollTo({ left, behavior: firstCentre.current ? "auto" : "smooth" });
+    const cr = c.getBoundingClientRect(), tr = t.getBoundingClientRect();
+    const scale = cr.width / c.clientWidth || 1;
+    const delta = (tr.left + tr.width / 2) - (cr.left + cr.width / 2);
+    c.scrollTo({ left: c.scrollLeft + delta / scale, behavior: firstCentre.current ? "auto" : "smooth" });
     firstCentre.current = false;
   }, [selected]);
   return (

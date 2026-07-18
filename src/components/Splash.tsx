@@ -6,10 +6,15 @@ import { AnimatePresence, motion } from "framer-motion";
 /**
  * The splash — one breath of brand, then out of the way.
  *
- * It exists because the store now rehydrates AFTER React mounts (see page.tsx):
+ * It exists because the store rehydrates AFTER React mounts (see page.tsx):
  * for a beat the app shows seed data before yesterday's household lands, and a
  * flash of the wrong family is worse than 1.2 seconds of logo. The splash covers
  * exactly that beat, doing brand work with time we had to spend anyway.
+ *
+ * It renders INSIDE the device frame — `absolute` over the screen, not `fixed`
+ * over the browser. This is what a person sees when they launch the app on
+ * their phone; painting the whole demo page with it said "website loading",
+ * not "app opening". The frame's rounded corners clip it, as the glass would.
  *
  * The mark is the app icon's grid, drawn live — one lemon cell, one lavender,
  * so the icon on your home screen and the first frame of the app are the same
@@ -27,7 +32,7 @@ export function Splash() {
       {!gone && (
         <motion.div
           exit={{ opacity: 0, transition: { duration: 0.45, ease: "easeOut" } }}
-          className="fixed inset-0 z-[999] grid place-items-center bg-ink"
+          className="absolute inset-0 z-[300] grid place-items-center bg-ink"
           aria-hidden
         >
           <div className="flex flex-col items-center gap-5">

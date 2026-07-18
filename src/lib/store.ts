@@ -276,6 +276,8 @@ interface HouseholdState {
   /** Arrival — end the live trip, mark the thing handled, dismiss. Fired by the
    *  trip itself when the ETA lands (stand-in for real location); no button. */
   arrive: () => void;
+  /** The traveler calls the trip off — logged, so the waiters know. */
+  cancelTrip: () => void;
   /** Tap-through — open the event's detail in the app, dismiss the island. */
   islandOpen: () => void;
   /** Mark an event handled. */
@@ -527,15 +529,12 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     const etaAt = now + 8 * 60_000;
 
     /**
-     * THE TRAVELER GETS MAPS, NOT A WIDGET. They're about to drive — the useful
-     * thing on their screen is directions, so the default maps app opens with
-     * the destination loaded. The LIVE TRIP belongs to the people in `waiting`
-     * (the island carries it and renders on THEIR phones — see DynamicIsland's
-     * audience rule): the kids watch Dad come; Dad watches the road.
+     * The LIVE TRIP belongs to the people in `waiting` (the island renders on
+     * THEIR phones — see DynamicIsland's audience rule): the kids watch Dad
+     * come. The traveler's screen would hand off to the maps app on a real
+     * phone — in this demo that's said in the status, not performed (yanking
+     * the person out of the app to a real browser tab isn't a demo of anything).
      */
-    if (typeof window !== "undefined" && where) {
-      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(where)}`, "_blank", "noopener");
-    }
     const names = (waiting ?? []).map((m) => members[m]?.name).filter(Boolean);
     const told = names.length === 0 ? "the house"
       : names.length === 1 ? names[0]
@@ -556,8 +555,26 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         waiting,
       },
       ...logged(s, `${name} is on the way${title ? ` — ${title}` : ""}`, who ?? undefined),
-      toast: `Told ${told} — Maps is up`,
+      toast: `Told ${told} — Maps would open with ${where ?? "the route"}`,
       toastWho: who,
+    }));
+  },
+
+  /**
+   * The TRAVELER's way out — plans change, the other parent got there first.
+   * Only the person driving can call a trip off; the audience can merely put
+   * the widget away (dismiss). Cancelling says so to the people who were told
+   * "on my way", so nobody stands at a gate watching a dead ETA.
+   */
+  cancelTrip: () => {
+    const { island, members } = get();
+    if (island?.phase !== "journey") return;
+    const name = island.who ? members[island.who]?.name : "Someone";
+    set((s) => ({
+      island: null,
+      ...logged(s, `${name} turned back${island.title ? ` — ${island.title}` : ""}`, island.who ?? undefined),
+      toast: "Trip called off — the house knows",
+      toastWho: island.who,
     }));
   },
 
@@ -1085,7 +1102,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 5: shopping gained an age-gated item (wine, minAge 18). Re-seed.
   // 6: "Auto" source label; demo events seeded relative to now. Re-seed.
   // 7: "On my way" needs an audience — `waiting` landed on the pickup. Re-seed.
-  version: 7,
+  // 8: dentist wears a tooth, yoga a lotus. Re-seed.
+  version: 8,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.

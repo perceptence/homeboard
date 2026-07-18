@@ -53,7 +53,11 @@ const sourceOf = (t: Task) =>
   t.source ?? (t.recurring ? "Routine" : t.suggest ? "Suggested" : "Added by you");
 
 export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean }) {
-  const { members, toggleTask, onWay, openSheet } = useHousehold();
+  const { members, toggleTask, onWay, cancelTrip, island, openSheet } = useHousehold();
+  /** A live trip FOR THIS TASK — the card is the traveler's surface, so while
+   *  the trip runs, its verb flips to calling it off (the audience's island
+   *  can only dismiss; only the driver can turn the car around). */
+  const tripLive = island?.phase === "journey" && island.taskId === task.id;
   const did = holder(task);
   const owner = did ? members[did] : undefined;
   /** Cover has to be VISIBLE or it's indistinguishable from a reassignment —
@@ -104,7 +108,11 @@ export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean 
                 announcement: a journey to a parcel locker is just a task, and
                 its verb is Done. Every action button wears its icon — one rule,
                 no stragglers. (`light` is WHITE — invisible on a white card.) */}
-            {!!task.waiting?.length && !task.done ? (
+            {tripLive ? (
+              <Button tone="outline" onClick={() => cancelTrip()}>
+                <Icon name="x" size={14} /> Cancel trip
+              </Button>
+            ) : !!task.waiting?.length && !task.done ? (
               <Button tone="dark" onClick={() => onWay(task.id)}>
                 <Icon name="car" size={14} /> On my way
               </Button>
