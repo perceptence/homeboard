@@ -486,8 +486,8 @@ function SettingsSheet() {
         <h2 className="min-w-0 font-tight text-h1">Settings</h2>
       </span>
 
-      {/* WHO YOU ARE — the portrait, then the two fields that are actually yours
-          to edit. Inputs commit on blur (a name change ripples to the header). */}
+      {/* WHO YOU ARE — the portrait, name, and the one contact detail the app
+          keeps: your email (falls back to the role for members with none). */}
       <div className="mt-5 flex items-center gap-4">
         {/* The portrait is the ONE place a photo is set. Tapping it opens the
             picker; the camera badge says so. */}
@@ -514,7 +514,7 @@ function SettingsSheet() {
         </label>
         <div className="min-w-0">
           <div className="truncate text-h2">{me.name}</div>
-          <div className="text-caption text-sub">{ROLE_LABEL[me.role]}</div>
+          <div className="truncate text-caption text-sub">{me.email || ROLE_LABEL[me.role]}</div>
           {me.photo && (
             <button
               onClick={() => s.setProfile({ photo: undefined })}
@@ -524,12 +524,6 @@ function SettingsSheet() {
             </button>
           )}
         </div>
-      </div>
-
-      <Eyebrow className="mt-6">Your details</Eyebrow>
-      <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
-        <SettingField label="Name" value={me.name} placeholder="Your name" onCommit={(v) => v && s.setProfile({ name: v })} />
-        <SettingField label="Email" value={me.email ?? ""} type="email" placeholder="Add your email" onCommit={(v) => s.setProfile({ email: v })} />
       </div>
 
       {/* ACCESS — the label, then WHAT it actually lets you do. The list is
@@ -588,30 +582,6 @@ function SettingsSheet() {
       </button>
       <p className="mt-4 text-center text-caption text-sub">Homeboard · demo build</p>
     </>
-  );
-}
-
-/** One editable settings row: label left, right-aligned input that commits on
- *  blur (typing every keystroke into the store would ripple the name across the
- *  app mid-edit). Local state re-syncs if the store value changes underneath. */
-function SettingField({
-  label, value, placeholder, type = "text", onCommit,
-}: { label: string; value: string; placeholder?: string; type?: string; onCommit: (v: string) => void }) {
-  const [v, setV] = useState(value);
-  useEffect(() => setV(value), [value]);
-  return (
-    <label className="flex items-center gap-3 px-4 py-3.5">
-      <span className="w-16 shrink-0 text-bodysm font-medium">{label}</span>
-      <input
-        type={type}
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-        onBlur={() => { const t = v.trim(); if (t !== value) onCommit(t); }}
-        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-        placeholder={placeholder}
-        className="min-w-0 flex-1 bg-transparent text-right text-bodysm outline-none placeholder:text-sub/70"
-      />
-    </label>
   );
 }
 
