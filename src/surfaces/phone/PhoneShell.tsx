@@ -226,10 +226,17 @@ export function PhoneShell() {
                 }
               />
             )}
-            {/* The You tab carries NO header text — its content leads with the
-                portrait (name + household as its eyebrow), so a header eyebrow
-                here would either hang alone or say the home twice. Just the
-                actions ride the top-right. */}
+            {/* The You header IS the identity — portrait + household/name — so it
+                fills the same band every other tab's title fills (no empty top
+                gap), and the body below leads straight into the standing. */}
+            {route === "you" && (
+              // pl-1.5 seats the avatar on the SAME column as the body's stat
+              // toggle and task rows (header gutter is 4px tighter than card pad).
+              <div className="flex items-center gap-3 pl-1.5">
+                <Avatar member={me} size={48} />
+                <TitleBlock size="page" tone="onDark" eyebrow={s.householdName} title={me.name} subtext={ROLE_LABEL[me.role]} />
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 items-center">
             {/* The gear rides the YOU header — that tab is your dashboard, and
@@ -1286,20 +1293,9 @@ function PhoneYou() {
 
   return (
     <>
-      {/* HERO — identity laid on the page. It absorbs the household as its own
-          eyebrow, so the header no longer hangs a lone "Rivera Home". Indented to
-          p-inner so the name lines up with the gray card's title below. */}
-      <motion.div variants={listItem} className="flex items-center gap-4 px-inner pb-1 pt-1">
-        <Avatar member={me} size={64} />
-        <div className="min-w-0">
-          <Eyebrow tone="onDark">{s.householdName}</Eyebrow>
-          <div className="mt-hair font-tight text-h1 leading-none text-white">{me.name}</div>
-          <div className="mt-1.5 truncate text-caption text-white/60">{ROLE_LABEL[me.role]}</div>
-        </div>
-      </motion.div>
-
-      {/* STANDING — three lenses over one detail area, on the page (no card). */}
-      <motion.div variants={listItem} className="px-inner pb-2">
+      {/* STANDING — three lenses over one detail area, on the page (no card).
+          Identity now lives in the header, so the body opens straight here. */}
+      <motion.div variants={listItem} className="px-inner pb-2 pt-1">
         <div className="flex gap-1 rounded-md bg-white/[.05] p-1">
           {LENSES.map((l) => {
             const on = lens === l.key;
