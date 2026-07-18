@@ -764,7 +764,30 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     }),
 
   toggleShopItem: (id) =>
-    set((s) => ({ shopping: s.shopping.map((i) => (i.id === id ? { ...i, done: !i.done } : i)) })),
+    set((s) => {
+      /**
+       * THE DEAD-CHECK BUG. A "Running low" row can be DERIVED — shoppingList()
+       * invents it from inventory with id `auto-<inv>`; it exists in no array.
+       * Mapping s.shopping missed it entirely, so those three checks ate taps
+       * and did nothing — "clicks not working, very intermittent": real rows
+       * worked, derived ones were dead. Buying one now MATERIALISES it as a
+       * real crossed-off item (the selector stops re-deriving it by title), so
+       * un-checking and "Clear bought" treat it like anything else.
+       */
+      if (id.startsWith("auto-")) {
+        const inv = s.inventory.find((i) => i.id === id.slice(5));
+        if (!inv) return {};
+        return {
+          shopping: [...s.shopping, {
+            id,
+            title: inv.title,
+            category: (inv.title === "Dog food" ? "Pet" : inv.location === "Under sink" ? "Supplies" : "Groceries") as ShopItem["category"],
+            low: true, done: true, auto: true,
+          }],
+        };
+      }
+      return { shopping: s.shopping.map((i) => (i.id === id ? { ...i, done: !i.done } : i)) };
+    }),
 
   addShopItem: (title, category) =>
     set((s) => {
@@ -777,7 +800,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         shopping: [{ id: `s${++nextId}`, title, category, low: false, done: false, by }, ...s.shopping],
         // The sheet STAYS OPEN — people add three things, not one. (It used to
         // set `sheet: null` here, which slammed the list shut on every Add.)
-        toast: "Added to shopping",
+        // The toast NAMES THE AISLE: the app filed it without asking, so it
+        // says where — transparency instead of a question.
+        toast: `Added to ${category}`,
         ...logged(s, `${name} added ${title} to the shopping list`, by),
       };
     }),

@@ -237,26 +237,22 @@ function RebalanceSheet() {
 function ShopSheet() {
   const s = useHousehold();
   const [text, setText] = useState("");
-  /** Explicit aisle pick; null = go with the live guess (effCat below). */
-  const [cat, setCat] = useState<ShopCategory | null>(null);
   const list = shoppingList(s);
   const open = list.filter((i) => !i.done);
   const done = list.filter((i) => i.done);
 
   /**
-   * EVERYTHING TYPED used to file under Groceries — hardcoded, so "dish soap"
-   * landed with the food. Now the aisle is READ from the words, the guess is
-   * SHOWN live on the chips under the input (type "sponges", watch Supplies
-   * light up), and one tap overrides it. Visible inference: the app shows its
-   * working instead of being quietly wrong.
+   * THE AISLE IS THE APP'S JOB, not a question. A person scribbling "sponges"
+   * on the fridge list doesn't file it — the app reads the words (inferCat)
+   * and the TOAST says where it went ("Added to Supplies"): transparency
+   * instead of a picker. (v1 hardcoded Groceries; v2 asked with chips — a
+   * decision nobody wanted handed to them.)
    */
-  const effCat: ShopCategory = cat ?? inferCat(text);
   const add = () => {
     const t = text.trim();
     if (!t) return;
-    s.addShopItem(t, effCat);
+    s.addShopItem(t, inferCat(t));
     setText("");
-    setCat(null);
   };
 
   /**
@@ -300,8 +296,19 @@ function ShopSheet() {
     .filter((g) => g.items.length)
     .sort((a, b) => Number(a.allDone) - Number(b.allDone));
 
+  /**
+   * `layout`, and it's a BUG FIX, not garnish: checking an item re-sorts it to
+   * the group's foot INSTANTLY — rows teleported under the finger, the next
+   * row slid into the tap you'd already aimed, and the list read as "clicks
+   * not working". Animated, the same reorder is legible motion: you see your
+   * item glide down, and nothing swaps places inside a tap. */
   const Row = (i: (typeof list)[number]) => (
-    <div key={i.id} className="flex min-h-touch items-center gap-3 border-t border-ink/[.05] py-2 first:border-t-0">
+    <motion.div
+      layout
+      key={i.id}
+      transition={smooth}
+      className="flex min-h-touch items-center gap-3 border-t border-ink/[.05] py-2 first:border-t-0"
+    >
       {gated(i) ? (
         /* A dashed ring with a small lock: "someone else ticks this one". Not
            red, not an error — nothing failed, it's just not this person's claim
@@ -310,10 +317,11 @@ function ShopSheet() {
           <Icon name="lock" size={11} />
         </span>
       ) : (
-        <Check done={i.done} onClick={() => s.toggleShopItem(i.id)} />
+        <Check done={i.done} size={26} onClick={() => s.toggleShopItem(i.id)} />
       )}
       <span className="min-w-0 flex-1">
-        <span className={clsx("block truncate text-bodysm font-medium", i.done && "text-sub line-through")}>
+        {/* Body size, not bodysm — this list is read mid-aisle at arm's length. */}
+        <span className={clsx("block truncate text-body font-medium", i.done && "text-sub line-through")}>
           {i.title}
         </span>
         {i.note && !i.done && <span className="block text-caption text-sub">{i.note}</span>}
@@ -325,8 +333,8 @@ function ShopSheet() {
       {/* WHOSE want this is — a want has a wanter, and on the one truly shared
           surface "who asked for this?" deserves an answer at a glance. The
           house's asks wear the pill above instead; both kinds are attributed. */}
-      {i.by && !i.low && !i.done && <Avatar member={s.members[i.by]} size={18} />}
-    </div>
+      {i.by && !i.low && !i.done && <Avatar member={s.members[i.by]} size={20} />}
+    </motion.div>
   );
 
   return (
@@ -347,25 +355,25 @@ function ShopSheet() {
         </p>
       )}
 
-      {/* Each aisle is a WHITE card on the grey sheet — the same list-in-a-sheet
-          system the hand-off wears, so the two read as one app. (The last
-          attempt used surface-toned wells: invisible on the sheet's own grey,
-          all inset and no card. White is the tone that reads here, and 16px
-          inside a VISIBLE card is ordinary card anatomy, not stray indent.)
-          Header: the aisle's glyph in a lemon tile, its name, its own count. */}
+      {/* Each aisle is a WHITE card on the grey sheet, and its header wears the
+          SAME anatomy as a hand-off row: an INK STADIUM with the aisle's glyph
+          in lemon, then the name over its count — the strong dark anchor that
+          keeps a list from reading as a link farm. One anatomy, two sheets. */}
       <div className="mt-4 space-y-3">
         {groups.map((g) => (
           <div key={g.cat} className={clsx("rounded-card bg-card p-4", g.allDone && "opacity-60")}>
-            <div className="flex items-center gap-2.5">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-pill bg-lemon text-ink">
-                <Icon name={g.glyph} size={15} />
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-pill bg-ink text-lemon">
+                <Icon name={g.glyph} size={20} />
               </span>
-              <Eyebrow>{g.cat}</Eyebrow>
-              <span className="ml-auto text-caption tabular-nums text-sub">
-                {g.allDone ? "all bought" : `${g.left} to get`}
-              </span>
+              <div className="min-w-0">
+                <Eyebrow>{g.cat}</Eyebrow>
+                <div className="mt-hair text-bodysm font-medium text-sub">
+                  {g.allDone ? "All bought" : `${g.left} to get`}
+                </div>
+              </div>
             </div>
-            <div className="mt-1.5">{g.items.map(Row)}</div>
+            <div className="mt-2">{g.items.map(Row)}</div>
           </div>
         ))}
       </div>
@@ -411,39 +419,6 @@ function ShopSheet() {
         )}
       </label>
 
-      {/* THE AISLE, DECIDED IN THE OPEN. Appears only while typing: the guess
-          from the words is already lit (watch it switch as you type "sponges"),
-          and a tap overrides it. The lit chip is where Add will file it. */}
-      <AnimatePresence initial={false}>
-        {text.trim() && (
-          <motion.div
-            key="aisle"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={smooth}
-            className="overflow-hidden"
-          >
-            <div className="flex items-center gap-1.5 pl-2 pt-2">
-              <span className="mr-1 text-caption text-sub">Aisle</span>
-              {CATS.map(({ cat: c, glyph }) => (
-                <button
-                  key={c}
-                  onClick={() => setCat(c)}
-                  className={clsx(
-                    "flex items-center gap-1 rounded-pill border px-2.5 py-1.5 text-caption font-semibold transition-colors duration-300",
-                    effCat === c
-                      ? "border-ink bg-ink text-white"
-                      : "border-ink/[.08] bg-card text-sub",
-                  )}
-                >
-                  <Icon name={glyph} size={13} /> {c}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   );
 }
