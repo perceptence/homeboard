@@ -6,13 +6,13 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { SAFE_TOP } from "@/components/DeviceFrame";
 import { EventCard, MaintCard, TaskCard } from "@/components/TaskCard";
-import { ActionButton, Avatar, Button, Card, Check, Choice, Em, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, Sentence, TabToggle, TitleBlock } from "@/components/ui";
+import { ActionButton, Avatar, Button, Card, Choice, Em, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerPanel, Pill, Sentence, TabToggle, TitleBlock } from "@/components/ui";
 import { listItem, listStagger, press, smooth, spring } from "@/lib/motion";
 import {
   addDays, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
   periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel, type Period,
 } from "@/lib/dates";
-import { awayOn, coveredFor, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
+import { awayOn, currentMember, doers, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
 import type { HouseEvent, MaintItem, MemberId, PhoneRoute, Presence, Task } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
@@ -1196,16 +1196,6 @@ const PRESENCE_CHOICES: { key: Presence; label: string }[] = [
   { key: "away", label: "Away" },
 ];
 
-/** The state, in the person's own voice — the card's 18px title.
- *  No date on the `away` line: the chip under it is the date's control and shows
- *  its own value ("Back Monday"), so saying it twice would be noise. */
-const PRESENCE_TITLE: Record<Presence, string> = {
-  here: "You’re around",
-  wfh: "You’re home today",
-  out: "You’re out today",
-  away: "You’re away",
-};
-
 /**
  * What the app DOES about it — the reason to touch this card at all, and the
  * only line that survives the fold.
@@ -1253,50 +1243,11 @@ function PhoneYou() {
   const me = s.members[meId];
   const people = doers(s);
 
-  const load = (id: MemberId) => pendingFor(s, id);
-  const board = people.map((m) => ({ m, n: load(m.id) })).sort((a, b) => b.n - a.n);
-  const mine = load(meId);
-  /** The rest of the house, still ordered heaviest-first — you're pulled out as
-   *  the headline, so the board's ranking only has to hold for everyone else. */
-  const others = board.filter(({ m }) => m.id !== meId);
-
-  /**
-   * THE APP'S JUDGEMENT — and it asks the BALANCER, rather than re-deriving it.
-   *
-   * This card used to compute its own fairness as `most - least >= 2` off the raw
-   * board, and that was wrong twice over:
-   *
-   *  1. `least` is Ada, at 0 — a seven-year-old the role floor bars from almost
-   *     everything. So the gap was permanently >= 2 and "Fairly shared right now"
-   *     could essentially never appear: the card would insist, forever, that
-   *     somebody had "the most", measured against a child who isn't allowed to
-   *     help.
-   *  2. On a tie (Sam 5, Maya 5) it named whichever sorted first — telling Sam
-   *     that Maya "has the most" while he held exactly as much.
-   *
-   * `previewRebalance` has neither flaw: it only counts people who could
-   * ACTUALLY take the work, and it's the same call the button and the confirm
-   * sheet make. So the sentence, the button, and the sheet can never disagree —
-   * if it says nothing is worth moving, the card says the house is level.
-   */
-  const move = previewRebalance(s);
-
-  /**
-   * `rebalance()` moves work off the HEAVIEST person, and only when it can find a
-   * taker who'd actually even things up. Both facts have to gate the button, or
-   * it's a control that lies: offered when it would refuse, or offered on MY page
-   * while it quietly takes work off Sam.
-   *
-   * Asking the Balancer beats re-deriving its rule — this was a hand-copy of
-   * `most - least >= 2` that had drifted from the real precondition and measured
-   * against people who couldn't take the work anyway.
-   */
-  const canEven = !!move && move.from.id === meId;
+  const mine = pendingFor(s, meId);
 
   /* --- where you are --- */
   const av = me.availability ?? { presence: "here" as Presence };
   const presence = av.presence;
-  const [whereOpen, setWhereOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const [quietOpen, setQuietOpen] = useState(false);
   const [quietEdge, setQuietEdge] = useState<"from" | "to">("from");
@@ -1315,212 +1266,207 @@ function PhoneYou() {
   const needsCover = presence === "away"
     ? s.tasks.filter((t) => t.owner === meId && !t.done && !t.coveredBy && awayOn(me, t.due))
     : [];
-  const covered = presence === "away" ? coveredFor(s, meId) : [];
-  /** Distinct people, not tasks — two jobs on one person is one name. */
-  const coverNames = [...new Set(covered.map((t) => s.members[t.coveredBy!]?.name ?? "Someone"))];
 
   const jobs = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];
 
-  /* THE LOAD, IN WARM WORDS — not a percentage, not "you have the most". It's a
-     home, not a scoreboard: the line appreciates what you're carrying, and the
-     faces are the family for context, not a ranking. Smartness stays IMPLICIT
-     (which line shows is computed) — no card announces "AI". */
-  const houseLoad = board.reduce((sum, b) => sum + b.n, 0);
-  const fairShare = houseLoad / Math.max(1, board.length);
-  const overloaded = board.length > 1 && mine > fairShare * 1.3;
-  const lighter = board.length > 1 && mine > 0 && mine < fairShare * 0.7;
-  const loadLine =
-    mine === 0 ? "You’re all clear right now."
-    : board.length < 2 ? "It’s all you right now."
-    : overloaded ? "You’re doing a lot for the house right now."
-    : lighter ? "A lighter stretch — you’ve earned it."
-    : "You’re pulling your weight nicely.";
+  /* THE MEMBER CARD — the You tab is ONE ownable object, not a stack of cards.
+     Identity, standing, rhythms, and the single control that's yours to set
+     (presence) all live inside one elevated card on the ink. Dark-on-dark by
+     design: this is the member's own crest, deliberately unlike the white cards
+     everywhere else in the app — that contrast is the tab's whole identity. */
+  const rhythms = s.tasks.filter((t) => t.owner === meId && t.recurring);
+  const effect = PRESENCE_EFFECT[presence](av.to);
+  /** The member's place in the household, worn as an ID number — ludic, and
+   *  stable because member order is. */
+  const serial = String(Math.max(1, people.findIndex((m) => m.id === meId) + 1)).padStart(3, "0");
+  /** Presence at a glance: a status dot + a word. The dot's colour reads STATE,
+   *  never brand — the lemon is spent once, on the active segment below. */
+  const PRESENCE_DOT: Record<Presence, { word: string; dot: string }> = {
+    here: { word: "Here", dot: "#28A98B" },
+    wfh: { word: "Home today", dot: "#3E86C8" },
+    out: { word: "Out today", dot: "#C9A21A" },
+    away: { word: "Away", dot: "#C9A21A" },
+  };
+  const status = PRESENCE_DOT[presence];
+  /** Short labels for the segmented control — the effect line carries the
+   *  meaning, so the chips don't have to spell it out. */
+  const SEG: Record<Presence, string> = { here: "Here", wfh: "Home", out: "Out", away: "Away" };
 
   return (
-    <>
-      {/* Every card wears the house pattern: icon tile, space, title block, then
-          the data. (1) YOUR LOAD — a warm read, the family as context, the verb. */}
-      <motion.div variants={listItem}>
-        <Card>
-          <IconTile name="scale" tone="lemon" />
-          <TitleBlock className="mt-6" wrap eyebrow="Your load" title={loadLine} />
+    <motion.div variants={listItem}>
+      <div className="rounded-card border border-white/10 bg-white/[.05] p-inner">
 
-          {/* The family, for context — you first, then everyone else. Numbers are
-              a quiet reference for handing off, not a leaderboard. */}
-          <div className="mt-4 flex items-end gap-5">
-            <div className="flex shrink-0 flex-col items-center gap-1.5">
-              <Avatar member={me} size={56} />
-              <span className="font-tight text-[22px] leading-none tabular-nums">{mine}</span>
+        {/* CREST BAND — a household member card, and its live state. */}
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-caption font-medium text-white/45">
+            <Icon name="house" size={15} /> Member
+          </span>
+          <span className="flex items-center gap-1.5 text-caption text-white/45">
+            <span className="h-2 w-2 rounded-pill" style={{ background: status.dot }} />
+            {status.word}
+          </span>
+        </div>
+
+        {/* PORTRAIT — the person, large; this screen is about them, not the work. */}
+        <div className="mt-5 flex items-center gap-3.5">
+          <Avatar member={me} size={60} />
+          <div className="min-w-0">
+            <div className="font-tight text-h1 leading-none text-white">{me.name}</div>
+            <div className="mt-1.5 truncate text-caption text-white/45">
+              {ROLE_LABEL[me.role]} · {status.word.toLowerCase()}
             </div>
-            {others.map(({ m, n }) => (
-              <div key={m.id} className="flex flex-col items-center gap-1.5 pb-[2px]">
-                <Avatar member={m} size={34} />
-                <span className="font-tight text-[15px] leading-none tabular-nums text-sub">{n}</span>
-              </div>
-            ))}
           </div>
+        </div>
 
-          {mine > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {canEven && (
-                <Button tone="dark" onClick={() => s.openSheet({ type: "rebalance" })}>
-                  <Icon name="scale" size={14} /> Even it out
-                </Button>
-              )}
-              <Button tone="outline" onClick={() => s.openSheet({ type: "handoff" })}>
-                <Icon name="handoff" size={14} /> Hand one off
-              </Button>
+        {/* STAT STRIP — the member's standing, read like a card's stats. */}
+        <div className="mt-5 flex border-y border-white/10">
+          {[
+            { n: mine, label: "Carrying" },
+            { n: jobs.length, label: "Looks after" },
+            { n: rhythms.length, label: "Rhythms" },
+          ].map((stat, i) => (
+            <div key={stat.label} className={clsx("flex-1 py-3.5", i > 0 && "border-l border-white/10 pl-4")}>
+              <div className="font-tight text-[26px] leading-none tabular-nums text-white">{stat.n}</div>
+              <div className="mt-1.5 text-micro uppercase tracking-[.06em] text-white/40">{stat.label}</div>
             </div>
-          )}
-        </Card>
-      </motion.div>
+          ))}
+        </div>
 
-      {/* (2) WHERE YOU ARE — the one card that changes what the app does; the
-          effect line says how. Controls fold behind Adjust (unchanged). */}
-      <motion.div variants={listItem}>
-        <Card>
-          <IconTile name="pin" tone="lemon" />
-          <TitleBlock
-            className="mt-6"
-            eyebrow="Where you are"
-            title={PRESENCE_TITLE[presence]}
-            subtext={
-              <>
-                <span>
-                  {presence === "away" && needsCover.length
-                    ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${needsCover.length} ${needsCover.length === 1 ? "task" : "tasks"} still on you.`
-                    : presence === "away" && covered.length
-                      ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${listOf(coverNames)} ${coverNames.length === 1 ? "has" : "have"} it covered.`
-                      : PRESENCE_EFFECT[presence](av.to)}
-                </span>
-                {av.quiet && (
-                  <span className="flex items-center gap-1">
-                    <Icon name="moon" size={12} className="shrink-0" />
-                    Quiet {to12(av.quiet.from)} – {to12(av.quiet.to)}
-                  </span>
-                )}
-              </>
-            }
-          />
+        {/* RHYTHMS — the standing cadence the app keeps for you, no reminders needed. */}
+        {rhythms.length > 0 && (
+          <div className="mt-5">
+            <div className="text-micro uppercase tracking-[.09em] text-white/40">Your rhythms</div>
+            <div className="mt-2.5">
+              {rhythms.slice(0, 3).map((r) => (
+                <div key={r.id} className="flex items-center justify-between gap-3 py-1.5">
+                  <span className="min-w-0 truncate text-bodysm text-white/80">{r.title}</span>
+                  <span className="shrink-0 text-caption text-white/40">{r.recurring}</span>
+                </div>
+              ))}
+              {rhythms.length > 3 && (
+                <div className="pt-1 text-caption text-white/35">+{rhythms.length - 3} more</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* PRESENCE — the one thing you SET here; the effect line says what it does. */}
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <div className="text-bodysm text-white/70">{effect}</div>
 
           {needsCover.length > 0 && (
-            <Button tone="dark" className="mt-3" onClick={() => s.coverAway(meId)}>
+            <Button tone="light" className="mt-3" onClick={() => s.coverAway(meId)}>
               <Icon name="handoff" size={14} />
               Find cover for {needsCover.length === 1 ? "it" : `all ${needsCover.length}`}
             </Button>
           )}
 
-          <button
-            onClick={() => setWhereOpen((v) => !v)}
-            aria-expanded={whereOpen}
-            className="mt-2 flex items-center gap-1 text-caption font-medium text-sub transition-colors hover:text-ink"
-          >
-            {whereOpen ? "Done" : "Adjust"}
-            <motion.span animate={{ rotate: whereOpen ? 180 : 0 }} transition={smooth} className="flex">
-              <Icon name="chevDown" size={12} />
-            </motion.span>
-          </button>
+          {/* The 4-way selector. Its active state is the composition's ONE lemon. */}
+          <div className="mt-3 flex gap-1 rounded-pill bg-white/[.06] p-1">
+            {PRESENCE_CHOICES.map(({ key }) => {
+              const on = presence === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => s.setPresence(meId, key, key === "away" ? { from: av.from, to: av.to } : undefined)}
+                  aria-pressed={on}
+                  className={clsx(
+                    "flex-1 rounded-pill py-2.5 text-bodysm font-medium transition-colors",
+                    on ? "bg-lemon text-ink" : "text-white/55 hover:text-white/80",
+                  )}
+                >
+                  {SEG[key]}
+                </button>
+              );
+            })}
+          </div>
 
-          <AnimatePresence initial={false}>
-            {whereOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={smooth}
-                className="overflow-hidden"
-              >
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {PRESENCE_CHOICES.map(({ key, label }) => (
-                    <Choice
-                      key={key}
-                      selected={presence === key}
-                      onClick={() => s.setPresence(meId, key, key === "away" ? { from: av.from, to: av.to } : undefined)}
-                    >
-                      {label}
-                    </Choice>
-                  ))}
-                </div>
-
-                {presence === "away" && (
-                  <div className="mt-2">
-                    <PickerChip kind="date" open={dateOpen} onToggle={() => setDateOpen((v) => !v)} active={!!av.to}>
-                      {av.to ? `Back ${relative(av.to)}` : "Until when?"}
-                    </PickerChip>
-                    <PickerPanel open={dateOpen}>
-                      <MiniCalendar
-                        value={av.to ?? todayIso()}
-                        onPick={(v) => { s.setPresence(meId, "away", { from: av.from, to: v }); setDateOpen(false); }}
-                      />
-                    </PickerPanel>
-                  </div>
+          {/* Away needs a return date. It opens into a LIGHT picker so the calendar
+              stays legible over the dark card — a popover, not a restyle. */}
+          {presence === "away" && (
+            <div className="mt-2">
+              <button
+                onClick={() => setDateOpen((v) => !v)}
+                aria-expanded={dateOpen}
+                className={clsx(
+                  "flex h-touch items-center gap-2 rounded-pill border px-3.5 text-bodysm font-medium transition-colors",
+                  av.to || dateOpen ? "border-white/25 bg-white/10 text-white" : "border-white/15 text-white/60 hover:text-white",
                 )}
-
-                <div className="mt-4 border-t border-ink/[.06] pt-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-bodysm font-medium">Quiet hours</div>
-                      <div className="mt-hair text-caption text-sub">
-                        {av.quiet ? `${to12(av.quiet.from)} – ${to12(av.quiet.to)}` : "Reminders can reach you any time"}
-                      </div>
-                    </div>
-                    <PickerChip kind="time" open={quietOpen} onToggle={() => setQuietOpen((v) => !v)} active={!!av.quiet}>
-                      {av.quiet ? "Change" : "Set"}
-                    </PickerChip>
-                  </div>
-                  <PickerPanel open={quietOpen}>
-                    <div className="flex flex-wrap gap-2">
-                      <Choice selected={quietEdge === "from"} onClick={() => setQuietEdge("from")}>From {to12(quiet.from)}</Choice>
-                      <Choice selected={quietEdge === "to"} onClick={() => setQuietEdge("to")}>To {to12(quiet.to)}</Choice>
-                    </div>
-                    <div className="mt-2">
-                      <MiniClock
-                        value={to12(quiet[quietEdge])}
-                        onPick={(v) => s.setQuietHours(meId, { ...quiet, [quietEdge]: to24(v) })}
-                      />
-                    </div>
-                    {av.quiet && (
-                      <button
-                        onClick={() => { s.setQuietHours(meId, undefined); setQuietOpen(false); }}
-                        className="mt-1 w-full py-2 text-caption text-sub transition-colors hover:text-ink"
-                      >
-                        Turn off quiet hours
-                      </button>
-                    )}
-                  </PickerPanel>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </Card>
-      </motion.div>
-
-      {/* (3) YOU LOOK AFTER — the standing patch (renamed), domains as chips. */}
-      {jobs.length > 0 && (
-        <motion.div variants={listItem}>
-          <Card>
-            <IconTile name="grid" tone="lemon" />
-            <TitleBlock
-              className="mt-6"
-              eyebrow="You look after"
-              title={listOf(me.responsibility?.domains.length ? me.responsibility.domains : me.responsibility?.spaces ?? [])}
-            />
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {jobs.map((j) => <Pill key={j} tone="tag">{j}</Pill>)}
+              >
+                <Icon name="cal" size={14} />
+                {av.to ? `Back ${relative(av.to)}` : "Until when?"}
+                <motion.span animate={{ rotate: dateOpen ? 180 : 0 }} transition={smooth} className="flex">
+                  <Icon name="chevDown" size={12} />
+                </motion.span>
+              </button>
+              <PickerPanel open={dateOpen}>
+                <MiniCalendar
+                  value={av.to ?? todayIso()}
+                  onPick={(v) => { s.setPresence(meId, "away", { from: av.from, to: v }); setDateOpen(false); }}
+                />
+              </PickerPanel>
             </div>
-          </Card>
-        </motion.div>
-      )}
+          )}
 
-      {/* YOUR ACCESS — static, so a one-line FOOTNOTE, not a card. */}
-      <motion.div variants={listItem}>
-        <p className="flex items-center gap-1.5 px-1 pb-1 text-caption text-white/40">
-          <Icon name="key" size={12} className="shrink-0" />
-          {ROLE_LABEL[me.role]}
-          {me.role !== "owner" && <span className="text-white/30"> · only {ownerName(s)} can change this</span>}
-        </p>
-      </motion.div>
-    </>
+          {/* QUIET HOURS — separate from presence: a window, not a state. */}
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+            <div className="min-w-0">
+              <div className="text-bodysm font-medium text-white">Quiet hours</div>
+              <div className="mt-hair text-caption text-white/45">
+                {av.quiet ? `${to12(av.quiet.from)} – ${to12(av.quiet.to)}` : "Reminders can reach you any time"}
+              </div>
+            </div>
+            <button
+              onClick={() => setQuietOpen((v) => !v)}
+              aria-expanded={quietOpen}
+              className={clsx(
+                "flex h-touch shrink-0 items-center gap-2 rounded-pill border px-3.5 text-bodysm font-medium transition-colors",
+                av.quiet || quietOpen ? "border-white/25 bg-white/10 text-white" : "border-white/15 text-white/60 hover:text-white",
+              )}
+            >
+              <Icon name="clock" size={14} />
+              {av.quiet ? "Change" : "Set"}
+              <motion.span animate={{ rotate: quietOpen ? 180 : 0 }} transition={smooth} className="flex">
+                <Icon name="chevDown" size={12} />
+              </motion.span>
+            </button>
+          </div>
+          <PickerPanel open={quietOpen}>
+            <div className="flex flex-wrap gap-2">
+              <Choice selected={quietEdge === "from"} onClick={() => setQuietEdge("from")}>From {to12(quiet.from)}</Choice>
+              <Choice selected={quietEdge === "to"} onClick={() => setQuietEdge("to")}>To {to12(quiet.to)}</Choice>
+            </div>
+            <div className="mt-2">
+              <MiniClock
+                value={to12(quiet[quietEdge])}
+                onPick={(v) => s.setQuietHours(meId, { ...quiet, [quietEdge]: to24(v) })}
+              />
+            </div>
+            {av.quiet && (
+              <button
+                onClick={() => { s.setQuietHours(meId, undefined); setQuietOpen(false); }}
+                className="mt-1 w-full py-2 text-caption text-sub transition-colors hover:text-ink"
+              >
+                Turn off quiet hours
+              </button>
+            )}
+          </PickerPanel>
+
+          {me.role !== "owner" && (
+            <p className="mt-4 flex items-center gap-1.5 text-caption text-white/40">
+              <Icon name="key" size={12} className="shrink-0" />
+              Only {ownerName(s)} can change your access
+            </p>
+          )}
+        </div>
+
+        {/* SERIAL FOOTER — the ID-card flourish that makes it a thing you own. */}
+        <div className="mt-5 flex items-center justify-between border-t border-white/[.06] pt-3.5 text-micro uppercase tracking-[.14em] text-white/25">
+          <span>No. {serial}</span>
+          <span className="truncate pl-3">{s.householdName}</span>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
