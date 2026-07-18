@@ -1294,8 +1294,7 @@ function PhoneYou() {
   /* --- where you are --- */
   const av = me.availability ?? { presence: "here" as Presence };
   const presence = av.presence;
-  /** Which settings row is expanded in place (accordion — one at a time). */
-  const [openRow, setOpenRow] = useState<"where" | "patch" | "access" | null>(null);
+  const [whereOpen, setWhereOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
   const [quietOpen, setQuietOpen] = useState(false);
   const [quietEdge, setQuietEdge] = useState<"from" | "to">("from");
@@ -1318,218 +1317,349 @@ function PhoneYou() {
   /** Distinct people, not tasks — two jobs on one person is one name. */
   const coverNames = [...new Set(covered.map((t) => s.members[t.coveredBy!]?.name ?? "Someone"))];
 
-  const jobs = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];  /** The tile's word for where you are, and its one-line story underneath. */
-  const presenceWord = PRESENCE_CHOICES.find((c) => c.key === presence)?.label ?? "Here";
-  const presenceStory =
-    needsCover.length ? `${needsCover.length} ${needsCover.length === 1 ? "task needs" : "tasks need"} cover`
-    : covered.length ? `${listOf(coverNames)} covering`
-    : presence === "away" && av.to ? `Back ${relativeInline(av.to)}`
-    : av.quiet ? `Quiet ${to12(av.quiet.from)} – ${to12(av.quiet.to)}`
-    : "Work shares out as normal";
-  const rowVal = (r: "where" | "patch" | "access") =>
-    r === "where" ? presenceWord
-    : r === "patch" ? (jobs.length ? `${jobs.length} ${jobs.length === 1 ? "area" : "areas"}` : "None")
-    : ROLE_LABEL[me.role];
+  const jobs = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];
 
   return (
-    /* THE YOU TAB — a PROFILE, not a card stack. Three registers, top to
-       bottom: a PORTRAIT band (your face + role, name lives in the header
-       above so it isn't said twice), the LOAD as the one data panel, then
-       everything else as an inset SETTINGS LIST whose rows expand IN PLACE —
-       the control opens directly under the label it belongs to, which is the
-       whole fix: the bento's drawer opened somewhere else and read as broken. */
     <>
-      {/* 1 · PORTRAIT — you, on the app's own night. */}
-      <motion.div variants={listItem} className="flex flex-col items-center gap-2.5 pb-1 pt-1 text-center">
-        <span className="rounded-pill p-[3px] ring-1 ring-white/15">
-          <Avatar member={me} size={84} />
-        </span>
-        <div>
-          <div className="text-body font-medium text-white">{ROLE_LABEL[me.role]}</div>
-          <div className="mt-0.5 text-caption text-white/45">{ROLE_HINT[me.role]}</div>
-        </div>
-        {me.role === "guided" && (
-          <span className="rounded-pill bg-white/[.08] px-3 py-1 font-tight text-bodysm tabular-nums text-star">
-            ★ {me.stars ?? 0} stars
-          </span>
-        )}
-      </motion.div>
-
-      {/* 2 · YOUR LOAD — the household as a family photo; the tab's one panel.
-          Ink lifted a step off the backdrop, your count the single lemon. */}
+      {/* 1 · YOUR LOAD — comparative, and with a verb.
+          Compact on purpose: this card was ~300px and said "5" THREE times — a
+          display numeral, a 28px sentence repeating it, and the bars saying it
+          again — over an icon tile that carried no information. The bars ARE the
+          insight; everything stacked above them was preamble. One line of voice,
+          then the evidence, then the verb. */}
+      {/* Always WHITE, never lemon. Lemon is the day's hero (DESIGN §2) — the
+          app's affirmative tone — so painting the card with it when you're
+          carrying too much said "great news!" about an imbalance. This app has
+          no alert slab on purpose: `danger` is a label, never a fill. The
+          sentence names the problem and the dark button offers the fix; that's
+          the whole signal, and it doesn't need to shout in the day's colour. */}
       <motion.div variants={listItem}>
-        <div className="rounded-card bg-[#1B1B21] p-5 text-white shadow-e3 ring-1 ring-inset ring-white/[.07]">
-          <Eyebrow tone="onDark">Your load</Eyebrow>
-          <div className="mt-1 text-h2">{headline}</div>
+        <Card>
+          {/* Icon LEADS, text sits to its right — the row shape the progress card
+              already uses, and the one that reads as "a labelled thing" rather than
+              a glyph parked above a paragraph. Stacking it made every card open with
+              40px of nothing.
+              `scale` is the same glyph as "Even it out": the card's subject and its
+              verb, said once. */}
+          {/* Icon on its own line, then the eyebrow/title pair, then the data —
+              the progress card's shape, applied across the whole profile so every
+              card on this tab opens the same way. */}
+          <IconTile name="scale" tone="lemon" />
+          {/* No subtext: the stat block IS the detail, and it says its own unit. */}
+          <TitleBlock className="mt-6" eyebrow="Your load" title={headline} />
 
-          <div className="mt-4 flex items-end gap-6">
-            <div className="flex shrink-0 flex-col items-center gap-1.5">
-              <Avatar member={me} size={60} />
-              <span className="mt-0.5 font-tight text-[30px] leading-none tabular-nums text-lemon">{mine}</span>
-              <span className="text-caption leading-none text-white/45">{mine === 1 ? "task" : "tasks"}</span>
-            </div>
-            {others.map(({ m, n }) => (
-              <div key={m.id} className="flex flex-col items-center gap-1.5 pb-[3px]">
-                <Avatar member={m} size={36} />
-                <span className="mt-0.5 font-tight text-[17px] leading-none tabular-nums text-white">{n}</span>
-                <span className="text-caption leading-none text-white/45">{m.name}</span>
+          {/* THE HOUSE, AS PEOPLE. Not a chart of any kind.
+              ─────────────────────────────────────────────────────────────────
+              Two attempts died here and both were the same mistake wearing
+              different ink. A stacked bar with a legend: you decode a swatch
+              into a name into a share. Rows of dots: still a bar chart, just
+              with gaps — marks on a shared baseline, ranked. Both asked a
+              seven-year-old to read an encoding, and both made the household a
+              leaderboard where Ada comes last with nothing.
+
+              A home doesn't rank its people. It looks at them.
+
+              So: everyone's face, and the number of things they're holding. The
+              number IS the count — there's no encoding to undo, no axis, no
+              proportion, no legend. Faces are the app's own identity language
+              (the switcher, every task card); this card was the one place that
+              turned people into coloured rectangles.
+
+              The VERDICT lives in the subtext, not in the picture. This app's
+              whole promise is absorbing the mental load — so it should say "that's
+              more than anyone else" rather than draw four shapes and leave you to
+              work it out. Reading a chart IS the mental load. */}
+          {/* YOU, then everyone else. A flat row of four gave your number the
+              same weight as Leo's, on a card called YOUR load reached from a tab
+              called You — the house is context for your number, not a peer of
+              it. So yours is the headline and the rest are the reference beside
+              it, which is also the order the sentence above already reads in. */}
+          <div className="mt-3 flex items-center gap-4">
+            <div className="flex shrink-0 items-center gap-3">
+              {/* MEASURED against the stack beside it, not estimated: the
+                  numeral's line box is taller than its 34px because the
+                  baseline-aligned "tasks" caption drags the row to its own
+                  20px line-height. Arithmetic said 58; the DOM said 72. */}
+              <Avatar member={me} size={72} />
+              {/* Label ABOVE the value — the eyebrow→value grammar every other
+                  block on this tab uses. "You" was hanging underneath as a
+                  caption, which read as a footnote to the number rather than the
+                  thing the number belongs to. Same <Eyebrow> the cards use, so
+                  it can't drift from them. */}
+              <div>
+                <Eyebrow>You</Eyebrow>
+                <div className="mt-0.5 flex items-baseline gap-1.5">
+                  <span className="font-tight text-[34px] leading-none tabular-nums">{mine}</span>
+                  {/* THE UNIT. Nothing on this card said what any of these
+                      numbers counted — "6" over "Maya 5" could have been points,
+                      stars, or days. Said once, on the hero; the column beside it
+                      inherits the unit by sitting in the same object. */}
+                  <span className="text-caption text-sub">{mine === 1 ? "task" : "tasks"}</span>
+                </div>
               </div>
-            ))}
+            </div>
+
+            {/* The hairline does the comparing — it's what makes these READ as
+                "everyone else" rather than as three more entries in a list. */}
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-l border-ink/[.08] pl-4">
+              {others.map(({ m, n }) => (
+                <span key={m.id} className="flex items-center gap-2 text-caption">
+                  <Avatar member={m} size={20} />
+                  <span className="truncate text-sub">{m.name}</span>
+                  {/* Same weight as the hero's numeral — same family, same 400,
+                      full ink. They were text-ink/60, which made everyone else's
+                      work look like faint reference data next to yours; the
+                      SIZE carries the hierarchy, so the colour doesn't have to
+                      whisper. A zero is a fact too, and gets to be as solid. */}
+                  <span className="ml-auto shrink-0 font-tight text-[18px] leading-none tabular-nums text-ink">
+                    {n}
+                  </span>
+                </span>
+              ))}
+            </div>
           </div>
 
           {mine > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               {canEven && (
-                <Button tone="lemon" onClick={() => s.openSheet({ type: "rebalance" })}>
+                <Button tone="dark" onClick={() => s.openSheet({ type: "rebalance" })}>
                   <Icon name="scale" size={14} /> Even it out
                 </Button>
               )}
-              <Button tone="light" onClick={() => s.openSheet({ type: "handoff" })}>
+              <Button tone="outline" onClick={() => s.openSheet({ type: "handoff" })}>
                 <Icon name="handoff" size={14} /> Hand one off
               </Button>
             </div>
           )}
-        </div>
+        </Card>
       </motion.div>
 
-      {/* The verb sits with the problem: stranded work is the app reporting,
-          not a setting you went digging for. */}
-      {needsCover.length > 0 && (
-        <motion.div variants={listItem}>
-          <Button tone="lemon" className="w-full" onClick={() => s.coverAway(meId)}>
-            <Icon name="handoff" size={14} />
-            Find cover for {needsCover.length === 1 ? "it" : `all ${needsCover.length}`}
-          </Button>
-        </motion.div>
-      )}
+      {/* 2 · WHERE YOU ARE — the one card on this tab that changes what the app
+          DOES. Presence feeds suggestTaker directly, so every chip here moves
+          real work: say you're home and the next delivery job finds you.
 
-      {/* 3 · THE SETTINGS LIST — one inset white group, hairline-divided rows.
-          Each row: neutral icon, label, its current value, a chevron; tapping
-          expands its controls DIRECTLY BELOW, still inside the same group. */}
+          STATE FIRST, CONTROLS FOLDED. This is the same shape as the New Task
+          sheet: say what's true, then hide the machinery behind "Adjust". Four
+          chips and a quiet-hours row were 130px of permanently-open controls for
+          something you touch once a day at most — and on most days, not at all.
+          A picker that's open when you're not using it isn't availability, it's
+          furniture.
+
+          What stays visible is what you'd actually want at a glance: the state,
+          and what the app will do about it. */}
       <motion.div variants={listItem}>
-        {/* text-ink explicitly: this white card sits under the ink load panel,
-            and default text would inherit WHITE — invisible labels on white. */}
-        <div className="overflow-hidden rounded-card bg-card text-ink shadow-e2">
-          {(["where", "patch", "access"] as const).map((r, i) => {
-            const on = openRow === r;
-            return (
-              <div key={r} className={clsx(i > 0 && "border-t border-ink/[.06]")}>
-                <button
-                  onClick={() => setOpenRow(on ? null : r)}
-                  aria-expanded={on}
-                  className="flex min-h-touch w-full items-center gap-3 px-4 py-3 text-left"
-                >
-                  <IconTile name={r === "where" ? "pin" : r === "patch" ? "grid" : "key"} tone="onTint" size="sm" />
-                  <span className="flex-1 text-bodysm font-medium">
-                    {r === "where" ? "Where you are" : r === "patch" ? "Your patch" : "Your access"}
+        <Card>
+          {/* Quiet hours belongs in the SUMMARY, not just behind the fold —
+              same rule the away date already taught us: folding a control away
+              must not fold its VALUE away. Someone who set quiet hours should
+              never have to open a panel to find out whether they're still on.
+
+              Only when it's SET. "No quiet hours" is a null fact, and a summary
+              that lists the settings you haven't touched is an inventory, not a
+              summary. Unset, the control behind Adjust is the only mention —
+              which is the right weight for something nobody's chosen yet. */}
+          <IconTile name="pin" tone="lemon" />
+          <TitleBlock
+            className="mt-6"
+            eyebrow="Where you are"
+            title={PRESENCE_TITLE[presence]}
+            subtext={
+              <>
+                {/* "Nothing new lands on you" is true and, with five tasks due
+                    inside the span, beside the point. Lead with the work that's
+                    still yours — that's the thing you'd want to know before you
+                    got on the plane. */}
+                <span>
+                  {presence === "away" && needsCover.length
+                    ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${needsCover.length} ${needsCover.length === 1 ? "task" : "tasks"} still on you.`
+                    : presence === "away" && covered.length
+                      // The verb agrees with the NAMES, not the tasks. Two tasks
+                      // covered by one person is still "Sam has it covered".
+                      ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${listOf(coverNames)} ${coverNames.length === 1 ? "has" : "have"} it covered.`
+                      : PRESENCE_EFFECT[presence](av.to)}
+                </span>
+                {/* No middot. The effect line is long enough to wrap, which
+                    strands a separator alone at the end of a line — and the
+                    glyph already marks where one fact ends and the next begins,
+                    on one line or two. */}
+                {av.quiet && (
+                  <span className="flex items-center gap-1">
+                    <Icon name="moon" size={12} className="shrink-0" />
+                    Quiet {to12(av.quiet.from)} – {to12(av.quiet.to)}
                   </span>
-                  <span className="max-w-[45%] truncate text-bodysm text-sub">{rowVal(r)}</span>
-                  <motion.span animate={{ rotate: on ? 90 : 0 }} transition={smooth} className="flex shrink-0 text-sub/60">
-                    <Icon name="fwd" size={16} />
-                  </motion.span>
-                </button>
+                )}
+              </>
+            }
+          />
 
-                <AnimatePresence initial={false}>
-                  {on && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={smooth}
-                      className="overflow-hidden"
+          {/* OUTSIDE the fold, deliberately. Everything else in this card is a
+              setting you went looking for; this is the app telling you work will
+              be stranded. That doesn't wait behind "Adjust" — same reasoning as
+              "Even it out" on the load card: the verb sits with the problem. */}
+          {needsCover.length > 0 && (
+            <Button tone="dark" className="mt-3" onClick={() => s.coverAway(meId)}>
+              <Icon name="handoff" size={14} />
+              Find cover for {needsCover.length === 1 ? "it" : `all ${needsCover.length}`}
+            </Button>
+          )}
+
+          {/* Same control, same words, same chevron as the New Task sheet's
+              readback. Two disclosures that behave differently would be two
+              things to learn. */}
+          <button
+            onClick={() => setWhereOpen((v) => !v)}
+            aria-expanded={whereOpen}
+            className="mt-2 flex items-center gap-1 text-caption font-medium text-sub transition-colors hover:text-ink"
+          >
+            {whereOpen ? "Done" : "Adjust"}
+            <motion.span animate={{ rotate: whereOpen ? 180 : 0 }} transition={smooth} className="flex">
+              <Icon name="chevDown" size={12} />
+            </motion.span>
+          </button>
+
+          <AnimatePresence initial={false}>
+            {whereOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={smooth}
+                className="overflow-hidden"
+              >
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {PRESENCE_CHOICES.map(({ key, label }) => (
+                    <Choice
+                      key={key}
+                      selected={presence === key}
+                      // Re-picking `away` keeps the return date; picking anything else
+                      // drops it — the store insists, and it's right to.
+                      onClick={() => s.setPresence(meId, key, key === "away" ? { from: av.from, to: av.to } : undefined)}
                     >
-                      <div className="border-t border-ink/[.05] bg-surface/50 px-4 pb-4 pt-3">
-                        {r === "where" && (
-                          <>
-                            <div className="flex flex-wrap gap-2">
-                              {PRESENCE_CHOICES.map(({ key, label }) => (
-                                <Choice
-                                  key={key}
-                                  selected={presence === key}
-                                  onClick={() => s.setPresence(meId, key, key === "away" ? { from: av.from, to: av.to } : undefined)}
-                                >
-                                  {label}
-                                </Choice>
-                              ))}
-                            </div>
-                            {presence === "away" && (
-                              <div className="mt-2">
-                                <PickerChip kind="date" open={dateOpen} onToggle={() => setDateOpen((v) => !v)} active={!!av.to}>
-                                  {av.to ? `Back ${relative(av.to)}` : "Until when?"}
-                                </PickerChip>
-                                <PickerPanel open={dateOpen}>
-                                  <MiniCalendar
-                                    value={av.to ?? todayIso()}
-                                    onPick={(v) => { s.setPresence(meId, "away", { from: av.from, to: v }); setDateOpen(false); }}
-                                  />
-                                </PickerPanel>
-                              </div>
-                            )}
-                            <div className="mt-4 border-t border-ink/[.08] pt-3">
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="text-bodysm font-medium">Quiet hours</div>
-                                  <div className="mt-hair text-caption text-sub">
-                                    {av.quiet ? `${to12(av.quiet.from)} – ${to12(av.quiet.to)}` : "Reminders can reach you any time"}
-                                  </div>
-                                </div>
-                                <PickerChip kind="time" open={quietOpen} onToggle={() => setQuietOpen((v) => !v)} active={!!av.quiet}>
-                                  {av.quiet ? "Change" : "Set"}
-                                </PickerChip>
-                              </div>
-                              <PickerPanel open={quietOpen}>
-                                <div className="flex flex-wrap gap-2">
-                                  <Choice selected={quietEdge === "from"} onClick={() => setQuietEdge("from")}>From {to12(quiet.from)}</Choice>
-                                  <Choice selected={quietEdge === "to"} onClick={() => setQuietEdge("to")}>To {to12(quiet.to)}</Choice>
-                                </div>
-                                <div className="mt-2">
-                                  <MiniClock
-                                    value={to12(quiet[quietEdge])}
-                                    onPick={(v) => s.setQuietHours(meId, { ...quiet, [quietEdge]: to24(v) })}
-                                  />
-                                </div>
-                                {av.quiet && (
-                                  <button
-                                    onClick={() => { s.setQuietHours(meId, undefined); setQuietOpen(false); }}
-                                    className="mt-1 w-full py-2 text-caption text-sub transition-colors hover:text-ink"
-                                  >
-                                    Turn off quiet hours
-                                  </button>
-                                )}
-                              </PickerPanel>
-                            </div>
-                          </>
-                        )}
+                      {label}
+                    </Choice>
+                  ))}
+                </div>
 
-                        {r === "patch" && (
-                          jobs.length ? (
-                            <>
-                              <p className="text-caption text-sub">Yours to look after — no tasks attached, just the standing agreement.</p>
-                              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                                {jobs.map((j) => <Pill key={j} tone="tag">{j}</Pill>)}
-                              </div>
-                            </>
-                          ) : (
-                            <p className="text-caption text-sub">{ownerName(s)} can hand you a domain or a room.</p>
-                          )
-                        )}
+                {presence === "away" && (
+                  <div className="mt-2">
+                    <PickerChip kind="date" open={dateOpen} onToggle={() => setDateOpen((v) => !v)} active={!!av.to}>
+                      {av.to ? `Back ${relative(av.to)}` : "Until when?"}
+                    </PickerChip>
+                    <PickerPanel open={dateOpen}>
+                      <MiniCalendar
+                        value={av.to ?? todayIso()}
+                        onPick={(v) => { s.setPresence(meId, "away", { from: av.from, to: v }); setDateOpen(false); }}
+                      />
+                    </PickerPanel>
+                  </div>
+                )}
 
-                        {r === "access" && (
-                          <>
-                            <p className="text-bodysm text-ink/80">{ROLE_HINT[me.role]}</p>
-                            {me.role !== "owner" && (
-                              <p className="mt-2 text-caption text-sub">Only {ownerName(s)} can change this.</p>
-                            )}
-                          </>
-                        )}
+                {/* Quiet hours. Honest label: nothing consumes this yet — the app has
+                    no push, and a toast is feedback for your own tap, which must never
+                    be silenced. It's here because the household's answer to "don't wake
+                    the kids" shouldn't have to wait for the notification plumbing.
+
+                    It lives behind the same fold because it's the rarest control on the
+                    tab: you set it once, ever. */}
+                <div className="mt-4 border-t border-ink/[.06] pt-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-bodysm font-medium">Quiet hours</div>
+                      <div className="mt-hair text-caption text-sub">
+                        {av.quiet ? `${to12(av.quiet.from)} – ${to12(av.quiet.to)}` : "Reminders can reach you any time"}
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
-        </div>
+                    </div>
+                    <PickerChip kind="time" open={quietOpen} onToggle={() => setQuietOpen((v) => !v)} active={!!av.quiet}>
+                      {av.quiet ? "Change" : "Set"}
+                    </PickerChip>
+                  </div>
+                  <PickerPanel open={quietOpen}>
+                    {/* One wheel, not two stacked — two clocks is 360px of panel for a
+                        pair of numbers. The edge you're editing is a choice. */}
+                    <div className="flex flex-wrap gap-2">
+                      <Choice selected={quietEdge === "from"} onClick={() => setQuietEdge("from")}>From {to12(quiet.from)}</Choice>
+                      <Choice selected={quietEdge === "to"} onClick={() => setQuietEdge("to")}>To {to12(quiet.to)}</Choice>
+                    </div>
+                    <div className="mt-2">
+                      <MiniClock
+                        value={to12(quiet[quietEdge])}
+                        onPick={(v) => s.setQuietHours(meId, { ...quiet, [quietEdge]: to24(v) })}
+                      />
+                    </div>
+                    {av.quiet && (
+                      <button
+                        onClick={() => { s.setQuietHours(meId, undefined); setQuietOpen(false); }}
+                        className="mt-1 w-full py-2 text-caption text-sub transition-colors hover:text-ink"
+                      >
+                        Turn off quiet hours
+                      </button>
+                    )}
+                  </PickerPanel>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
+      </motion.div>
+
+      {/* 3 · YOUR PATCH — the standing agreement. Today says what's on, Ahead
+          says what's coming; only this says what's YOURS, with no tasks in it.
+          Read-only for now: it's a household agreement, not a preference. */}
+      <motion.div variants={listItem}>
+        <Card>
+          {/* The title truncates rather than wraps, and that's safe HERE
+              specifically: the pills below name every domain in full, so a long
+              patch loses nothing to the ellipsis. */}
+          <IconTile name="grid" tone="lemon" />
+          <TitleBlock
+            className="mt-6"
+            eyebrow="Your patch"
+            title={jobs.length
+              ? `You look after ${listOf(me.responsibility?.domains.length
+                  ? me.responsibility.domains
+                  : me.responsibility?.spaces ?? [])}`
+              : "Nothing’s yours yet"}
+            subtext={jobs.length ? undefined : `${ownerName(s)} can hand you a domain or a room.`}
+          />
+          {jobs.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {jobs.map((j) => <Pill key={j} tone="tag">{j}</Pill>)}
+            </div>
+          )}
+        </Card>
+      </motion.div>
+
+      {/* 4 · YOUR ACCESS — the role, in words. The header names it ("Limited");
+          nothing anywhere said what it MEANT, so a limited member had no way to
+          learn why money is invisible to them. */}
+      <motion.div variants={listItem}>
+        <Card>
+          {/* No icon. A padlock next to "Limited" editorialises — it says being
+              limited is a lock-out, when the role model's whole point is that it
+              describes what someone LOOKS AFTER, not what they're shut out of.
+              It also made this the only card on the tab whose eyebrow started
+              40px from the left edge, so the column no longer lined up. */}
+          {/* Icon on line one, with the star tally riding the far end (like the
+              progress card's toggle); the eyebrow/title pair sits below. */}
+          <div className="flex items-center">
+            <IconTile name="key" tone="lemon" />
+            {/* Stars belong to the guided surface — see the role model. */}
+            {me.role === "guided" && (
+              <span className="ml-auto shrink-0 font-tight text-h1 tabular-nums text-star">★ {me.stars ?? 0}</span>
+            )}
+          </div>
+          <TitleBlock
+            className="mt-6"
+            eyebrow="Your access"
+            title={ROLE_LABEL[me.role]}
+            subtext={ROLE_HINT[me.role]}
+          />
+          {me.role !== "owner" && (
+            <p className="mt-3 border-t border-black/[.05] pt-3 text-caption text-sub">
+              Only {ownerName(s)} can change this.
+            </p>
+          )}
+        </Card>
       </motion.div>
     </>
   );
