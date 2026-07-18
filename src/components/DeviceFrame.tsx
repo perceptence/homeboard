@@ -697,7 +697,11 @@ function PhoneStatus() {
   return (
     <div
       aria-hidden="true"
-      style={{ top: -BLEED, height: SAFE_TOP + BLEED, paddingTop: BLEED + 14 }}
+      // paddingTop is what CENTRES the row on the island's midline: box spans
+      // -12..48, so content centre = 18 + pad/2. The island's centre is 28
+      // (top 11 + 34/2) → pad = 20 = BLEED + 8. It shipped at BLEED + 14 and
+      // the clock rode 3px below the pill's midline — measured, not eyeballed.
+      style={{ top: -BLEED, height: SAFE_TOP + BLEED, paddingTop: BLEED + 8 }}
       className="absolute inset-x-0 z-[90] flex items-center justify-between
                  bg-ink px-8 text-white"
     >
