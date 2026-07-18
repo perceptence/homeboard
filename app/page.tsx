@@ -89,7 +89,7 @@ export default function Page() {
             <Sheets variant={isPhone ? "phone" : "ipad"} />
           </>
         )}
-        <Toast message={s.toast} who={s.toastWho ? s.members[s.toastWho] : undefined} onDone={clearToast} />
+        <Toast message={s.toast} who={s.toastWho ? s.members[s.toastWho] : undefined} onDone={clearToast} onUndo={s.toastUndo ?? undefined} />
       </DeviceFrame>
     </main>
   );

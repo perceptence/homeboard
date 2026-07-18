@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { SAFE_TOP } from "@/components/DeviceFrame";
@@ -9,7 +9,7 @@ import { EventCard, MaintCard, TaskCard } from "@/components/TaskCard";
 import { ActionButton, Avatar, Button, Card, Check, Choice, Em, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, Sentence, TabToggle, TitleBlock } from "@/components/ui";
 import { listItem, listStagger, press, smooth, spring } from "@/lib/motion";
 import {
-  addDays, clockLabel, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
+  addDays, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
   periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel, type Period,
 } from "@/lib/dates";
 import { awayOn, coveredFor, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
@@ -254,7 +254,7 @@ export function PhoneShell() {
                 aria-label="Settings"
                 className="grid h-touch w-touch place-items-center rounded-pill text-white/70 transition-colors hover:text-white"
               >
-                <Icon name="gear" size={22} />
+                <Icon name="gear" size={24} />
               </button>
             )}
             {/* Just the bell. The shopping cart used to sit here and it was
@@ -1280,17 +1280,6 @@ function PhoneYou() {
    * if it says nothing is worth moving, the card says the house is level.
    */
   const move = previewRebalance(s);
-  const headline =
-    mine === 0 ? "You’re all clear"
-    // Nobody to compare against — a solo home would otherwise be told its work
-    // is "fairly shared", which is a strange thing to say to someone alone.
-    : board.length < 2 ? "All yours"
-    : !move ? "Fairly shared right now"
-    // Never "— Ada has 0": the lightest person is almost always the youngest, and
-    // naming them reads as "why isn't the seven-year-old doing more" — unkind,
-    // and untrue, since rebalance wouldn't move it to her either.
-    : move.from.id === meId ? "You’re carrying the most"
-    : `${move.from.name} has the most right now`;
 
   /**
    * `rebalance()` moves work off the HEAVIEST person, and only when it can find a
@@ -1332,123 +1321,32 @@ function PhoneYou() {
 
   const jobs = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];
 
-  /* ══════════════ DYNAMIC SIGNALS ══════════════
-     Everything below is COMPUTED, so the tab changes as the week does. No
-     fabricated data: completions from `completedAt`, shares from the same
-     Balancer the load card trusts, insights from tasks that are genuinely
-     overdue / recurring / owned. This is what turns a profile into a read. */
-  const week = periodRange("Week");
-  const myTasks = s.tasks.filter((t) => holder(t) === meId);
-  const openMine = myTasks.filter((t) => !t.done);
-  const doneThisWeek = myTasks.filter(
-    (t) => t.done && t.completedAt && t.completedAt >= +week.from && t.completedAt < +week.to,
-  ).length;
-
-  // Fairness as a SHARE of the week's live workload — the number the brief asks
-  // for, off the same board the faces show.
+  /* THE LOAD, IN WARM WORDS — not a percentage, not "you have the most". It's a
+     home, not a scoreboard: the line appreciates what you're carrying, and the
+     faces are the family for context, not a ranking. Smartness stays IMPLICIT
+     (which line shows is computed) — no card announces "AI". */
   const houseLoad = board.reduce((sum, b) => sum + b.n, 0);
-  const share = houseLoad ? Math.round((mine / houseLoad) * 100) : 0;
   const fairShare = houseLoad / Math.max(1, board.length);
   const overloaded = board.length > 1 && mine > fairShare * 1.3;
   const lighter = board.length > 1 && mine > 0 && mine < fairShare * 0.7;
+  const loadLine =
+    mine === 0 ? "You’re all clear right now."
+    : board.length < 2 ? "It’s all you right now."
+    : overloaded ? "You’re doing a lot for the house right now."
+    : lighter ? "A lighter stretch — you’ve earned it."
+    : "You’re pulling your weight nicely.";
 
-  // Where your effort goes — the domain you touch most (real, from `source`).
-  const areaTally = new Map<string, number>();
-  for (const t of myTasks) if (t.source) areaTally.set(t.source.split("·")[0].trim(), (areaTally.get(t.source.split("·")[0].trim()) ?? 0) + 1);
-  const topArea = [...areaTally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
-
-  // A real "you helped" signal: whose away-work you're covering.
-  const coveringNames = [...new Set(
-    s.tasks.filter((t) => t.coveredBy === meId && !t.done).map((t) => (t.owner ? s.members[t.owner]?.name : null)).filter(Boolean),
-  )] as string[];
-
-  // Your recurring jobs ARE your routines — the cadence the app keeps for you.
-  const routines = openMine.filter((t) => t.recurring);
-  // The next thing you actually owe today; anything of yours that's slipped.
-  const nextToday = openMine.filter((t) => isToday(t.due)).sort((a, b) => timeMinutes(a.when) - timeMinutes(b.when))[0];
-  const overdue = openMine.filter((t) => t.due < todayIso()).sort((a, b) => a.due.localeCompare(b.due))[0];
-  // A capable teammate carrying well over their share — but only worth flagging
-  // to someone who ISN'T themselves the heaviest (don't ask the most-loaded
-  // person to take on more), and only if they genuinely have more than you.
-  const stretched = board.find(({ m, n }) => m.id !== meId && !overloaded && n > mine && n > fairShare * 1.4 && n >= 3);
-
-  /* THE ANCHOR — one true sentence about how the day actually looks, chosen in
-     priority order. This is the emotional hero, not a label. */
-  const anchor =
-    covered.length ? `${listOf(coverNames)} ${coverNames.length === 1 ? "has" : "have"} tonight covered. You can switch off.`
-    : presence === "away" ? "Enjoy your time away — nothing new will land."
-    : mine === 0 ? "You’re all clear. Nothing’s on your plate."
-    : overloaded ? "You’re carrying more than your share right now."
-    : lighter ? "Lighter than usual this week. Take a breath."
-    : !nextToday ? "You’re ahead of schedule — nothing left for today."
-    : "Everything’s running smoothly.";
-
-  /* THE ONE AI INSIGHT — the "does this understand me" beat. Deliberately NOT
-     about fairness (the load card owns that, and three overload lines is a nag):
-     it surfaces something the rest of the screen doesn't already say. Priority
-     order; `null` if nothing rises to it. */
-  const insight: { text: ReactNode; verb?: string; run?: () => void } | null =
-    overdue ? { text: <><b>{overdue.title}</b> slipped past — it was due {relative(overdue.due).toLowerCase()}.</>, verb: "Open it", run: () => s.openSheet({ type: "task", id: overdue.id }) }
-    : coveringNames.length ? { text: <>You’re covering {coveringNames.length} of {listOf(coveringNames)}’s {coveringNames.length === 1 ? "job" : "jobs"} while they’re away.</> }
-    : stretched ? { text: <><b>{stretched.m.name}</b> is carrying the most this week. Lend a hand?</>, verb: "Take one on", run: () => s.openSheet({ type: "handoff" }) }
-    : routines.length ? { text: <>{routines.length} of your jobs run on repeat — <b>{routines[0].title.toLowerCase()}</b> {routines[0].recurring!.toLowerCase()}. The app keeps the clock.</> }
-    : nextToday ? { text: <>Next up: <b>{nextToday.title}</b>{nextToday.when ? `, ${clockLabel(nextToday.when)}` : ""}.</> }
-    : null;
   return (
     <>
-      {/* ══ HERO — the emotional anchor. Typography only, on the app's night;
-          a true read on your day, not a label. The name lives in the page
-          header above, so here we greet and then SAY SOMETHING. ══ */}
-      <motion.div variants={listItem} className="px-1 pb-1 pt-1">
-        <div className="text-caption uppercase tracking-[0.12em] text-white/40">{greeting()}</div>
-        <Sentence className="mt-2 text-white">{anchor}</Sentence>
-      </motion.div>
-
-      {/* ══ THE ONE THING THE APP NOTICED — lemon is the app's own voice (and the
-          single accent this screen spends, per the lemon diet). A statement, an
-          optional verb: the "it understands me" beat. ══ */}
-      {insight && (
-        <motion.div variants={listItem}>
-          <Card tone="lemon">
-            <div className="flex items-start gap-3">
-              <Icon name="spark" size={20} className="mt-0.5 shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-body leading-snug">{insight.text}</p>
-                {insight.verb && (
-                  <button
-                    onClick={insight.run}
-                    className="mt-3 inline-flex items-center gap-1 rounded-pill bg-ink px-3.5 py-2 text-caption font-semibold text-white transition-colors hover:bg-ink/90"
-                  >
-                    {insight.verb} <Icon name="fwd" size={13} />
-                  </button>
-                )}
-              </div>
-            </div>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* ══ YOUR LOAD — fairness as a SHARE, the house as evidence, a verb.
-          The number that changes as the week moves; the faces are the proof. ══ */}
+      {/* Every card wears the house pattern: icon tile, space, title block, then
+          the data. (1) YOUR LOAD — a warm read, the family as context, the verb. */}
       <motion.div variants={listItem}>
         <Card>
-          <Eyebrow>Your load this week</Eyebrow>
-          {houseLoad === 0 ? (
-            <Sentence className="mt-1">Nothing on anyone yet.</Sentence>
-          ) : (
-            <>
-              <Sentence className="mt-1">You’re carrying <Em>{share}%</Em>.</Sentence>
-              <p className="mt-1 text-bodysm text-sub">
-                {board.length < 2 ? "It’s all yours right now."
-                  : overloaded ? `More than a fair share${move ? ` — the app can shift one to ${move.to.name}` : ""}.`
-                  : lighter ? "Below your usual — room to take one on."
-                  : "A fair share of the house."}
-              </p>
-            </>
-          )}
+          <IconTile name="scale" tone="lemon" />
+          <TitleBlock className="mt-6" wrap eyebrow="Your load" title={loadLine} />
 
-          {/* Faces as the evidence: you, then everyone else, ranked. No bars —
-              the number IS the count (DESIGN: no charts on the phone). */}
+          {/* The family, for context — you first, then everyone else. Numbers are
+              a quiet reference for handing off, not a leaderboard. */}
           <div className="mt-4 flex items-end gap-5">
             <div className="flex shrink-0 flex-col items-center gap-1.5">
               <Avatar member={me} size={56} />
@@ -1477,47 +1375,33 @@ function PhoneYou() {
         </Card>
       </motion.div>
 
-      {/* ══ THIS WEEK — contribution as one big number and an honest line. NOT
-          gamified, NOT time-tracked (we count completions, not minutes). Lavender:
-          the reflective tone. A different SHAPE — number-led, short. ══ */}
-      <motion.div variants={listItem}>
-        <Card tone="lavender">
-          <Eyebrow>This week</Eyebrow>
-          <div className="mt-1.5 flex items-baseline gap-2">
-            <span className="font-tight text-display leading-none tabular-nums"><Em>{doneThisWeek}</Em></span>
-            <span className="text-body text-ink/60">{doneThisWeek === 1 ? "thing done" : "things done"}</span>
-          </div>
-          <p className="mt-2 text-bodysm text-ink/70">
-            {doneThisWeek === 0
-              ? "A fresh week — nothing ticked off yet."
-              : <>Most of it in <b className="font-medium text-ink">{topArea ?? "the house"}</b>{coveringNames.length ? `, and covering for ${listOf(coveringNames)}` : ""}.</>}
-          </p>
-        </Card>
-      </motion.div>
-
-      {/* ══ WHERE YOU ARE — the one card that changes what the app DOES; the
-          effect line says how. Controls fold behind Adjust (unchanged). ══ */}
+      {/* (2) WHERE YOU ARE — the one card that changes what the app does; the
+          effect line says how. Controls fold behind Adjust (unchanged). */}
       <motion.div variants={listItem}>
         <Card>
-          {/* Eyebrow-led like every card on this tab now (no icon tile) — and
-              the effect line is the point: how this changes what the app does. */}
-          <Eyebrow>Where you are</Eyebrow>
-          <Sentence className="mt-1">{PRESENCE_TITLE[presence]}</Sentence>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-bodysm text-sub">
-            <span>
-              {presence === "away" && needsCover.length
-                ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${needsCover.length} ${needsCover.length === 1 ? "task" : "tasks"} still on you.`
-                : presence === "away" && covered.length
-                  ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${listOf(coverNames)} ${coverNames.length === 1 ? "has" : "have"} it covered.`
-                  : PRESENCE_EFFECT[presence](av.to)}
-            </span>
-            {av.quiet && (
-              <span className="flex items-center gap-1">
-                <Icon name="moon" size={12} className="shrink-0" />
-                Quiet {to12(av.quiet.from)} – {to12(av.quiet.to)}
-              </span>
-            )}
-          </p>
+          <IconTile name="pin" tone="lemon" />
+          <TitleBlock
+            className="mt-6"
+            eyebrow="Where you are"
+            title={PRESENCE_TITLE[presence]}
+            subtext={
+              <>
+                <span>
+                  {presence === "away" && needsCover.length
+                    ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${needsCover.length} ${needsCover.length === 1 ? "task" : "tasks"} still on you.`
+                    : presence === "away" && covered.length
+                      ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${listOf(coverNames)} ${coverNames.length === 1 ? "has" : "have"} it covered.`
+                      : PRESENCE_EFFECT[presence](av.to)}
+                </span>
+                {av.quiet && (
+                  <span className="flex items-center gap-1">
+                    <Icon name="moon" size={12} className="shrink-0" />
+                    Quiet {to12(av.quiet.from)} – {to12(av.quiet.to)}
+                  </span>
+                )}
+              </>
+            }
+          />
 
           {needsCover.length > 0 && (
             <Button tone="dark" className="mt-3" onClick={() => s.coverAway(meId)}>
@@ -1611,15 +1495,16 @@ function PhoneYou() {
         </Card>
       </motion.div>
 
-      {/* ══ YOU LOOK AFTER — the standing patch, said as a sentence with its
-          domains as chips. Renamed from "Your patch" per the brief. ══ */}
+      {/* (3) YOU LOOK AFTER — the standing patch (renamed), domains as chips. */}
       {jobs.length > 0 && (
         <motion.div variants={listItem}>
           <Card>
-            <Eyebrow>You look after</Eyebrow>
-            <Sentence className="mt-1">
-              {listOf(me.responsibility?.domains.length ? me.responsibility.domains : me.responsibility?.spaces ?? [])}
-            </Sentence>
+            <IconTile name="grid" tone="lemon" />
+            <TitleBlock
+              className="mt-6"
+              eyebrow="You look after"
+              title={listOf(me.responsibility?.domains.length ? me.responsibility.domains : me.responsibility?.spaces ?? [])}
+            />
             <div className="mt-3 flex flex-wrap gap-1.5">
               {jobs.map((j) => <Pill key={j} tone="tag">{j}</Pill>)}
             </div>
@@ -1627,8 +1512,7 @@ function PhoneYou() {
         </motion.div>
       )}
 
-      {/* ══ YOUR ACCESS — static, so it's a FOOTNOTE, not a card. Demoted to the
-          quietest line on the page, exactly its weight. ══ */}
+      {/* YOUR ACCESS — static, so a one-line FOOTNOTE, not a card. */}
       <motion.div variants={listItem}>
         <p className="flex items-center gap-1.5 px-1 pb-1 text-caption text-white/40">
           <Icon name="key" size={12} className="shrink-0" />

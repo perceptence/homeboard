@@ -212,7 +212,7 @@ export function Eyebrow({ tone = "onLight", className, children }: {
 }
 
 export function TitleBlock({
-  eyebrow, title, subtext, size = "card", tone = "onLight", muted, oneLine, className,
+  eyebrow, title, subtext, size = "card", tone = "onLight", muted, oneLine, wrap, className,
 }: {
   eyebrow?: ReactNode;
   title: ReactNode;
@@ -221,6 +221,9 @@ export function TitleBlock({
   tone?: TitleTone;
   /** A done task: struck through and dimmed. */
   muted?: boolean;
+  /** A prose title (a full sentence, not a label) is allowed to WRAP instead of
+   *  clipping — the default single-line truncate is for card/row titles. */
+  wrap?: boolean;
   /**
    * LIST ROWS set this: eyebrow and subtext each hold to ONE line, clipping
    * rather than wrapping — a row's rhythm is its height, and one long source
@@ -235,7 +238,8 @@ export function TitleBlock({
       {eyebrow && <Eyebrow tone={tone} className={oneLine ? "truncate" : undefined}>{eyebrow}</Eyebrow>}
       <div
         className={clsx(
-          "mt-hair truncate",
+          "mt-hair",
+          wrap ? "text-balance" : "truncate",
           size === "page" ? "font-tight text-h1" : "text-h2",
           muted && "text-sub line-through",
         )}
@@ -617,13 +621,14 @@ export function Sheet({
 }
 
 export function Toast({
-  message, who, onDone,
-}: { message: string | null; who?: Member; onDone: () => void }) {
+  message, who, onDone, onUndo,
+}: { message: string | null; who?: Member; onDone: () => void; onUndo?: () => void }) {
   useEffect(() => {
     if (!message) return;
-    const t = setTimeout(onDone, 2400);
+    // A reversible toast lingers a touch longer — undo needs a beat to be caught.
+    const t = setTimeout(onDone, onUndo ? 4200 : 2400);
     return () => clearTimeout(t);
-  }, [message, onDone]);
+  }, [message, onDone, onUndo]);
 
   return (
     <AnimatePresence>
@@ -640,7 +645,10 @@ export function Toast({
             // alone let "Told Leo and Ada — Maps would open…" run past the glass.
             "pointer-events-none absolute bottom-[110px] left-1/2 z-[60] flex w-max items-center gap-2.5",
             "max-w-[calc(100%-32px)] whitespace-nowrap rounded-pill bg-card text-bodysm font-medium text-ink shadow-e3",
-            who ? "py-1.5 pl-1.5 pr-5" : "h-touch px-5",
+            who ? "py-1.5 pl-1.5" : "h-touch pl-5",
+            // The undo affordance rides inside the pill; trim the trailing pad so
+            // the divider+button sit flush, else there's a dead gap after "Undo".
+            onUndo ? "pr-1.5" : who ? "pr-5" : "pr-5",
           )}
         >
           {who && (
@@ -657,6 +665,17 @@ export function Toast({
             </motion.span>
           )}
           <span className="min-w-0 truncate">{message}</span>
+          {onUndo && (
+            <button
+              onClick={onUndo}
+              // The pill is pointer-events-none so it never eats a tap meant for the
+              // screen; the ONE interactive thing re-enables pointers on itself.
+              className="pointer-events-auto ml-1 flex shrink-0 items-center gap-1 self-stretch rounded-pill bg-ink/[.06] px-3.5 font-semibold text-ink transition-colors hover:bg-ink/10 active:bg-ink/[.14]"
+            >
+              <Icon name="undo" size={14} />
+              Undo
+            </button>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

@@ -238,6 +238,9 @@ interface HouseholdState {
   toast: string | null;
   /** Whose face rides along with the toast, when it's about a person. */
   toastWho: MemberId | null;
+  /** An optional one-tap reversal for the current toast (e.g. undo a hand-off).
+   *  Transient, never persisted — a closure, so it can't ride to disk. */
+  toastUndo: (() => void) | null;
   /** Scheduled, not yet delivered. Persisted — a reminder survives a reload. */
   reminders: Reminder[];
   /** What the Dynamic Island is showing right now. Ephemeral. */
@@ -377,6 +380,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   sheet: null,
   toast: null,
   toastWho: null,
+  toastUndo: null,
   reminders: [],
   island: null,
   query: "",
@@ -388,7 +392,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   goPhone: (r) => set((s) => ({ phoneRoute: r, navTick: s.navTick + 1 })),
   openSheet: (sheet) => set({ sheet }),
   closeSheet: () => set({ sheet: null }),
-  notify: (toast) => set({ toast, toastWho: null }),
+  notify: (toast) => set({ toast, toastWho: null, toastUndo: null }),
 
   scheduleReminder: ({ at, text, who, title, timeLabel, targetAt, eventId, taskId, icon, journey, where, waiting }) =>
     set((s) => ({
@@ -726,12 +730,22 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     set((s) => {
       const t = s.tasks.find((x) => x.id === id);
       if (!t) return {};
-      const from = t.owner ? s.members[t.owner]?.name : "Nobody";
+      const prevOwner = t.owner;
+      const from = prevOwner ? s.members[prevOwner]?.name : "Nobody";
       return {
         tasks: s.tasks.map((x) => (x.id === id ? { ...x, owner: to, suggest: undefined } : x)),
         // No `sheet: null` — the hand-off sheet stays up for the next one.
         toast: `${s.members[to].name} has it from here`,
         toastWho: to,
+        // A clean reversal: put the task back where it was, name the return, and
+        // drop the undo so the confirming toast carries no second undo.
+        toastUndo: () =>
+          set((s2) => ({
+            tasks: s2.tasks.map((x) => (x.id === id ? { ...x, owner: prevOwner, suggest: t.suggest } : x)),
+            toast: prevOwner ? `Back with ${s2.members[prevOwner]?.name}` : "Back on the pile",
+            toastWho: prevOwner,
+            toastUndo: null,
+          })),
         ...logged(s, `${from} handed “${t.title}” to ${s.members[to].name}`, to),
       };
     }),
@@ -745,6 +759,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         tasks: s.tasks.map((x) => (x.id === id ? { ...x, owner, suggest: undefined } : x)),
         toast: `${s.members[owner].name} has it from here`,
         toastWho: owner,
+        toastUndo: null,
       };
     }),
 
@@ -761,6 +776,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         tasks: s.tasks.map((t) => (t.id === task.id ? { ...t, owner: to.id } : t)),
         toast: `Moved to ${to.name} — nicely balanced`,
         toastWho: to.id,
+        toastUndo: null,
         ...logged(s, `Moved “${task.title}” from ${from.name} to ${to.name}`),
       };
     }),
