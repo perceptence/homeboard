@@ -130,6 +130,37 @@ export const ROLE_SET: Record<Role, string> = {
 };
 
 /**
+ * The specific powers behind the label — the itemised answer to "so what can
+ * they actually do", shown as a list under "Your access".
+ *
+ * CUMULATIVE by design: an owner can do everything a full member can and more,
+ * so the top of each list is where a role goes BEYOND the one below it. That's
+ * what makes "the owner has more" a thing you can see, not just be told.
+ * Pronoun-free, like ROLE_HINT — it reads on your own profile and about others.
+ */
+export const ROLE_CAN: Record<Role, string[]> = {
+  owner: [
+    "Add or remove people, and set what each can do",
+    "Change household settings and automations",
+    "Assign, hand off, or rebalance any task",
+    "Handle the shopping list and the bills",
+  ],
+  full: [
+    "Assign, hand off, or rebalance any task",
+    "Handle the shopping list and the bills",
+    "Set up automations",
+  ],
+  limited: [
+    "Take on tasks and chores that fit",
+    "Add things to the shopping list",
+  ],
+  guided: [
+    "Do one guided thing at a time",
+    "Earn stars for finishing",
+  ],
+};
+
+/**
  * What the WORK needs — never what the person is.
  *
  * A role is a fact about a person, so it has no business being the reason a task

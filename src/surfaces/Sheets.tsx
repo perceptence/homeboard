@@ -12,7 +12,7 @@ import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
 import type { Member, MemberId, Priority, ShopCategory, ShopItem, Task } from "@/lib/types";
-import { ROLE_HINT, ROLE_LABEL, ROLE_NEEDS } from "@/lib/types";
+import { ROLE_CAN, ROLE_HINT, ROLE_LABEL, ROLE_NEEDS } from "@/lib/types";
 
 /** Where a typed shopping item files itself — read from the words, shown live
  *  on the aisle chips, and one tap overrides it. Pet words win over Supplies
@@ -469,36 +469,44 @@ function SettingsSheet() {
         </div>
       </div>
 
-      <Eyebrow className="mt-6">Your details</Eyebrow>
-      <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+      {/* No card casing anywhere below — a group is its eyebrow and the rows that
+          follow it, the same way information sits everywhere else in the app. */}
+      <Eyebrow className="mt-7">Your details</Eyebrow>
+      <div className="mt-1 divide-y divide-ink/[.06]">
         <SettingField label="Name" value={me.name} placeholder="Your name" onCommit={(v) => v && s.setProfile({ name: v })} />
         <SettingField label="Email" value={me.email ?? ""} type="email" placeholder="Add your email" onCommit={(v) => s.setProfile({ email: v })} />
       </div>
 
-      {/* ACCESS — read-only. A role is assigned, never changed from your own
-          settings; saying so is the honest UI. */}
-      <Eyebrow className="mt-6">Your access</Eyebrow>
-      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
-        <div className="flex items-center gap-2.5">
-          <Icon name="key" size={16} className="shrink-0 text-sub" />
-          <span className="text-bodysm font-medium">{ROLE_LABEL[me.role]}</span>
-        </div>
-        <p className="mt-1.5 text-caption text-sub">{ROLE_HINT[me.role]}</p>
-        {me.role !== "owner" && owner && (
-          <p className="mt-2 border-t border-ink/[.05] pt-2 text-caption text-sub">Only {owner.name} can change this.</p>
-        )}
+      {/* ACCESS — the label, then WHAT it actually lets you do. The list is
+          cumulative (owner ⊃ full ⊃ …), so more access reads as a longer list,
+          not just a different word. Read-only: a role is assigned elsewhere. */}
+      <Eyebrow className="mt-7">Your access</Eyebrow>
+      <div className="mt-2 flex items-center gap-2.5">
+        <Icon name="key" size={16} className="shrink-0 text-sub" />
+        <span className="text-bodysm font-medium">{ROLE_LABEL[me.role]}</span>
       </div>
+      <ul className="mt-3 space-y-2.5">
+        {ROLE_CAN[me.role].map((can) => (
+          <li key={can} className="flex items-start gap-2.5 text-bodysm">
+            <Icon name="check" size={16} className="mt-0.5 shrink-0 text-ink/35" />
+            <span>{can}</span>
+          </li>
+        ))}
+      </ul>
+      {me.role !== "owner" && owner && (
+        <p className="mt-3 text-caption text-sub">{ROLE_HINT[me.role]} · only {owner.name} can change this.</p>
+      )}
 
       {/* REMINDERS — described, not faked. There's no push layer, so a toggle
           here would be a lie; the quiet-hours control that DOES work lives on
           your profile, and this points to it. */}
-      <Eyebrow className="mt-6">Reminders</Eyebrow>
-      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+      <Eyebrow className="mt-7">Reminders</Eyebrow>
+      <div className="mt-2 space-y-3">
         <div className="flex items-center gap-2.5 text-bodysm">
           <Icon name="bell" size={16} className="shrink-0 text-sub" />
           Reminders arrive in the Dynamic Island.
         </div>
-        <div className="mt-2.5 flex items-center gap-2.5 border-t border-ink/[.05] pt-2.5 text-bodysm">
+        <div className="flex items-center gap-2.5 text-bodysm">
           <Icon name="moon" size={16} className="shrink-0 text-sub" />
           <span className="flex-1">Quiet hours</span>
           <span className="text-caption text-sub">{me.availability?.quiet ? "On" : "Off"} · set on your profile</span>
@@ -506,9 +514,9 @@ function SettingsSheet() {
       </div>
 
       {/* THE HOUSEHOLD — displayed, not managed here (it's a shared thing). */}
-      <Eyebrow className="mt-6">Household</Eyebrow>
-      <div className="mt-2 flex items-center gap-3 rounded-card bg-card p-4 shadow-e1">
-        <AvatarStack members={people} size={30} ringClass="ring-card" />
+      <Eyebrow className="mt-7">Household</Eyebrow>
+      <div className="mt-2 flex items-center gap-3">
+        <AvatarStack members={people} size={30} ringClass="ring-surface" />
         <div className="min-w-0">
           <div className="truncate text-bodysm font-medium">{s.householdName}</div>
           <div className="text-caption text-sub">{people.length} people</div>
@@ -517,7 +525,7 @@ function SettingsSheet() {
 
       <button
         onClick={() => s.notify("Signed out — this is a demo")}
-        className="mt-6 w-full rounded-card bg-card p-4 text-center text-bodysm font-semibold text-danger shadow-e1 transition-colors hover:bg-danger/[.04]"
+        className="mt-8 w-full border-t border-ink/[.06] pt-4 text-center text-bodysm font-semibold text-danger transition-colors hover:text-danger/70"
       >
         Sign out
       </button>
@@ -535,7 +543,7 @@ function SettingField({
   const [v, setV] = useState(value);
   useEffect(() => setV(value), [value]);
   return (
-    <label className="flex items-center gap-3 px-4 py-3.5">
+    <label className="flex items-center gap-3 py-3">
       <span className="w-16 shrink-0 text-bodysm font-medium">{label}</span>
       <input
         type={type}
