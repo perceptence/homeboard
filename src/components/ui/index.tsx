@@ -551,19 +551,15 @@ export function Em({ children, className }: { children: ReactNode; className?: s
  * activity) still render everything through `children` exactly as before.
  */
 export function Sheet({
-  open, onClose, variant, tone = "light", title, footer, children,
+  open, onClose, variant, title, footer, children,
 }: {
   open: boolean;
   onClose: () => void;
   variant: "phone" | "ipad";
-  /** The Settings sheet opens off the dark You tab, so it wears the same dark
-   *  world rather than stabbing a white beam over it. */
-  tone?: "light" | "dark";
   title?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
 }) {
-  const dark = tone === "dark";
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -588,17 +584,14 @@ export function Sheet({
             transition={spring}
             className={clsx(
               // flex column + overflow-hidden: only the MIDDLE scrolls.
-              "absolute z-50 flex flex-col overflow-hidden shadow-e3",
-              // Dark is an ELEVATED near-ink (lighter than the ink backdrop it
-              // covers), so it reads as a surface, not a hole in the screen.
-              dark ? "bg-[#1B1C1F] text-white ring-1 ring-inset ring-white/[.08]" : "bg-surface text-ink",
+              "absolute z-50 flex flex-col overflow-hidden bg-surface text-ink shadow-e3",
               phone
                 ? "inset-x-0 bottom-0 max-h-[88%] rounded-t-card"
                 : "left-1/2 top-1/2 max-h-[84%] w-[min(460px,90%)] -translate-x-1/2 -translate-y-1/2 rounded-card",
             )}
           >
             {/* The grabber rides the sheet's own edge — 12px, not 28. */}
-            {phone && <div className={clsx("mx-auto mt-3 h-[4px] w-10 shrink-0 rounded-pill", dark ? "bg-white/20" : "bg-ink/10")} />}
+            {phone && <div className="mx-auto mt-3 h-[4px] w-10 shrink-0 rounded-pill bg-ink/10" />}
 
             {title && (
               <h2 className={clsx("shrink-0 px-inner font-tight text-h1", phone ? "pt-4" : "pt-inner")}>

@@ -30,7 +30,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
 
   return (
     <>
-      <Sheet open={!!sheet && sheet.type !== "newTask"} onClose={close} variant={variant} tone={sheet?.type === "settings" ? "dark" : "light"}>
+      <Sheet open={!!sheet && sheet.type !== "newTask"} onClose={close} variant={variant}>
         {sheet?.type === "task" && <TaskSheet id={sheet.id as number} />}
         {/* Events and upkeep wear the same card as a task, so they must open like
             one. Until now only tasks had a sheet, and the other two silently
@@ -465,63 +465,63 @@ function SettingsSheet() {
         <Avatar member={me} size={64} />
         <div className="min-w-0">
           <div className="truncate text-h2">{me.name}</div>
-          <div className="text-caption text-white/55">{ROLE_LABEL[me.role]}</div>
+          <div className="text-caption text-sub">{ROLE_LABEL[me.role]}</div>
         </div>
       </div>
 
-      <Eyebrow tone="onDark" className="mt-6">Your details</Eyebrow>
-      <div className="mt-2 divide-y divide-white/10 overflow-hidden rounded-card border border-white/10 bg-white/[.05]">
+      <Eyebrow className="mt-6">Your details</Eyebrow>
+      <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
         <SettingField label="Name" value={me.name} placeholder="Your name" onCommit={(v) => v && s.setProfile({ name: v })} />
         <SettingField label="Email" value={me.email ?? ""} type="email" placeholder="Add your email" onCommit={(v) => s.setProfile({ email: v })} />
       </div>
 
       {/* ACCESS — read-only. A role is assigned, never changed from your own
           settings; saying so is the honest UI. */}
-      <Eyebrow tone="onDark" className="mt-6">Your access</Eyebrow>
-      <div className="mt-2 rounded-card border border-white/10 bg-white/[.05] p-4">
+      <Eyebrow className="mt-6">Your access</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
         <div className="flex items-center gap-2.5">
-          <Icon name="key" size={16} className="shrink-0 text-white/55" />
+          <Icon name="key" size={16} className="shrink-0 text-sub" />
           <span className="text-bodysm font-medium">{ROLE_LABEL[me.role]}</span>
         </div>
-        <p className="mt-1.5 text-caption text-white/55">{ROLE_HINT[me.role]}</p>
+        <p className="mt-1.5 text-caption text-sub">{ROLE_HINT[me.role]}</p>
         {me.role !== "owner" && owner && (
-          <p className="mt-2 border-t border-white/[.08] pt-2 text-caption text-white/55">Only {owner.name} can change this.</p>
+          <p className="mt-2 border-t border-ink/[.05] pt-2 text-caption text-sub">Only {owner.name} can change this.</p>
         )}
       </div>
 
       {/* REMINDERS — described, not faked. There's no push layer, so a toggle
           here would be a lie; the quiet-hours control that DOES work lives on
           your profile, and this points to it. */}
-      <Eyebrow tone="onDark" className="mt-6">Reminders</Eyebrow>
-      <div className="mt-2 rounded-card border border-white/10 bg-white/[.05] p-4">
+      <Eyebrow className="mt-6">Reminders</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
         <div className="flex items-center gap-2.5 text-bodysm">
-          <Icon name="bell" size={16} className="shrink-0 text-white/55" />
+          <Icon name="bell" size={16} className="shrink-0 text-sub" />
           Reminders arrive in the Dynamic Island.
         </div>
-        <div className="mt-2.5 flex items-center gap-2.5 border-t border-white/[.08] pt-2.5 text-bodysm">
-          <Icon name="moon" size={16} className="shrink-0 text-white/55" />
+        <div className="mt-2.5 flex items-center gap-2.5 border-t border-ink/[.05] pt-2.5 text-bodysm">
+          <Icon name="moon" size={16} className="shrink-0 text-sub" />
           <span className="flex-1">Quiet hours</span>
-          <span className="text-caption text-white/55">{me.availability?.quiet ? "On" : "Off"} · set on your profile</span>
+          <span className="text-caption text-sub">{me.availability?.quiet ? "On" : "Off"} · set on your profile</span>
         </div>
       </div>
 
       {/* THE HOUSEHOLD — displayed, not managed here (it's a shared thing). */}
-      <Eyebrow tone="onDark" className="mt-6">Household</Eyebrow>
-      <div className="mt-2 flex items-center gap-3 rounded-card border border-white/10 bg-white/[.05] p-4">
-        <AvatarStack members={people} size={30} ringClass="ring-[#26272A]" />
+      <Eyebrow className="mt-6">Household</Eyebrow>
+      <div className="mt-2 flex items-center gap-3 rounded-card bg-card p-4 shadow-e1">
+        <AvatarStack members={people} size={30} ringClass="ring-card" />
         <div className="min-w-0">
           <div className="truncate text-bodysm font-medium">{s.householdName}</div>
-          <div className="text-caption text-white/55">{people.length} people</div>
+          <div className="text-caption text-sub">{people.length} people</div>
         </div>
       </div>
 
       <button
         onClick={() => s.notify("Signed out — this is a demo")}
-        className="mt-6 w-full rounded-card border border-white/10 bg-white/[.05] p-4 text-center text-bodysm font-semibold text-danger transition-colors hover:bg-danger/10"
+        className="mt-6 w-full rounded-card bg-card p-4 text-center text-bodysm font-semibold text-danger shadow-e1 transition-colors hover:bg-danger/[.04]"
       >
         Sign out
       </button>
-      <p className="mt-4 text-center text-caption text-white/45">Homeboard · demo build</p>
+      <p className="mt-4 text-center text-caption text-sub">Homeboard · demo build</p>
     </>
   );
 }
@@ -536,7 +536,7 @@ function SettingField({
   useEffect(() => setV(value), [value]);
   return (
     <label className="flex items-center gap-3 px-4 py-3.5">
-      <span className="w-16 shrink-0 text-bodysm font-medium text-white">{label}</span>
+      <span className="w-16 shrink-0 text-bodysm font-medium">{label}</span>
       <input
         type={type}
         value={v}
@@ -544,7 +544,7 @@ function SettingField({
         onBlur={() => { const t = v.trim(); if (t !== value) onCommit(t); }}
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
         placeholder={placeholder}
-        className="min-w-0 flex-1 bg-transparent text-right text-bodysm text-white outline-none placeholder:text-white/35"
+        className="min-w-0 flex-1 bg-transparent text-right text-bodysm outline-none placeholder:text-sub/70"
       />
     </label>
   );
