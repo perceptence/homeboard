@@ -1297,11 +1297,9 @@ function PhoneYou() {
           header), then the three lenses over one shared detail area. */}
       <motion.div variants={listItem}>
         <div className="rounded-card border border-white/10 bg-white/[.06] p-inner">
-        <div className="flex items-center gap-1.5 text-caption font-medium text-white/55">
-          <Icon name="key" size={13} className="shrink-0" />
-          {ROLE_LABEL[me.role]}
-        </div>
-        <div className="mt-4 flex gap-1 rounded-md bg-white/[.05] p-1">
+        <IconTile name="key" tone="onDark" />
+        <TitleBlock className="mt-6" tone="onDark" eyebrow="Your standing" title={ROLE_LABEL[me.role]} />
+        <div className="mt-5 flex gap-1 rounded-md bg-white/[.05] p-1">
           {LENSES.map((l) => {
             const on = lens === l.key;
             return (
