@@ -564,7 +564,9 @@ function HandoffSheet({ id }: { id?: number }) {
                   onClick={() => open(t)}
                   aria-expanded={isOpen}
                   className={clsx(
-                    "flex min-h-touch w-full items-center gap-3 px-4 py-3.5 text-left transition-colors duration-300",
+                    // gap-2.5, not 3 — the named chip needs every pixel the
+                    // titles can spare.
+                    "flex min-h-touch w-full items-center gap-2.5 px-4 py-3.5 text-left transition-colors duration-300",
                     isOpen && "bg-surface/60",
                   )}
                 >
@@ -591,26 +593,26 @@ function HandoffSheet({ id }: { id?: number }) {
                       </>
                     }
                   />
-                  {/* A SUGGESTION CHIP, not a bare face — a face alone read as
-                      "assigned to Leo". The spark is the app's one mark for
-                      "the app proposes" (the same glyph that opens the reason
-                      line inside: "✦ Leo — lightest load"), so the chip is the
-                      short form of the sentence the tap reveals. Face without
-                      the name: the name was costing the TITLES their width,
-                      and the expanded panel says it in full. */}
+                  {/* THE PROPOSED HAND-OFF, said in words. Two symbolic passes
+                      (bare face; spark + face) both read as "assigned to" or
+                      nothing — implicit loses. The chip now uses the sheet's
+                      OWN verb-glyph (⇄, the one in its header tile) plus the
+                      name: "⇄ Leo" = hand off to Leo. The name truncates before
+                      the row's title ever has to. */}
                   {taker && (
-                    <span className="flex shrink-0 items-center gap-1 rounded-pill bg-surface py-1 pl-2 pr-1">
-                      <Icon name="spark" size={12} className="text-sub" />
-                      <Avatar member={taker} size={20} />
+                    <span className="flex shrink-0 items-center gap-1 rounded-pill bg-surface px-2 py-1.5">
+                      <Icon name="handoff" size={12} className="shrink-0 text-sub" />
+                      <span className="max-w-[64px] truncate text-[11px] font-semibold text-ink">{taker.name}</span>
                     </span>
                   )}
+                  {/* Caret a step smaller — it yields width to the chip+title. */}
                   {/* DOWN when closed — the row expands downward, and a right-
                       pointing caret promises navigation. Flips up when open. */}
                   <motion.span
                     animate={{ rotate: isOpen ? 180 : 0 }} transition={smooth}
                     className="shrink-0 text-sub/60"
                   >
-                    <Icon name="chevDown" size={16} />
+                    <Icon name="chevDown" size={14} />
                   </motion.span>
                 </button>
 
