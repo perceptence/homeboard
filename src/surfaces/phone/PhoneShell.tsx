@@ -1279,27 +1279,19 @@ function PhoneYou() {
   const openMine = s.tasks.filter((t) => t.owner === meId && !t.done);
   const effect = PRESENCE_EFFECT[presence](av.to);
 
-  // The Looks-after list, reconciled to Carrying. Group Sam's open tasks by the
-  // area they come from (the source's first segment), then list:
-  //   1. the standing areas he looks after — their load, or "—" when quiet,
-  //   2. anywhere ELSE his tasks come from, NAMED (a calendar run, an automation)
-  //      — so every task in Carrying is accounted for, not lumped as "elsewhere".
-  // Sorted so the areas carrying work lead and the quiet ones trail; the loads
-  // now sum to Carrying exactly.
+  // "Looking after" — the categories the member's open tasks actually fall into
+  // right now, grouped by where each comes from (the source's first segment) and
+  // named (a Calendar run, an Automation). ONLY categories that hold tasks show,
+  // so the loads sum to Carrying with nothing padded. Heaviest first.
   const SOURCE_LABEL: Record<string, string> = { Auto: "Automation" };
   const openByArea = new Map<string, number>();
   for (const t of openMine) {
     const k = (t.source ?? "").split("·")[0].trim() || "Other";
     openByArea.set(k, (openByArea.get(k) ?? 0) + 1);
   }
-  const looksAfter = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];
-  const declaredSet = new Set(looksAfter);
-  const patch = [
-    ...looksAfter.map((name) => ({ name, load: openByArea.get(name) ?? 0 })),
-    ...[...openByArea.entries()]
-      .filter(([k]) => !declaredSet.has(k))
-      .map(([k, load]) => ({ name: SOURCE_LABEL[k] ?? k, load })),
-  ].sort((a, b) => b.load - a.load);
+  const patch = [...openByArea.entries()]
+    .map(([k, load]) => ({ name: SOURCE_LABEL[k] ?? k, load }))
+    .sort((a, b) => b.load - a.load);
   /** Short labels for the segmented control — the effect line carries the
    *  meaning, so the chips don't have to spell it out. */
   const SEG: Record<Presence, string> = { here: "Here", wfh: "Home", out: "Out", away: "Away" };
@@ -1307,7 +1299,7 @@ function PhoneYou() {
    *  one shared area below, so every stat earns its detail — not just Rhythms. */
   const LENSES = [
     { key: "carrying" as const, n: mine, label: "Carrying" },
-    { key: "after" as const, n: looksAfter.length, label: "Looks after" },
+    { key: "after" as const, n: patch.length, label: "Looking after" },
     { key: "rhythms" as const, n: rhythms.length, label: "Rhythms" },
   ];
 
@@ -1365,13 +1357,13 @@ function PhoneYou() {
                       <div key={p.name} className="flex items-center justify-between gap-3 py-1.5">
                         <span className="min-w-0 truncate text-bodysm text-white/85">{p.name}</span>
                         <span className="shrink-0 text-caption text-white/45">
-                          {p.load ? `${p.load} ${p.load === 1 ? "task" : "tasks"}` : "—"}
+                          {p.load} {p.load === 1 ? "task" : "tasks"}
                         </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="py-1.5 text-bodysm text-white/50">No standing areas yet.</p>
+                  <p className="py-1.5 text-bodysm text-white/50">Nothing on you right now.</p>
                 )
               )}
               {lens === "rhythms" && (
