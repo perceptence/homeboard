@@ -1272,12 +1272,14 @@ function PhoneYou() {
     ? s.tasks.filter((t) => t.owner === meId && !t.done && !t.coveredBy && awayOn(me, t.due))
     : [];
 
-  // What Sam looks after, each with how much is currently ON it — the open tasks
-  // tied to that area (matched by source). This is the Looks-after list's
-  // right-hand value, the way Carrying shows a time and Rhythms a cadence. A
-  // physical space (Garden, Garage) carries no tasks of its own, so it reads "—".
+  // What Sam looks after, each with how much of it is currently on HIM — his own
+  // open tasks in that area (matched by source). Owner-scoped on purpose: a
+  // house-wide count pulled in unowned jobs (e.g. "Mow the lawn") and stopped
+  // reconciling with Carrying. A physical space (Garden, Garage) carries no
+  // tasks of its own, so it reads "—". (Note: Carrying can still exceed the sum
+  // here — some tasks land on you OUTSIDE your standing areas.)
   const areaLoad = (name: string) =>
-    s.tasks.filter((t) => !t.done && (t.source ?? "").split("·")[0].trim() === name).length;
+    s.tasks.filter((t) => t.owner === meId && !t.done && (t.source ?? "").split("·")[0].trim() === name).length;
   const patch = [
     ...(me.responsibility?.domains ?? []),
     ...(me.responsibility?.spaces ?? []),
