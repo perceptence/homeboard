@@ -279,6 +279,20 @@ export function Avatar({ member, size = 32 }: { member?: Member; size?: number }
       </span>
     );
   }
+  // A custom photo, once set in Settings, stands in for the illustrated face
+  // everywhere — same round frame and ring so nothing else has to know.
+  if (member.photo) {
+    return (
+      <span
+        title={member.name}
+        style={{ width: size, height: size }}
+        className="inline-flex shrink-0 overflow-hidden rounded-pill ring-[2px] ring-inset ring-white/25"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={member.photo} alt={member.name} className="h-full w-full object-cover" />
+      </span>
+    );
+  }
   // An illustrated, animated face — drawn from the member's id, so it's stable.
   // A pet has no face; it keeps the coloured initial.
   if (member.kind === "pet") {

@@ -444,6 +444,33 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
  * model: assigned, never self-granted), reminders are described not faked
  * (there's no push yet), the household is displayed. Honesty over a toggle farm.
  */
+
+/** Read a chosen image, centre-crop it to a square and downscale to 240px, and
+ *  return a JPEG data URL — small enough to live in the persisted store and
+ *  sharp at every size an Avatar is drawn (22–64px). */
+function fileToAvatarDataUrl(file: File, size = 240): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Not an image"));
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("No canvas"));
+        const crop = Math.min(img.width, img.height);
+        ctx.drawImage(img, (img.width - crop) / 2, (img.height - crop) / 2, crop, crop, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function SettingsSheet() {
   const s = useHousehold();
   const meId = s.persona !== "ipad" ? s.persona : doers(s)[0]?.id;
@@ -462,10 +489,40 @@ function SettingsSheet() {
       {/* WHO YOU ARE — the portrait, then the two fields that are actually yours
           to edit. Inputs commit on blur (a name change ripples to the header). */}
       <div className="mt-5 flex items-center gap-4">
-        <Avatar member={me} size={64} />
+        {/* The portrait is the ONE place a photo is set. Tapping it opens the
+            picker; the camera badge says so. */}
+        <label className="relative shrink-0 cursor-pointer" title="Change your photo">
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (!file) return;
+              try {
+                s.setProfile({ photo: await fileToAvatarDataUrl(file) });
+              } catch {
+                s.notify("Couldn’t use that image");
+              }
+            }}
+          />
+          <Avatar member={me} size={64} />
+          <span className="absolute -bottom-0.5 -right-0.5 grid h-[22px] w-[22px] place-items-center rounded-pill bg-ink text-white ring-2 ring-surface">
+            <Icon name="camera" size={12} />
+          </span>
+        </label>
         <div className="min-w-0">
           <div className="truncate text-h2">{me.name}</div>
           <div className="text-caption text-sub">{ROLE_LABEL[me.role]}</div>
+          {me.photo && (
+            <button
+              onClick={() => s.setProfile({ photo: undefined })}
+              className="mt-0.5 text-caption text-sub transition-colors hover:text-ink"
+            >
+              Remove photo
+            </button>
+          )}
         </div>
       </div>
 

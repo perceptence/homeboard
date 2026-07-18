@@ -328,7 +328,7 @@ interface HouseholdState {
   setStep: (n: number) => void;
   setHouseholdName: (n: string) => void;
   /** Edit the CURRENT person's own profile fields (name, email) from Settings. */
-  setProfile: (patch: { name?: string; email?: string }) => void;
+  setProfile: (patch: { name?: string; email?: string; photo?: string }) => void;
   setPreset: (p: HouseholdPreset) => void;
   setAxis: (patch: Partial<HouseholdAxes>) => void;
   addPerson: (kind: DraftPerson["kind"], role: Role) => void;

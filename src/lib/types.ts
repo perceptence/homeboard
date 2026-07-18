@@ -238,6 +238,9 @@ export interface Member {
    *  Optional: a young kid on a shared device may have none. Edited in Settings. */
   email?: string;
   kind: MemberKind;
+  /** A custom profile picture, as a (downscaled) data URL. When set, it replaces
+   *  the illustrated face everywhere. Set from Settings; absent by default. */
+  photo?: string;
   /** Real, and only ever used as a CAPABILITY gate against a task's minAge —
    *  never as a permission. Optional: plenty of adults won't type it in. */
   age?: number;
