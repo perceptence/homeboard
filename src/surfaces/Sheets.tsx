@@ -555,23 +555,23 @@ function MaintSheet({ id }: { id: string }) {
     </>
   );
 }
-
 /**
- * HAND OFF — the app's own task cards, each carrying its own dock.
+ * HAND OFF — task cards with a SPLIT CTA and a per-card dock.
  *
- * v4, and the lesson of v3 is the spine of it: a single dock at the sheet's
- * foot DISCONNECTED the two halves of the act — with a long list the people
- * weren't even on screen. So the choice comes to the task: every row is a
- * real task card (the ink glyph stadium, the standard trio, a named pill for
- * the Balancer's proposal), and opening one unfolds a small ink DOCK inside
- * that same card. Task above, takers below, one composition — the hand-off
- * crosses from light to dark without ever leaving your glance.
+ * The pill is two tap zones in one control, parted by a hairline pipe:
+ *   [⇄ Maya] — the recommended hand-off, DONE on tap. The Balancer's pick is
+ *              the 90% case; it costs exactly one touch and no navigation.
+ *   [  ▾  ]  — opens the card's own ink dock to choose someone else. Manual
+ *              picks CONFIRM ("Hand to Leo") — you're overriding the app's
+ *              judgement, so the sheet reads the decision back before it
+ *              moves someone's work. The fast path stays fast; the deliberate
+ *              path stays deliberate.
+ * (A split button, not two separate CTAs: "adjust" is a modifier of the same
+ * verb, and giving it its own button would rank it equal to the act itself.)
  *
- * The proposal pill ("⇄ Maya") is dark because it IS a button now — it opens
- * the card on the choice it names. Inside, one tap on a person gives them the
- * task: the suggestion wears a lemon ring + "✦ lightest load", the others
- * their live count, the blocked their kind short-why ("Ages 8+" / "Not
- * Leo's"). The sheet stays open for the next one.
+ * Rows are real task cards — ink glyph stadium, standard trio — and the dock
+ * lives INSIDE the open card, so task and takers share one glance at any
+ * list length.
  */
 function HandoffSheet({ id }: { id?: number }) {
   const s = useHousehold();
@@ -579,6 +579,8 @@ function HandoffSheet({ id }: { id?: number }) {
   const mine = s.tasks.filter((t) => t.owner === meId && !t.done);
 
   const [openId, setOpenId] = useState<number | undefined>(id);
+  /** The dock's selection — starts on the suggestion when a card opens. */
+  const [choice, setChoice] = useState<MemberId | null>(null);
 
   /** The dock's one-breath version of whyNot — a cell caption, not a sentence.
    *  Same two tails as the long form: an age gate names its number (it lifts by
@@ -612,6 +614,10 @@ function HandoffSheet({ id }: { id?: number }) {
             const open = openId === t.id;
             const pick = suggestTaker(s, t);
             const taker = pick ? s.members[pick.id] : undefined;
+            const toggle = () => {
+              setOpenId(open ? undefined : t.id);
+              setChoice(open ? null : pick?.id ?? null);
+            };
             return (
               <motion.div
                 layout
@@ -622,16 +628,14 @@ function HandoffSheet({ id }: { id?: number }) {
                   open ? "shadow-e2" : "shadow-e1",
                 )}
               >
-                <button
-                  onClick={() => setOpenId(open ? undefined : t.id)}
-                  aria-expanded={open}
-                  className="flex w-full items-stretch gap-3 p-3 text-left"
+                {/* A DIV, not a button — the split CTA inside holds real
+                    <button>s. Tapping the body anywhere still opens the dock. */}
+                <div
+                  onClick={toggle}
+                  className="flex w-full cursor-pointer items-stretch gap-3 p-3 text-left"
                 >
                   {/* THE STADIUM — the task-card anchor (DateBadge's shape),
-                      carrying the task's glyph: lemon-on-ink at rest, flipping
-                      to ink-on-lemon when the card is open. The strong dark
-                      post is what a row of these was missing — without it the
-                      list read as a parked-domain link farm. */}
+                      lemon-on-ink at rest, ink-on-lemon while open. */}
                   <span
                     className={clsx(
                       "grid w-[44px] shrink-0 place-items-center self-stretch rounded-pill transition-colors duration-300",
@@ -660,16 +664,30 @@ function HandoffSheet({ id }: { id?: number }) {
                     }
                   />
 
-                  {/* THE PROPOSAL, as the row's own button — dark pill, named:
-                      "⇄ Maya" opens the card on exactly the choice it names. */}
-                  <span className="flex shrink-0 items-center gap-1.5 self-center rounded-pill bg-ink py-2 pl-2.5 pr-2 text-white">
-                    <Icon name="handoff" size={12} className="shrink-0" />
-                    {taker && <span className="max-w-[56px] truncate text-[11px] font-semibold">{taker.name}</span>}
-                    <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
-                      <Icon name="chevDown" size={12} className="text-white/60" />
-                    </motion.span>
+                  {/* THE SPLIT CTA. Left zone commits the recommendation in one
+                      tap; right zone (past the pipe) opens the dock to choose. */}
+                  <span className="flex shrink-0 items-stretch self-center overflow-hidden rounded-pill bg-ink text-white">
+                    <button
+                      disabled={!pick}
+                      onClick={(e) => { e.stopPropagation(); if (pick) s.handOff(t.id, pick.id); }}
+                      className="flex items-center gap-1.5 py-2 pl-3 pr-2.5 transition-colors hover:bg-white/10 disabled:opacity-50"
+                    >
+                      <Icon name="handoff" size={12} className="shrink-0" />
+                      {taker && <span className="max-w-[56px] truncate text-[11px] font-semibold">{taker.name}</span>}
+                    </button>
+                    <span aria-hidden className="my-1.5 w-px bg-white/20" />
+                    <button
+                      aria-expanded={open}
+                      aria-label="Choose someone else"
+                      onClick={(e) => { e.stopPropagation(); toggle(); }}
+                      className="flex items-center px-2 transition-colors hover:bg-white/10"
+                    >
+                      <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
+                        <Icon name="chevDown" size={12} className="text-white/70" />
+                      </motion.span>
+                    </button>
                   </span>
-                </button>
+                </div>
 
                 <AnimatePresence initial={false}>
                   {open && (
@@ -679,9 +697,9 @@ function HandoffSheet({ id }: { id?: number }) {
                       exit={{ height: 0, opacity: 0 }}
                       transition={smooth}
                     >
-                      {/* THE CARD'S OWN DOCK — the receiving side, in the app's
-                          night colour, INSIDE the same card as the task it's
-                          for. One tap gives; the sheet stays up for the next. */}
+                      {/* THE CARD'S OWN DOCK — now a PICKER: tap selects, the
+                          lemon button reads the decision back, and only that
+                          confirms. Overriding the Balancer is deliberate. */}
                       <div className="px-3 pb-3">
                         <div className="rounded-[18px] bg-ink p-3">
                           <Eyebrow tone="onDark">Hand it to</Eyebrow>
@@ -691,17 +709,19 @@ function HandoffSheet({ id }: { id?: number }) {
                               .map((m) => {
                                 const why = shortWhy(m, t);
                                 const suggested = !why && pick?.id === m.id;
+                                const chosen = choice === m.id;
                                 return (
                                   <button
                                     key={m.id}
                                     disabled={!!why}
-                                    onClick={() => { s.handOff(t.id, m.id); setOpenId(undefined); }}
+                                    onClick={() => setChoice(m.id)}
+                                    aria-pressed={chosen}
                                     className={clsx(
                                       "flex flex-1 flex-col items-center gap-1 rounded-2xl px-1 py-2.5 transition-colors duration-300",
                                       why
                                         ? "opacity-40"
-                                        : suggested
-                                          ? "bg-lemon/10 ring-2 ring-inset ring-lemon hover:bg-lemon/20"
+                                        : chosen
+                                          ? "bg-lemon/10 ring-2 ring-inset ring-lemon"
                                           : "bg-white/[.06] hover:bg-white/[.14]",
                                     )}
                                   >
@@ -714,6 +734,24 @@ function HandoffSheet({ id }: { id?: number }) {
                                 );
                               })}
                           </div>
+
+                          {/* THE READBACK — the confirmation the manual path owes. */}
+                          <button
+                            disabled={!choice}
+                            onClick={() => {
+                              if (!choice) return;
+                              s.handOff(t.id, choice);
+                              setOpenId(undefined);
+                              setChoice(null);
+                            }}
+                            className={clsx(
+                              "mt-2.5 flex h-touch w-full items-center justify-center gap-1.5 rounded-pill text-bodysm font-semibold transition-colors duration-300",
+                              choice ? "bg-lemon text-ink" : "bg-white/[.08] text-white/40",
+                            )}
+                          >
+                            <Icon name="handoff" size={14} />
+                            {choice ? `Hand to ${s.members[choice].name}` : "Pick someone"}
+                          </button>
                         </div>
                       </div>
                     </motion.div>

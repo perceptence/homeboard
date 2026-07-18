@@ -1294,7 +1294,8 @@ function PhoneYou() {
   /* --- where you are --- */
   const av = me.availability ?? { presence: "here" as Presence };
   const presence = av.presence;
-  const [whereOpen, setWhereOpen] = useState(false);
+  /** Which bento tile is unfolded below the mosaic — presence or patch. */
+  const [openTile, setOpenTile] = useState<"where" | "patch" | null>(null);
   const [dateOpen, setDateOpen] = useState(false);
   const [quietOpen, setQuietOpen] = useState(false);
   const [quietEdge, setQuietEdge] = useState<"from" | "to">("from");
@@ -1317,111 +1318,158 @@ function PhoneYou() {
   /** Distinct people, not tasks — two jobs on one person is one name. */
   const coverNames = [...new Set(covered.map((t) => s.members[t.coveredBy!]?.name ?? "Someone"))];
 
-  const jobs = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];
+  const jobs = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];  /** The tile's word for where you are, and its one-line story underneath. */
+  const presenceWord = PRESENCE_CHOICES.find((c) => c.key === presence)?.label ?? "Here";
+  const presenceStory =
+    needsCover.length ? `${needsCover.length} ${needsCover.length === 1 ? "task needs" : "tasks need"} cover`
+    : covered.length ? `${listOf(coverNames)} covering`
+    : presence === "away" && av.to ? `Back ${relativeInline(av.to)}`
+    : av.quiet ? `Quiet ${to12(av.quiet.from)} – ${to12(av.quiet.to)}`
+    : "Work shares out as normal";
+
   return (
-    /* THE PANE. Not another stack of cards — the tab that is ABOUT a person
-       reads as ONE continuous surface: the same raised, round-shouldered pane
-       the bottom sheets rise on, docked under the greeting and running to the
-       bottom of the glass. Sections are TYPOGRAPHY and hairlines, not boxes —
-       an eyebrow, a spoken sentence, then the evidence — because a profile is
-       a page about someone, not a tray of widgets. */
-    <motion.div
-      variants={listItem}
-      className="-mx-screen -mb-[140px] rounded-t-sheet bg-surface px-6 pb-[170px] pt-3 text-ink"
-    >
-      {/* The sheet grammar, quoted deliberately: a grabber says "this is a pane". */}
-      <div aria-hidden className="mx-auto h-[4px] w-10 rounded-pill bg-ink/10" />
-
-      {/* 1 · YOUR LOAD — the verdict as a sentence, the house as a family
-          photo: faces with counts worn underneath, you the tallest figure.
-          Numbers under faces, no bars, no chart (DESIGN: "no charts on the
-          phone" — reading an encoding IS the mental load). */}
-      <section className="pt-5">
-        <Eyebrow>Your load</Eyebrow>
-        <Sentence className="mt-1.5">{headline}</Sentence>
-
-        <div className="mt-5 flex items-end gap-6">
-          <div className="flex shrink-0 flex-col items-center gap-1.5">
-            <Avatar member={me} size={72} />
-            <span className="mt-0.5 font-tight text-[32px] leading-none tabular-nums">{mine}</span>
-            <span className="text-caption leading-none text-sub">{mine === 1 ? "task" : "tasks"}</span>
-          </div>
-          {others.map(({ m, n }) => (
-            <div key={m.id} className="flex flex-col items-center gap-1.5 pb-[3px]">
-              <Avatar member={m} size={40} />
-              <span className="mt-0.5 font-tight text-[18px] leading-none tabular-nums">{n}</span>
-              <span className="text-caption leading-none text-sub">{m.name}</span>
+    /* THE YOU TAB, THIRD SPECIES. Not a stack of same-width cards, not a page
+       of grey type — a MOSAIC with three kinds of object on it:
+         1. the RESIDENT CARD — you as a physical object, lemon, the brand's
+            own house watermarked into its corner;
+         2. the LOAD panel — the household as a family photo on night;
+         3. a BENTO PAIR — presence and patch as square stat tiles that unfold
+            a full-width drawer beneath the pair when tapped;
+       and access demoted to a FOOTNOTE — one quiet line on the backdrop,
+       because "shares the running" is a fact, not a surface. Varied sizes,
+       varied registers: the page reads as a composition, not a tray. */
+    <>
+      {/* 1 · THE RESIDENT CARD */}
+      <motion.div variants={listItem}>
+        <div className="relative overflow-hidden rounded-card bg-lemon p-card-pad text-ink shadow-e2">
+          {/* The logo's own house, watermarked — the card belongs to the home. */}
+          <svg aria-hidden viewBox="0 0 128 128" className="absolute -bottom-7 -right-5 h-[130px] w-[130px] text-ink/[.06]">
+            <path d="M0 64 L64 7 L128 64 V88 Q128 128 88 128 H40 Q0 128 0 88 Z" fill="currentColor" />
+          </svg>
+          <div className="relative flex items-center gap-4">
+            <Avatar member={me} size={64} />
+            <div className="min-w-0 flex-1">
+              <Eyebrow>{s.householdName}</Eyebrow>
+              <div className="mt-hair truncate font-tight text-[26px] leading-tight">{me.name}</div>
+              <div className="mt-0.5 text-caption text-ink/60">{ROLE_LABEL[me.role]}</div>
             </div>
-          ))}
-        </div>
-
-        {mine > 0 && (
-          <div className="mt-5 flex flex-wrap gap-2">
-            {canEven && (
-              <Button tone="dark" onClick={() => s.openSheet({ type: "rebalance" })}>
-                <Icon name="scale" size={14} /> Even it out
-              </Button>
+            {/* Stars live on the CARD — the guided surface's reward, worn like
+                a badge on the thing that says who you are. */}
+            {me.role === "guided" && (
+              <span className="shrink-0 rounded-pill bg-white/70 px-3 py-1.5 font-tight text-h2 tabular-nums text-star">
+                ★ {me.stars ?? 0}
+              </span>
             )}
-            {/* WHITE on the grey pane — `outline` was for white cards. */}
-            <Button tone="light" onClick={() => s.openSheet({ type: "handoff" })}>
-              <Icon name="handoff" size={14} /> Hand one off
-            </Button>
           </div>
-        )}
-      </section>
-
-      <hr className="my-6 border-ink/[.06]" />
-
-      {/* 2 · WHERE YOU ARE — state as a sentence, machinery behind the fold. */}
-      <section>
-        <Eyebrow>Where you are</Eyebrow>
-        <Sentence className="mt-1.5">{PRESENCE_TITLE[presence]}</Sentence>
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-caption text-sub">
-          <span>
-            {presence === "away" && needsCover.length
-              ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${needsCover.length} ${needsCover.length === 1 ? "task" : "tasks"} still on you.`
-              : presence === "away" && covered.length
-                ? `${av.to ? `Back ${relativeInline(av.to)}. ` : ""}${listOf(coverNames)} ${coverNames.length === 1 ? "has" : "have"} it covered.`
-                : PRESENCE_EFFECT[presence](av.to)}
-          </span>
-          {av.quiet && (
-            <span className="flex items-center gap-1">
-              <Icon name="moon" size={12} className="shrink-0" />
-              Quiet {to12(av.quiet.from)} – {to12(av.quiet.to)}
-            </span>
-          )}
         </div>
+      </motion.div>
 
-        {/* OUTSIDE the fold, deliberately: this is the app reporting stranded
-            work, not a setting you went looking for. */}
-        {needsCover.length > 0 && (
-          <Button tone="dark" className="mt-3" onClick={() => s.coverAway(meId)}>
+      {/* 2 · YOUR LOAD — the family photo on night; your number in lemon. */}
+      <motion.div variants={listItem}>
+        <Card tone="ink">
+          <Eyebrow tone="onDark">Your load</Eyebrow>
+          <div className="mt-1 text-h2 text-white">{headline}</div>
+
+          <div className="mt-4 flex items-end gap-6">
+            <div className="flex shrink-0 flex-col items-center gap-1.5">
+              <Avatar member={me} size={64} />
+              <span className="mt-0.5 font-tight text-[30px] leading-none tabular-nums text-lemon">{mine}</span>
+              <span className="text-caption leading-none text-white/45">{mine === 1 ? "task" : "tasks"}</span>
+            </div>
+            {others.map(({ m, n }) => (
+              <div key={m.id} className="flex flex-col items-center gap-1.5 pb-[3px]">
+                <Avatar member={m} size={38} />
+                <span className="mt-0.5 font-tight text-[18px] leading-none tabular-nums text-white">{n}</span>
+                <span className="text-caption leading-none text-white/45">{m.name}</span>
+              </div>
+            ))}
+          </div>
+
+          {mine > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {canEven && (
+                <Button tone="lemon" onClick={() => s.openSheet({ type: "rebalance" })}>
+                  <Icon name="scale" size={14} /> Even it out
+                </Button>
+              )}
+              <Button tone="light" onClick={() => s.openSheet({ type: "handoff" })}>
+                <Icon name="handoff" size={14} /> Hand one off
+              </Button>
+            </div>
+          )}
+        </Card>
+      </motion.div>
+
+      {/* 3 · THE BENTO PAIR — presence and patch as square stat tiles. Tap one
+          and a full-width drawer unfolds beneath the pair with its controls. */}
+      <motion.div variants={listItem}>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setOpenTile(openTile === "where" ? null : "where")}
+            aria-expanded={openTile === "where"}
+            className={clsx(
+              "flex min-h-[150px] flex-col items-start rounded-card bg-mint p-card-pad text-left text-ink shadow-e2 transition-shadow",
+              openTile === "where" && "ring-2 ring-inset ring-ink",
+            )}
+          >
+            <span className="grid h-9 w-9 place-items-center rounded-pill bg-ink text-lemon">
+              <Icon name="pin" size={18} />
+            </span>
+            <span className="mt-auto w-full pt-3">
+              <Eyebrow>Where you are</Eyebrow>
+              <span className="mt-hair block truncate font-tight text-[22px] leading-tight">{presenceWord}</span>
+              <span className="mt-0.5 block truncate text-caption text-ink/55">{presenceStory}</span>
+            </span>
+          </button>
+
+          <button
+            onClick={() => setOpenTile(openTile === "patch" ? null : "patch")}
+            aria-expanded={openTile === "patch"}
+            className={clsx(
+              "flex min-h-[150px] flex-col items-start rounded-card bg-lavender p-card-pad text-left text-ink shadow-e2 transition-shadow",
+              openTile === "patch" && "ring-2 ring-inset ring-ink",
+            )}
+          >
+            <span className="grid h-9 w-9 place-items-center rounded-pill bg-ink text-lemon">
+              <Icon name="grid" size={18} />
+            </span>
+            <span className="mt-auto w-full pt-3">
+              <Eyebrow>Your patch</Eyebrow>
+              <span className="mt-hair block truncate font-tight text-[22px] leading-tight">
+                {jobs.length ? `${jobs.length} in your care` : "None yet"}
+              </span>
+              <span className="mt-0.5 block truncate text-caption text-ink/55">
+                {jobs.length ? listOf(me.responsibility?.domains.length ? me.responsibility.domains : me.responsibility?.spaces ?? []) : `${ownerName(s)} can hand you one`}
+              </span>
+            </span>
+          </button>
+        </div>
+      </motion.div>
+
+      {/* The verb sits with the problem, outside any drawer: stranded work is
+          the app reporting, not a setting you went looking for. */}
+      {needsCover.length > 0 && (
+        <motion.div variants={listItem}>
+          <Button tone="lemon" className="w-full" onClick={() => s.coverAway(meId)}>
             <Icon name="handoff" size={14} />
             Find cover for {needsCover.length === 1 ? "it" : `all ${needsCover.length}`}
           </Button>
-        )}
+        </motion.div>
+      )}
 
-        <button
-          onClick={() => setWhereOpen((v) => !v)}
-          aria-expanded={whereOpen}
-          className="mt-2 flex items-center gap-1 text-caption font-medium text-sub transition-colors hover:text-ink"
-        >
-          {whereOpen ? "Done" : "Adjust"}
-          <motion.span animate={{ rotate: whereOpen ? 180 : 0 }} transition={smooth} className="flex">
-            <Icon name="chevDown" size={12} />
-          </motion.span>
-        </button>
-
-        <AnimatePresence initial={false}>
-          {whereOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={smooth}
-              className="overflow-hidden"
-            >
-              <div className="mt-3 flex flex-wrap gap-2">
+      {/* THE DRAWER — full width, tinted to match the tile that opened it. */}
+      <AnimatePresence initial={false}>
+        {openTile === "where" && (
+          <motion.div
+            key="where"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={smooth}
+            className="overflow-hidden"
+          >
+            <div className="rounded-card bg-mint p-card-pad text-ink">
+              <div className="flex flex-wrap gap-2">
                 {PRESENCE_CHOICES.map(({ key, label }) => (
                   <Choice
                     key={key}
@@ -1447,11 +1495,11 @@ function PhoneYou() {
                 </div>
               )}
 
-              <div className="mt-4 border-t border-ink/[.06] pt-3">
+              <div className="mt-4 border-t border-ink/[.08] pt-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-bodysm font-medium">Quiet hours</div>
-                    <div className="mt-hair text-caption text-sub">
+                    <div className="mt-hair text-caption text-ink/55">
                       {av.quiet ? `${to12(av.quiet.from)} – ${to12(av.quiet.to)}` : "Reminders can reach you any time"}
                     </div>
                   </div>
@@ -1473,59 +1521,51 @@ function PhoneYou() {
                   {av.quiet && (
                     <button
                       onClick={() => { s.setQuietHours(meId, undefined); setQuietOpen(false); }}
-                      className="mt-1 w-full py-2 text-caption text-sub transition-colors hover:text-ink"
+                      className="mt-1 w-full py-2 text-caption text-ink/55 transition-colors hover:text-ink"
                     >
                       Turn off quiet hours
                     </button>
                   )}
                 </PickerPanel>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </section>
-
-      <hr className="my-6 border-ink/[.06]" />
-
-      {/* 3 · YOUR PATCH — the standing agreement, said as a sentence with the
-          domains repeated as solid white chips underneath. */}
-      <section>
-        <Eyebrow>Your patch</Eyebrow>
-        <Sentence className="mt-1.5">
-          {jobs.length
-            ? `You look after ${listOf(me.responsibility?.domains.length
-                ? me.responsibility.domains
-                : me.responsibility?.spaces ?? [])}`
-            : "Nothing’s yours yet"}
-        </Sentence>
-        {jobs.length === 0 && (
-          <p className="mt-1.5 text-caption text-sub">{ownerName(s)} can hand you a domain or a room.</p>
+            </div>
+          </motion.div>
         )}
-        {jobs.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {jobs.map((j) => <Pill key={j} tone="light">{j}</Pill>)}
-          </div>
-        )}
-      </section>
 
-      <hr className="my-6 border-ink/[.06]" />
-
-      {/* 4 · YOUR ACCESS — the role in words; stars ride the section head for
-          whoever is guided (the reward loop belongs to that surface). */}
-      <section>
-        <div className="flex items-center">
-          <Eyebrow>Your access</Eyebrow>
-          {me.role === "guided" && (
-            <span className="ml-auto shrink-0 font-tight text-h2 tabular-nums text-star">★ {me.stars ?? 0}</span>
-          )}
-        </div>
-        <Sentence className="mt-1.5">{ROLE_LABEL[me.role]}</Sentence>
-        <p className="mt-1.5 text-caption text-sub">{ROLE_HINT[me.role]}</p>
-        {me.role !== "owner" && (
-          <p className="mt-3 text-caption text-sub/70">Only {ownerName(s)} can change this.</p>
+        {openTile === "patch" && (
+          <motion.div
+            key="patch"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={smooth}
+            className="overflow-hidden"
+          >
+            <div className="rounded-card bg-lavender p-card-pad text-ink">
+              <div className="text-bodysm text-ink/70">
+                {jobs.length
+                  ? "The standing agreement — yours to look after, with no tasks attached."
+                  : `${ownerName(s)} can hand you a domain or a room.`}
+              </div>
+              {jobs.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {jobs.map((j) => <Pill key={j} tone="light">{j}</Pill>)}
+                </div>
+              )}
+            </div>
+          </motion.div>
         )}
-      </section>
-    </motion.div>
+      </AnimatePresence>
+
+      {/* 4 · THE FOOTNOTE — access is a fact, not a surface. One quiet line. */}
+      <motion.div variants={listItem}>
+        <p className="flex items-center gap-1.5 px-1 pt-1 text-caption text-white/40">
+          <Icon name="key" size={12} className="shrink-0" />
+          {ROLE_LABEL[me.role]}
+          {me.role !== "owner" && <span className="text-white/30"> · only {ownerName(s)} can change this</span>}
+        </p>
+      </motion.div>
+    </>
   );
 }
 
