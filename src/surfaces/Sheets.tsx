@@ -591,10 +591,17 @@ function HandoffSheet({ id }: { id?: number }) {
                       </>
                     }
                   />
+                  {/* A SUGGESTION CHIP, not a bare face — a face alone read as
+                      "assigned to Leo". The spark is the app's one mark for
+                      "the app proposes" (the same glyph that opens the reason
+                      line inside: "✦ Leo — lightest load"), so the chip is the
+                      short form of the sentence the tap reveals. Face without
+                      the name: the name was costing the TITLES their width,
+                      and the expanded panel says it in full. */}
                   {taker && (
-                    <span className="flex shrink-0 flex-col items-center gap-1">
-                      <Avatar member={taker} size={26} />
-                      <span className="text-[10px] font-medium leading-none text-sub">{taker.name}</span>
+                    <span className="flex shrink-0 items-center gap-1 rounded-pill bg-surface py-1 pl-2 pr-1">
+                      <Icon name="spark" size={12} className="text-sub" />
+                      <Avatar member={taker} size={20} />
                     </span>
                   )}
                   {/* DOWN when closed — the row expands downward, and a right-
