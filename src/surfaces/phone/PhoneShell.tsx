@@ -1272,25 +1272,34 @@ function PhoneYou() {
     ? s.tasks.filter((t) => t.owner === meId && !t.done && !t.coveredBy && awayOn(me, t.due))
     : [];
 
-  // What Sam looks after, each with how much of it is currently on HIM — his own
-  // open tasks in that area (matched by source). Owner-scoped on purpose: a
-  // house-wide count pulled in unowned jobs (e.g. "Mow the lawn") and stopped
-  // reconciling with Carrying. A physical space (Garden, Garage) carries no
-  // tasks of its own, so it reads "—". (Note: Carrying can still exceed the sum
-  // here — some tasks land on you OUTSIDE your standing areas.)
-  const areaLoad = (name: string) =>
-    s.tasks.filter((t) => t.owner === meId && !t.done && (t.source ?? "").split("·")[0].trim() === name).length;
-  const patch = [
-    ...(me.responsibility?.domains ?? []),
-    ...(me.responsibility?.spaces ?? []),
-  ].map((name) => ({ name, load: areaLoad(name) }));
-
   /* THE YOU TAB — no enclosing card. Identity and standing lay directly on the
      ink; only Presence — the one thing you actually SET here — gets its own
      gray card, so the control reads as a control and the readout as a readout. */
   const rhythms = s.tasks.filter((t) => t.owner === meId && t.recurring);
   const openMine = s.tasks.filter((t) => t.owner === meId && !t.done);
   const effect = PRESENCE_EFFECT[presence](av.to);
+
+  // The Looks-after list, reconciled to Carrying. Group Sam's open tasks by the
+  // area they come from (the source's first segment), then list:
+  //   1. the standing areas he looks after — their load, or "—" when quiet,
+  //   2. anywhere ELSE his tasks come from, NAMED (a calendar run, an automation)
+  //      — so every task in Carrying is accounted for, not lumped as "elsewhere".
+  // Sorted so the areas carrying work lead and the quiet ones trail; the loads
+  // now sum to Carrying exactly.
+  const SOURCE_LABEL: Record<string, string> = { Auto: "Automation" };
+  const openByArea = new Map<string, number>();
+  for (const t of openMine) {
+    const k = (t.source ?? "").split("·")[0].trim() || "Other";
+    openByArea.set(k, (openByArea.get(k) ?? 0) + 1);
+  }
+  const looksAfter = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];
+  const declaredSet = new Set(looksAfter);
+  const patch = [
+    ...looksAfter.map((name) => ({ name, load: openByArea.get(name) ?? 0 })),
+    ...[...openByArea.entries()]
+      .filter(([k]) => !declaredSet.has(k))
+      .map(([k, load]) => ({ name: SOURCE_LABEL[k] ?? k, load })),
+  ].sort((a, b) => b.load - a.load);
   /** Short labels for the segmented control — the effect line carries the
    *  meaning, so the chips don't have to spell it out. */
   const SEG: Record<Presence, string> = { here: "Here", wfh: "Home", out: "Out", away: "Away" };
@@ -1298,7 +1307,7 @@ function PhoneYou() {
    *  one shared area below, so every stat earns its detail — not just Rhythms. */
   const LENSES = [
     { key: "carrying" as const, n: mine, label: "Carrying" },
-    { key: "after" as const, n: patch.length, label: "Looks after" },
+    { key: "after" as const, n: looksAfter.length, label: "Looks after" },
     { key: "rhythms" as const, n: rhythms.length, label: "Rhythms" },
   ];
 
