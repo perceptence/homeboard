@@ -230,11 +230,11 @@ export function PhoneShell() {
                 fills the same band every other tab's title fills (no empty top
                 gap), and the body below leads straight into the standing. */}
             {route === "you" && (
-              // pl-1.5 seats the avatar on the SAME column as the body's stat
-              // toggle and task rows (header gutter is 4px tighter than card pad).
+              // pl-1.5 seats the avatar on the SAME column as the body cards.
+              // Name over household — the role moves into the standing card below.
               <div className="flex items-center gap-3 pl-1.5">
-                <Avatar member={me} size={48} />
-                <TitleBlock size="page" tone="onDark" eyebrow={s.householdName} title={me.name} subtext={ROLE_LABEL[me.role]} />
+                <Avatar member={me} size={56} />
+                <TitleBlock size="page" tone="onDark" title={me.name} subtext={s.householdName} />
               </div>
             )}
           </div>
@@ -1293,10 +1293,15 @@ function PhoneYou() {
 
   return (
     <>
-      {/* STANDING — three lenses over one detail area, on the page (no card).
-          Identity now lives in the header, so the body opens straight here. */}
-      <motion.div variants={listItem} className="px-inner pb-2 pt-1">
-        <div className="flex gap-1 rounded-md bg-white/[.05] p-1">
+      {/* STANDING — its own card now. Sam's role heads it (moved out of the
+          header), then the three lenses over one shared detail area. */}
+      <motion.div variants={listItem}>
+        <div className="rounded-card border border-white/10 bg-white/[.06] p-inner">
+        <div className="flex items-center gap-1.5 text-caption font-medium text-white/55">
+          <Icon name="key" size={13} className="shrink-0" />
+          {ROLE_LABEL[me.role]}
+        </div>
+        <div className="mt-4 flex gap-1 rounded-md bg-white/[.05] p-1">
           {LENSES.map((l) => {
             const on = lens === l.key;
             return (
@@ -1362,6 +1367,7 @@ function PhoneYou() {
               )}
             </motion.div>
           </AnimatePresence>
+        </div>
         </div>
       </motion.div>
 
