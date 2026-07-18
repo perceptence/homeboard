@@ -582,44 +582,35 @@ function MaintSheet({ id }: { id: string }) {
 }
 
 /**
- * HAND OFF, AS A PHYSICAL ACT — pick a card, give it to someone.
+ * HAND OFF — the app's own task cards, each carrying its own dock.
  *
- * Rebuilt from zero (v3 of this sheet). The accordion version made every row a
- * folder of controls; this one is TWO decisions on ONE screen, each with its
- * own register: your tasks as white cards above (the selected one lifted in
- * lemon — the thing in your hand), and the household as a dark DOCK below —
- * the other side of the hand-off. Tap a card, tap a person, done: the card
- * crosses from light to dark, and the sheet stays up for the next one.
+ * v4, and the lesson of v3 is the spine of it: a single dock at the sheet's
+ * foot DISCONNECTED the two halves of the act — with a long list the people
+ * weren't even on screen. So the choice comes to the task: every row is a
+ * real task card (the ink glyph stadium, the standard trio, a named pill for
+ * the Balancer's proposal), and opening one unfolds a small ink DOCK inside
+ * that same card. Task above, takers below, one composition — the hand-off
+ * crosses from light to dark without ever leaving your glance.
  *
- * The dock carries the judgement in place: the Balancer's pick wears a lemon
- * ring + "✦ lightest load"; everyone else shows their current count; someone
- * the task can't go to sits dim with the kind short-form of why ("Ages 8+" /
- * "Not hers"). Two taps replace the old tap-expand-scan-confirm.
+ * The proposal pill ("⇄ Maya") is dark because it IS a button now — it opens
+ * the card on the choice it names. Inside, one tap on a person gives them the
+ * task: the suggestion wears a lemon ring + "✦ lightest load", the others
+ * their live count, the blocked their kind short-why ("Ages 8+" / "Not
+ * Leo's"). The sheet stays open for the next one.
  */
 function HandoffSheet({ id }: { id?: number }) {
   const s = useHousehold();
   const meId = s.persona !== "ipad" ? s.persona : doers(s)[0]?.id;
   const mine = s.tasks.filter((t) => t.owner === meId && !t.done);
 
-  const [selId, setSelId] = useState<number | undefined>(id);
-  // Cursor model: something is ALWAYS selected (first card by default) — the
-  // dock is never a dead control waiting for a prior step.
-  const sel = mine.find((t) => t.id === selId) ?? mine[0];
-  const pick = sel ? suggestTaker(s, sel) : null;
-
-  const give = (to: MemberId) => {
-    if (!sel) return;
-    s.handOff(sel.id, to);
-    setSelId(undefined); // falls back to the first remaining card
-  };
+  const [openId, setOpenId] = useState<number | undefined>(id);
 
   /** The dock's one-breath version of whyNot — a cell caption, not a sentence.
    *  Same two tails as the long form: an age gate names its number (it lifts by
-   *  itself); a role gate stays possessive ("Not hers"), never "adults only". */
-  const shortWhy = (m: Member): string | null => {
-    if (!sel) return null;
-    if (!whyNot(m, sel)) return null;
-    if (sel.minAge && m.age != null && m.age < sel.minAge) return `Ages ${sel.minAge}+`;
+   *  itself); a role gate stays possessive ("Not Leo's"), never "adults only". */
+  const shortWhy = (m: Member, t: Task): string | null => {
+    if (!whyNot(m, t)) return null;
+    if (t.minAge && m.age != null && m.age < t.minAge) return `Ages ${t.minAge}+`;
     return `Not ${m.name}’s`;
   };
 
@@ -630,7 +621,7 @@ function HandoffSheet({ id }: { id?: number }) {
         <IconTile name="handoff" tone="lemon" />
         <h2 className="min-w-0 font-tight text-h1">Hand off</h2>
       </span>
-      <p className="mt-1.5 text-bodysm text-sub">Tap a task, then who takes it.</p>
+      <p className="mt-1.5 text-bodysm text-sub">Which one should someone else take?</p>
 
       {mine.length === 0 ? (
         <div className="mt-4 flex flex-col items-center gap-2 rounded-card bg-card px-6 py-10 text-center">
@@ -641,27 +632,42 @@ function HandoffSheet({ id }: { id?: number }) {
           <p className="text-caption text-sub">Everything of yours is where it should be.</p>
         </div>
       ) : (
-        <>
-          {/* YOUR CARDS. The selected one is LEMON — lifted, in hand; layout
-              animates the stack closing up when one crosses over. */}
-          <div className="mt-4 space-y-2">
-            {mine.map((t) => {
-              const on = sel?.id === t.id;
-              return (
-                <motion.button
-                  layout
-                  key={t.id}
-                  onClick={() => setSelId(t.id)}
-                  aria-pressed={on}
-                  transition={smooth}
-                  className={clsx(
-                    "flex w-full items-center gap-2.5 rounded-card p-3 text-left transition-colors duration-300",
-                    on ? "bg-lemon shadow-e2" : "bg-card",
-                  )}
+        <div className="mt-4 space-y-2">
+          {mine.map((t) => {
+            const open = openId === t.id;
+            const pick = suggestTaker(s, t);
+            const taker = pick ? s.members[pick.id] : undefined;
+            return (
+              <motion.div
+                layout
+                key={t.id}
+                transition={smooth}
+                className={clsx(
+                  "overflow-hidden rounded-card bg-card transition-shadow duration-300",
+                  open ? "shadow-e2" : "shadow-e1",
+                )}
+              >
+                <button
+                  onClick={() => setOpenId(open ? undefined : t.id)}
+                  aria-expanded={open}
+                  className="flex w-full items-stretch gap-3 p-3 text-left"
                 >
-                  <IconTile name={taskGlyph(t)} tone="onTint" size="sm" />
+                  {/* THE STADIUM — the task-card anchor (DateBadge's shape),
+                      carrying the task's glyph: lemon-on-ink at rest, flipping
+                      to ink-on-lemon when the card is open. The strong dark
+                      post is what a row of these was missing — without it the
+                      list read as a parked-domain link farm. */}
+                  <span
+                    className={clsx(
+                      "grid w-[44px] shrink-0 place-items-center self-stretch rounded-pill transition-colors duration-300",
+                      open ? "bg-lemon text-ink" : "bg-ink text-lemon",
+                    )}
+                  >
+                    <Icon name={taskGlyph(t)} size={20} />
+                  </span>
+
                   <TitleBlock
-                    className="flex-1"
+                    className="min-w-0 flex-1 self-center"
                     oneLine
                     eyebrow={t.source ?? (t.recurring ? "Routine" : "Added by you")}
                     title={t.title}
@@ -678,46 +684,70 @@ function HandoffSheet({ id }: { id?: number }) {
                       </>
                     }
                   />
-                </motion.button>
-              );
-            })}
-          </div>
 
-          {/* THE DOCK — the receiving side, in the app's night colour. One tap
-              here completes the hand-off for whichever card is lit above. */}
-          <div className="mt-4 rounded-card bg-ink p-4">
-            <Eyebrow tone="onDark">Hand it to</Eyebrow>
-            <div className="mt-3 flex gap-2">
-              {doers(s)
-                .filter((m) => m.id !== meId)
-                .map((m) => {
-                  const why = shortWhy(m);
-                  const suggested = !why && pick?.id === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      disabled={!!why || !sel}
-                      onClick={() => give(m.id)}
-                      className={clsx(
-                        "flex flex-1 flex-col items-center gap-1.5 rounded-2xl px-1 py-3 transition-colors duration-300",
-                        why
-                          ? "opacity-40"
-                          : suggested
-                            ? "bg-lemon/10 ring-2 ring-inset ring-lemon hover:bg-lemon/20"
-                            : "bg-white/[.06] hover:bg-white/[.14]",
-                      )}
+                  {/* THE PROPOSAL, as the row's own button — dark pill, named:
+                      "⇄ Maya" opens the card on exactly the choice it names. */}
+                  <span className="flex shrink-0 items-center gap-1.5 self-center rounded-pill bg-ink py-2 pl-2.5 pr-2 text-white">
+                    <Icon name="handoff" size={12} className="shrink-0" />
+                    {taker && <span className="max-w-[56px] truncate text-[11px] font-semibold">{taker.name}</span>}
+                    <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
+                      <Icon name="chevDown" size={12} className="text-white/60" />
+                    </motion.span>
+                  </span>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {open && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={smooth}
                     >
-                      <Avatar member={m} size={40} />
-                      <span className="max-w-full truncate text-caption font-semibold text-white">{m.name}</span>
-                      <span className={clsx("max-w-full truncate text-[10px] leading-none", suggested ? "text-lemon" : "text-white/45")}>
-                        {why ?? (suggested ? "✦ lightest load" : `${pendingFor(s, m.id)} ${pendingFor(s, m.id) === 1 ? "task" : "tasks"}`)}
-                      </span>
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
-        </>
+                      {/* THE CARD'S OWN DOCK — the receiving side, in the app's
+                          night colour, INSIDE the same card as the task it's
+                          for. One tap gives; the sheet stays up for the next. */}
+                      <div className="px-3 pb-3">
+                        <div className="rounded-[18px] bg-ink p-3">
+                          <Eyebrow tone="onDark">Hand it to</Eyebrow>
+                          <div className="mt-2.5 flex gap-1.5">
+                            {doers(s)
+                              .filter((m) => m.id !== meId)
+                              .map((m) => {
+                                const why = shortWhy(m, t);
+                                const suggested = !why && pick?.id === m.id;
+                                return (
+                                  <button
+                                    key={m.id}
+                                    disabled={!!why}
+                                    onClick={() => { s.handOff(t.id, m.id); setOpenId(undefined); }}
+                                    className={clsx(
+                                      "flex flex-1 flex-col items-center gap-1 rounded-2xl px-1 py-2.5 transition-colors duration-300",
+                                      why
+                                        ? "opacity-40"
+                                        : suggested
+                                          ? "bg-lemon/10 ring-2 ring-inset ring-lemon hover:bg-lemon/20"
+                                          : "bg-white/[.06] hover:bg-white/[.14]",
+                                    )}
+                                  >
+                                    <Avatar member={m} size={36} />
+                                    <span className="max-w-full truncate text-caption font-semibold text-white">{m.name}</span>
+                                    <span className={clsx("max-w-full truncate text-[10px] leading-none", suggested ? "text-lemon" : "text-white/45")}>
+                                      {why ?? (suggested ? "✦ lightest load" : `${pendingFor(s, m.id)} ${pendingFor(s, m.id) === 1 ? "task" : "tasks"}`)}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
       )}
     </>
   );
