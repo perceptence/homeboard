@@ -1272,7 +1272,13 @@ function PhoneYou() {
     ? s.tasks.filter((t) => t.owner === meId && !t.done && !t.coveredBy && awayOn(me, t.due))
     : [];
 
-  const jobs = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];
+  // What Sam looks after, each tagged with WHERE it came from — a domain of work
+  // ("Area") or a physical space — so the Looks-after list can name its own
+  // provenance on the right, the way Carrying names a time and Rhythms a cadence.
+  const patch = [
+    ...(me.responsibility?.domains ?? []).map((name) => ({ name, kind: "Area" })),
+    ...(me.responsibility?.spaces ?? []).map((name) => ({ name, kind: "Space" })),
+  ];
 
   /* THE YOU TAB — no enclosing card. Identity and standing lay directly on the
      ink; only Presence — the one thing you actually SET here — gets its own
@@ -1287,7 +1293,7 @@ function PhoneYou() {
    *  one shared area below, so every stat earns its detail — not just Rhythms. */
   const LENSES = [
     { key: "carrying" as const, n: mine, label: "Carrying" },
-    { key: "after" as const, n: jobs.length, label: "Looks after" },
+    { key: "after" as const, n: patch.length, label: "Looks after" },
     { key: "rhythms" as const, n: rhythms.length, label: "Rhythms" },
   ];
 
@@ -1339,10 +1345,13 @@ function PhoneYou() {
                 )
               )}
               {lens === "after" && (
-                jobs.length ? (
-                  <div className="flex flex-wrap gap-1.5 py-0.5">
-                    {jobs.map((j) => (
-                      <span key={j} className="rounded-pill border border-white/15 px-3 py-1.5 text-caption text-white/80">{j}</span>
+                patch.length ? (
+                  <div>
+                    {patch.map((p) => (
+                      <div key={p.name} className="flex items-center justify-between gap-3 py-1.5">
+                        <span className="min-w-0 truncate text-bodysm text-white/85">{p.name}</span>
+                        <span className="shrink-0 text-caption text-white/45">{p.kind}</span>
+                      </div>
                     ))}
                   </div>
                 ) : (
