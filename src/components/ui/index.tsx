@@ -16,7 +16,7 @@ import type { Member, Priority } from "@/lib/types";
    Progress (lavender).
    ============================================================ */
 
-export type CardTone = "white" | "lemon" | "lavender" | "mint";
+export type CardTone = "white" | "lemon" | "lavender" | "mint" | "ink";
 export type Pad = "none" | "md" | "lg";
 
 const toneClass: Record<CardTone, string> = {
@@ -26,6 +26,12 @@ const toneClass: Record<CardTone, string> = {
   // The shared-list card — see the mint token. Reserved for the household's
   // collective surfaces; not a general-purpose fourth colour.
   mint: "bg-mint text-ink shadow-e2",
+  // The IDENTITY hero — the You tab's headline card. Dark is serious without
+  // being celebratory (lemon on a load card would cheer an imbalance). NOT
+  // bg-ink: the app backdrop IS ink, so a true-ink card has no edges — this is
+  // ink lifted one step, with a hairline, so it reads as a CARD on the night
+  // rather than content floating loose on it.
+  ink: "bg-[#1B1B21] text-white shadow-e3 ring-1 ring-inset ring-white/[.07]",
 };
 
 const padClass: Record<Pad, string> = {

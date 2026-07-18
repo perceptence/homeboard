@@ -1327,26 +1327,21 @@ function PhoneYou() {
           again — over an icon tile that carried no information. The bars ARE the
           insight; everything stacked above them was preamble. One line of voice,
           then the evidence, then the verb. */}
-      {/* Always WHITE, never lemon. Lemon is the day's hero (DESIGN §2) — the
-          app's affirmative tone — so painting the card with it when you're
-          carrying too much said "great news!" about an imbalance. This app has
-          no alert slab on purpose: `danger` is a label, never a fill. The
-          sentence names the problem and the dark button offers the fix; that's
-          the whole signal, and it doesn't need to shout in the day's colour. */}
+      {/* INK, never lemon. Lemon is the day's hero (DESIGN §2) — the app's
+          affirmative tone — so painting this card with it when you're carrying
+          too much would say "great news!" about an imbalance. But four WHITE
+          cards in a row made the whole tab a page of quiet paper. Ink is the
+          answer: serious without celebrating, and it makes this card what it
+          is — the tab's HERO. This page is about YOU; the headline card wears
+          the app's own night colour, faces and lemon numerals bright on it. */}
       <motion.div variants={listItem}>
-        <Card>
-          {/* Icon LEADS, text sits to its right — the row shape the progress card
-              already uses, and the one that reads as "a labelled thing" rather than
-              a glyph parked above a paragraph. Stacking it made every card open with
-              40px of nothing.
-              `scale` is the same glyph as "Even it out": the card's subject and its
-              verb, said once. */}
+        <Card tone="ink">
           {/* Icon on its own line, then the eyebrow/title pair, then the data —
               the progress card's shape, applied across the whole profile so every
               card on this tab opens the same way. */}
           <IconTile name="scale" tone="lemon" />
           {/* No subtext: the stat block IS the detail, and it says its own unit. */}
-          <TitleBlock className="mt-6" eyebrow="Your load" title={headline} />
+          <TitleBlock className="mt-6" tone="onDark" eyebrow="Your load" title={headline} />
 
           {/* THE HOUSE, AS PEOPLE. Not a chart of any kind.
               ─────────────────────────────────────────────────────────────────
@@ -1387,31 +1382,30 @@ function PhoneYou() {
                   thing the number belongs to. Same <Eyebrow> the cards use, so
                   it can't drift from them. */}
               <div>
-                <Eyebrow>You</Eyebrow>
+                <Eyebrow tone="onDark">You</Eyebrow>
                 <div className="mt-0.5 flex items-baseline gap-1.5">
-                  <span className="font-tight text-[34px] leading-none tabular-nums">{mine}</span>
+                  {/* The one place the night card takes the day's colour: YOUR
+                      number, in lemon — the figure this whole tab exists for. */}
+                  <span className="font-tight text-[34px] leading-none tabular-nums text-lemon">{mine}</span>
                   {/* THE UNIT. Nothing on this card said what any of these
                       numbers counted — "6" over "Maya 5" could have been points,
                       stars, or days. Said once, on the hero; the column beside it
                       inherits the unit by sitting in the same object. */}
-                  <span className="text-caption text-sub">{mine === 1 ? "task" : "tasks"}</span>
+                  <span className="text-caption text-white/50">{mine === 1 ? "task" : "tasks"}</span>
                 </div>
               </div>
             </div>
 
             {/* The hairline does the comparing — it's what makes these READ as
                 "everyone else" rather than as three more entries in a list. */}
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-l border-ink/[.08] pl-4">
+            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-l border-white/10 pl-4">
               {others.map(({ m, n }) => (
                 <span key={m.id} className="flex items-center gap-2 text-caption">
                   <Avatar member={m} size={20} />
-                  <span className="truncate text-sub">{m.name}</span>
-                  {/* Same weight as the hero's numeral — same family, same 400,
-                      full ink. They were text-ink/60, which made everyone else's
-                      work look like faint reference data next to yours; the
-                      SIZE carries the hierarchy, so the colour doesn't have to
-                      whisper. A zero is a fact too, and gets to be as solid. */}
-                  <span className="ml-auto shrink-0 font-tight text-[18px] leading-none tabular-nums text-ink">
+                  <span className="truncate text-white/55">{m.name}</span>
+                  {/* Same weight as the hero's numeral. A zero is a fact too,
+                      and gets to be as solid — full white, size carries rank. */}
+                  <span className="ml-auto shrink-0 font-tight text-[18px] leading-none tabular-nums text-white">
                     {n}
                   </span>
                 </span>
@@ -1420,13 +1414,15 @@ function PhoneYou() {
           </div>
 
           {mine > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
+              {/* On ink the tones trade jobs: lemon is the primary verb, white
+                  (`light`) the secondary — `dark`/`outline` would vanish here. */}
               {canEven && (
-                <Button tone="dark" onClick={() => s.openSheet({ type: "rebalance" })}>
+                <Button tone="lemon" onClick={() => s.openSheet({ type: "rebalance" })}>
                   <Icon name="scale" size={14} /> Even it out
                 </Button>
               )}
-              <Button tone="outline" onClick={() => s.openSheet({ type: "handoff" })}>
+              <Button tone="light" onClick={() => s.openSheet({ type: "handoff" })}>
                 <Icon name="handoff" size={14} /> Hand one off
               </Button>
             </div>
@@ -1448,7 +1444,10 @@ function PhoneYou() {
           What stays visible is what you'd actually want at a glance: the state,
           and what the app will do about it. */}
       <motion.div variants={listItem}>
-        <Card>
+        {/* MINT — the shared tone: presence is the one fact on this tab the
+            HOUSE consumes (the Balancer reads it), so the card wears the
+            household's colour, same as the shared list on Today. */}
+        <Card tone="mint">
           {/* Quiet hours belongs in the SUMMARY, not just behind the fold —
               same rule the away date already taught us: folding a control away
               must not fold its VALUE away. Someone who set quiet hours should
@@ -1606,7 +1605,9 @@ function PhoneYou() {
           says what's coming; only this says what's YOURS, with no tasks in it.
           Read-only for now: it's a household agreement, not a preference. */}
       <motion.div variants={listItem}>
-        <Card>
+        {/* LAVENDER — the reflective tone (the progress card wears it on
+            Today): your standing domains, not today's churn. */}
+        <Card tone="lavender">
           {/* The title truncates rather than wraps, and that's safe HERE
               specifically: the pills below name every domain in full, so a long
               patch loses nothing to the ellipsis. */}
@@ -1623,7 +1624,9 @@ function PhoneYou() {
           />
           {jobs.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {jobs.map((j) => <Pill key={j} tone="tag">{j}</Pill>)}
+              {/* WHITE pills — `tag`'s 5% ink wash disappears against the
+                  lavender; on a tint the pill takes the card tone (`light`). */}
+              {jobs.map((j) => <Pill key={j} tone="light">{j}</Pill>)}
             </div>
           )}
         </Card>

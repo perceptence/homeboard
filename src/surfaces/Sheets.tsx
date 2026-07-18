@@ -11,7 +11,7 @@ import { taskGlyph } from "@/lib/glyphs";
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
-import type { MemberId, Priority, ShopCategory, ShopItem, Task } from "@/lib/types";
+import type { Member, MemberId, Priority, ShopCategory, ShopItem, Task } from "@/lib/types";
 import { ROLE_NEEDS } from "@/lib/types";
 
 /** Where a typed shopping item files itself — read from the words, shown live
@@ -582,31 +582,45 @@ function MaintSheet({ id }: { id: string }) {
 }
 
 /**
- * Hand off — one screen, no navigation.
+ * HAND OFF, AS A PHYSICAL ACT — pick a card, give it to someone.
  *
- * The hero card summarises the whole day, so it can't know which task you mean; it
- * used to guess (`mine[0]`) and open on whatever sorted first. Now it asks — but the
- * asking happens IN PLACE: picking a task expands it like an accordion, the people
- * appear underneath, and you confirm without ever leaving the list. You can always
- * see which task you're moving, because it's right there above the choice.
+ * Rebuilt from zero (v3 of this sheet). The accordion version made every row a
+ * folder of controls; this one is TWO decisions on ONE screen, each with its
+ * own register: your tasks as white cards above (the selected one lifted in
+ * lemon — the thing in your hand), and the household as a dark DOCK below —
+ * the other side of the hand-off. Tap a card, tap a person, done: the card
+ * crosses from light to dark, and the sheet stays up for the next one.
+ *
+ * The dock carries the judgement in place: the Balancer's pick wears a lemon
+ * ring + "✦ lightest load"; everyone else shows their current count; someone
+ * the task can't go to sits dim with the kind short-form of why ("Ages 8+" /
+ * "Not hers"). Two taps replace the old tap-expand-scan-confirm.
  */
 function HandoffSheet({ id }: { id?: number }) {
   const s = useHousehold();
   const meId = s.persona !== "ipad" ? s.persona : doers(s)[0]?.id;
   const mine = s.tasks.filter((t) => t.owner === meId && !t.done);
 
-  const [openId, setOpenId] = useState<number | undefined>(id);
-  const [taker, setTaker] = useState<MemberId | null>(null);
+  const [selId, setSelId] = useState<number | undefined>(id);
+  // Cursor model: something is ALWAYS selected (first card by default) — the
+  // dock is never a dead control waiting for a prior step.
+  const sel = mine.find((t) => t.id === selId) ?? mine[0];
+  const pick = sel ? suggestTaker(s, sel) : null;
 
-  const openTask = mine.find((t) => t.id === openId);
-  const suggestion = openTask ? suggestTaker(s, openTask) : null;
-  // The suggestion is a DEFAULT, not a decision — it's pre-selected, and overridable.
-  const chosen = taker ?? suggestion?.id ?? null;
+  const give = (to: MemberId) => {
+    if (!sel) return;
+    s.handOff(sel.id, to);
+    setSelId(undefined); // falls back to the first remaining card
+  };
 
-  const open = (t: Task) => {
-    const next = openId === t.id ? undefined : t.id;
-    setOpenId(next);
-    setTaker(null); // a new task means a new suggestion; don't carry the old pick over
+  /** The dock's one-breath version of whyNot — a cell caption, not a sentence.
+   *  Same two tails as the long form: an age gate names its number (it lifts by
+   *  itself); a role gate stays possessive ("Not hers"), never "adults only". */
+  const shortWhy = (m: Member): string | null => {
+    if (!sel) return null;
+    if (!whyNot(m, sel)) return null;
+    if (sel.minAge && m.age != null && m.age < sel.minAge) return `Ages ${sel.minAge}+`;
+    return `Not ${m.name}’s`;
   };
 
   return (
@@ -616,45 +630,36 @@ function HandoffSheet({ id }: { id?: number }) {
         <IconTile name="handoff" tone="lemon" />
         <h2 className="min-w-0 font-tight text-h1">Hand off</h2>
       </span>
-      <p className="mt-1.5 text-bodysm text-sub">Which one should someone else take?</p>
+      <p className="mt-1.5 text-bodysm text-sub">Tap a task, then who takes it.</p>
 
       {mine.length === 0 ? (
-        <p className="py-10 text-center text-bodysm text-sub">Nothing to hand off.</p>
+        <div className="mt-4 flex flex-col items-center gap-2 rounded-card bg-card px-6 py-10 text-center">
+          <span className="grid h-12 w-12 place-items-center rounded-pill bg-lemon text-ink">
+            <Icon name="check" size={22} />
+          </span>
+          <p className="mt-1 text-bodysm font-medium">Nothing left to hand off</p>
+          <p className="text-caption text-sub">Everything of yours is where it should be.</p>
+        </div>
       ) : (
-        /* ONE white card holding every row — six separate boxes read as six
-           separate decisions; a single card says "one list, pick from it". Rows
-           part with hairlines, the way Worth-a-look does on the iPad. */
-        <div className="mt-4 overflow-hidden rounded-card bg-card">
-          {mine.map((t) => {
-            const isOpen = openId === t.id;
-            /* THE RIGHT RAIL ANSWERS THE SHEET'S OWN QUESTION. "Which one
-               should someone else take?" — so every row previews WHO that
-               someone would be. Six identical chevrons said nothing; a face
-               per row is the decision, glanceable before any tap. */
-            const pick = suggestTaker(s, t);
-            const taker = pick ? s.members[pick.id] : undefined;
-            return (
-              /* A PLAIN div, deliberately. This wore `layout` + a spring, which
-                 fought the inner height tween frame by frame — the card sprang
-                 while its content eased, and the expand JERKED before the button
-                 landed. The height tween alone grows the card and pushes its
-                 siblings smoothly; nothing here reorders, so layout had no job. */
-              <div key={t.id} className="border-t border-ink/[.06] first:border-t-0">
-                <button
-                  onClick={() => open(t)}
-                  aria-expanded={isOpen}
+        <>
+          {/* YOUR CARDS. The selected one is LEMON — lifted, in hand; layout
+              animates the stack closing up when one crosses over. */}
+          <div className="mt-4 space-y-2">
+            {mine.map((t) => {
+              const on = sel?.id === t.id;
+              return (
+                <motion.button
+                  layout
+                  key={t.id}
+                  onClick={() => setSelId(t.id)}
+                  aria-pressed={on}
+                  transition={smooth}
                   className={clsx(
-                    // gap-2.5, not 3 — the named chip needs every pixel the
-                    // titles can spare.
-                    "flex min-h-touch w-full items-center gap-2.5 px-4 py-3.5 text-left transition-colors duration-300",
-                    isOpen && "bg-surface/60",
+                    "flex w-full items-center gap-2.5 rounded-card p-3 text-left transition-colors duration-300",
+                    on ? "bg-lemon shadow-e2" : "bg-card",
                   )}
                 >
-                  {/* THE STANDARD CARD GRAMMAR — the same trio every task card
-                      wears (eyebrow · title · when + priority), with the task's
-                      own glyph in a lemon tile — the SMALL one: row type is a
-                      step down from card type, and the tile steps with it. */}
-                  <IconTile name={taskGlyph(t)} tone="lemon" size="sm" />
+                  <IconTile name={taskGlyph(t)} tone="onTint" size="sm" />
                   <TitleBlock
                     className="flex-1"
                     oneLine
@@ -673,109 +678,46 @@ function HandoffSheet({ id }: { id?: number }) {
                       </>
                     }
                   />
-                  {/* THE PROPOSED HAND-OFF, said in words. Two symbolic passes
-                      (bare face; spark + face) both read as "assigned to" or
-                      nothing — implicit loses. The chip now uses the sheet's
-                      OWN verb-glyph (⇄, the one in its header tile) plus the
-                      name: "⇄ Leo" = hand off to Leo. The name truncates before
-                      the row's title ever has to. */}
-                  {taker && (
-                    <span className="flex shrink-0 items-center gap-1 rounded-pill bg-surface px-2 py-1.5">
-                      <Icon name="handoff" size={12} className="shrink-0 text-sub" />
-                      <span className="max-w-[64px] truncate text-[11px] font-semibold text-ink">{taker.name}</span>
-                    </span>
-                  )}
-                  {/* Caret a step smaller — it yields width to the chip+title. */}
-                  {/* DOWN when closed — the row expands downward, and a right-
-                      pointing caret promises navigation. Flips up when open. */}
-                  <motion.span
-                    animate={{ rotate: isOpen ? 180 : 0 }} transition={smooth}
-                    className="shrink-0 text-sub/60"
-                  >
-                    <Icon name="chevDown" size={14} />
-                  </motion.span>
-                </button>
+                </motion.button>
+              );
+            })}
+          </div>
 
-                <AnimatePresence initial={false}>
-                  {isOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={smooth}
+          {/* THE DOCK — the receiving side, in the app's night colour. One tap
+              here completes the hand-off for whichever card is lit above. */}
+          <div className="mt-4 rounded-card bg-ink p-4">
+            <Eyebrow tone="onDark">Hand it to</Eyebrow>
+            <div className="mt-3 flex gap-2">
+              {doers(s)
+                .filter((m) => m.id !== meId)
+                .map((m) => {
+                  const why = shortWhy(m);
+                  const suggested = !why && pick?.id === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      disabled={!!why || !sel}
+                      onClick={() => give(m.id)}
+                      className={clsx(
+                        "flex flex-1 flex-col items-center gap-1.5 rounded-2xl px-1 py-3 transition-colors duration-300",
+                        why
+                          ? "opacity-40"
+                          : suggested
+                            ? "bg-lemon/10 ring-2 ring-inset ring-lemon hover:bg-lemon/20"
+                            : "bg-white/[.06] hover:bg-white/[.14]",
+                      )}
                     >
-                      {/* The open section wears the same soft tint as its row —
-                          one continuous band, so "what's expanded" has one edge. */}
-                      <div className="bg-surface/60 px-4 pb-4 pt-1">
-                        <Eyebrow>Hand to</Eyebrow>
-
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {doers(s)
-                            .filter((m) => m.id !== t.owner)
-                            .map((m) => {
-                              const blocked = whyNot(m, t);
-                              const sel = chosen === m.id;
-                              return (
-                                <button
-                                  key={m.id}
-                                  disabled={!!blocked}
-                                  title={blocked ?? undefined}
-                                  onClick={() => setTaker(m.id)}
-                                  className={clsx(
-                                    // WHITE chips on the open section's grey
-                                    // tint — each layer against the one under it.
-                                    "flex h-touch items-center gap-2 rounded-pill border px-3 text-bodysm font-medium transition-colors duration-300 ease-out",
-                                    blocked
-                                      ? "cursor-not-allowed border-ink/[.06] bg-card text-sub opacity-45"
-                                      : sel
-                                        ? "border-ink bg-ink text-white"
-                                        : "border-transparent bg-card text-ink shadow-e1",
-                                  )}
-                                >
-                                  <Avatar member={m} size={22} />
-                                  {m.name}
-                                  {blocked
-                                    /* Not red — see the assign sheet. Nothing failed. */
-                                    ? <span className="text-caption text-sub">{blocked}</span>
-                                    : <span className="text-caption opacity-60">({pendingFor(s, m.id)})</span>}
-                                </button>
-                              );
-                            })}
-                        </div>
-
-                        {/* The WHY — shown WHETHER OR NOT you take the advice. A
-                            recommendation that vanishes the moment you disagree with
-                            it can't be weighed against your own choice; it just makes
-                            the app look like it was never wrong. */}
-                        {suggestion && (
-                          <p className="mt-3 flex items-center gap-1.5 text-caption text-sub">
-                            <Icon name="spark" size={14} className="shrink-0" />
-                            <span>
-                              {chosen === suggestion.id ? "" : "Suggested: "}
-                              <b className="font-medium text-ink">{s.members[suggestion.id].name}</b>
-                              {" — "}{suggestion.reason}
-                            </span>
-                          </p>
-                        )}
-
-                        <Button
-                          tone="dark"
-                          size="lg"
-                          disabled={!chosen}
-                          className="mt-4 w-full"
-                          onClick={() => chosen && s.setOwner(t.id, chosen)}
-                        >
-                          <Icon name="handoff" size={16} />
-                          {chosen ? `Hand to ${s.members[chosen].name}` : "Pick someone"}
-                        </Button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
-        </div>
+                      <Avatar member={m} size={40} />
+                      <span className="max-w-full truncate text-caption font-semibold text-white">{m.name}</span>
+                      <span className={clsx("max-w-full truncate text-[10px] leading-none", suggested ? "text-lemon" : "text-white/45")}>
+                        {why ?? (suggested ? "✦ lightest load" : `${pendingFor(s, m.id)} ${pendingFor(s, m.id) === 1 ? "task" : "tasks"}`)}
+                      </span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        </>
       )}
     </>
   );

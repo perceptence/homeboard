@@ -290,6 +290,9 @@ interface HouseholdState {
   toggleTask: (id: number) => void;
   addTask: (t: { title: string; owner: MemberId | null; when: string; due: string; priority: Priority; requires?: Role; minAge?: number; source?: string; said?: string }) => void;
   setOwner: (id: number, owner: MemberId | null) => void;
+  /** A hand-off from the hand-off sheet: reassigns, LOGS it (the house should
+   *  know work moved), keeps the sheet open — people hand off several in a row. */
+  handOff: (id: number, to: MemberId) => void;
   acceptSuggestion: (id: number) => void;
   rebalance: () => void;
 
@@ -716,6 +719,20 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       toast: owner ? `${s.members[owner].name} has it from here` : "Back on the pile — nobody's got it",
       toastWho: owner ?? null,
     })),
+
+  handOff: (id, to) =>
+    set((s) => {
+      const t = s.tasks.find((x) => x.id === id);
+      if (!t) return {};
+      const from = t.owner ? s.members[t.owner]?.name : "Nobody";
+      return {
+        tasks: s.tasks.map((x) => (x.id === id ? { ...x, owner: to, suggest: undefined } : x)),
+        // No `sheet: null` — the hand-off sheet stays up for the next one.
+        toast: `${s.members[to].name} has it from here`,
+        toastWho: to,
+        ...logged(s, `${from} handed “${t.title}” to ${s.members[to].name}`, to),
+      };
+    }),
 
   acceptSuggestion: (id) =>
     set((s) => {
