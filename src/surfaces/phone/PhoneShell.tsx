@@ -12,7 +12,7 @@ import {
   addDays, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
   periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel, type Period,
 } from "@/lib/dates";
-import { awayOn, currentMember, doers, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
+import { awayOn, currentMember, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
 import type { HouseEvent, MaintItem, MemberId, PhoneRoute, Presence, Task } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
@@ -227,20 +227,12 @@ export function PhoneShell() {
               />
             )}
             {route === "you" && (
-              /* The HOUSEHOLD, not the role.
-                 This was the role, back when roles were badge nouns — "GUIDED /
-                 Ada" read as a label above a name. In family language they're
-                 scope phrases, and "A SIMPLER VIEW / Ada" is not a thing you can
-                 say about a person. It was a duplicate anyway: Your access, two
-                 cards down, is where the role belongs and says it in full.
-                 The home is the truer eyebrow — it's the one thing this screen
-                 couldn't otherwise tell you, and on a real phone there's no
-                 persona switcher above to say it. */
-              <TitleBlock
-                size="page" tone="onDark"
-                eyebrow={s.householdName}
-                title={me.name}
-              />
+              /* JUST the household — no name. The member card below leads with the
+                 portrait and the name in full, so a page title of "Sam" over a card
+                 that says "Sam" was the name twice. The home is the one thing the
+                 card doesn't say (and on a real phone there's no persona switcher
+                 above to say it), so it stays as the lone eyebrow. */
+              <Eyebrow tone="onDark">{s.householdName}</Eyebrow>
             )}
           </div>
           <div className="flex shrink-0 items-center">
@@ -1241,9 +1233,11 @@ function PhoneYou() {
   const s = useHousehold();
   const meId = currentMember(s);
   const me = s.members[meId];
-  const people = doers(s);
 
   const mine = pendingFor(s, meId);
+
+  /** Which of the three standing stats is expanded below the toggle. */
+  const [lens, setLens] = useState<"carrying" | "after" | "rhythms">("carrying");
 
   /* --- where you are --- */
   const av = me.availability ?? { presence: "here" as Presence };
@@ -1269,90 +1263,111 @@ function PhoneYou() {
 
   const jobs = [...(me.responsibility?.domains ?? []), ...(me.responsibility?.spaces ?? [])];
 
-  /* THE MEMBER CARD — the You tab is ONE ownable object, not a stack of cards.
-     Identity, standing, rhythms, and the single control that's yours to set
-     (presence) all live inside one elevated card on the ink. Dark-on-dark by
-     design: this is the member's own crest, deliberately unlike the white cards
-     everywhere else in the app — that contrast is the tab's whole identity. */
+  /* THE MEMBER CARD — one dark object that IS the You tab. The page header owns
+     the household; the card owns the person — nothing is said twice. Committed
+     to dark and pitched for contrast: brighter text, defined dividers. */
   const rhythms = s.tasks.filter((t) => t.owner === meId && t.recurring);
+  const openMine = s.tasks.filter((t) => t.owner === meId && !t.done);
   const effect = PRESENCE_EFFECT[presence](av.to);
-  /** The member's place in the household, worn as an ID number — ludic, and
-   *  stable because member order is. */
-  const serial = String(Math.max(1, people.findIndex((m) => m.id === meId) + 1)).padStart(3, "0");
-  /** Presence at a glance: a status dot + a word. The dot's colour reads STATE,
-   *  never brand — the lemon is spent once, on the active segment below. */
-  const PRESENCE_DOT: Record<Presence, { word: string; dot: string }> = {
-    here: { word: "Here", dot: "#28A98B" },
-    wfh: { word: "Home today", dot: "#3E86C8" },
-    out: { word: "Out today", dot: "#C9A21A" },
-    away: { word: "Away", dot: "#C9A21A" },
-  };
-  const status = PRESENCE_DOT[presence];
   /** Short labels for the segmented control — the effect line carries the
    *  meaning, so the chips don't have to spell it out. */
   const SEG: Record<Presence, string> = { here: "Here", wfh: "Home", out: "Out", away: "Away" };
+  /** The three stats are LENSES, not bare numbers: each opens its own detail in
+   *  one shared area below, so every stat earns its detail — not just Rhythms. */
+  const LENSES = [
+    { key: "carrying" as const, n: mine, label: "Carrying" },
+    { key: "after" as const, n: jobs.length, label: "Looks after" },
+    { key: "rhythms" as const, n: rhythms.length, label: "Rhythms" },
+  ];
 
   return (
     <motion.div variants={listItem}>
-      <div className="rounded-card border border-white/10 bg-white/[.05] p-inner">
+      <div className="rounded-card border border-white/[.14] bg-white/[.06] p-inner">
 
-        {/* CREST BAND — a household member card, and its live state. */}
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-1.5 text-caption font-medium text-white/45">
-            <Icon name="house" size={15} /> Member
-          </span>
-          <span className="flex items-center gap-1.5 text-caption text-white/45">
-            <span className="h-2 w-2 rounded-pill" style={{ background: status.dot }} />
-            {status.word}
-          </span>
-        </div>
-
-        {/* PORTRAIT — the person, large; this screen is about them, not the work. */}
-        <div className="mt-5 flex items-center gap-3.5">
+        {/* PORTRAIT — the identity, and the ONLY place the name is said; the You
+            header no longer repeats it, and the role is the access in full. */}
+        <div className="flex items-center gap-3.5">
           <Avatar member={me} size={60} />
           <div className="min-w-0">
             <div className="font-tight text-h1 leading-none text-white">{me.name}</div>
-            <div className="mt-1.5 truncate text-caption text-white/45">
-              {ROLE_LABEL[me.role]} · {status.word.toLowerCase()}
-            </div>
+            <div className="mt-1.5 truncate text-caption text-white/60">{ROLE_LABEL[me.role]}</div>
           </div>
         </div>
 
-        {/* STAT STRIP — the member's standing, read like a card's stats. */}
-        <div className="mt-5 flex border-y border-white/10">
-          {[
-            { n: mine, label: "Carrying" },
-            { n: jobs.length, label: "Looks after" },
-            { n: rhythms.length, label: "Rhythms" },
-          ].map((stat, i) => (
-            <div key={stat.label} className={clsx("flex-1 py-3.5", i > 0 && "border-l border-white/10 pl-4")}>
-              <div className="font-tight text-[26px] leading-none tabular-nums text-white">{stat.n}</div>
-              <div className="mt-1.5 text-micro uppercase tracking-[.06em] text-white/40">{stat.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* RHYTHMS — the standing cadence the app keeps for you, no reminders needed. */}
-        {rhythms.length > 0 && (
-          <div className="mt-5">
-            <div className="text-micro uppercase tracking-[.09em] text-white/40">Your rhythms</div>
-            <div className="mt-2.5">
-              {rhythms.slice(0, 3).map((r) => (
-                <div key={r.id} className="flex items-center justify-between gap-3 py-1.5">
-                  <span className="min-w-0 truncate text-bodysm text-white/80">{r.title}</span>
-                  <span className="shrink-0 text-caption text-white/40">{r.recurring}</span>
+        {/* STANDING — three lenses over one detail area. Tapping a number reveals
+            what's behind it, so the strip is consistent, not one-detailed. */}
+        <div className="mt-6 flex gap-1 rounded-md bg-white/[.05] p-1">
+          {LENSES.map((l) => {
+            const on = lens === l.key;
+            return (
+              <button
+                key={l.key}
+                onClick={() => setLens(l.key)}
+                aria-pressed={on}
+                className={clsx(
+                  "flex-1 rounded-sm py-2.5 text-center transition-colors",
+                  on ? "bg-white/[.10]" : "hover:bg-white/[.04]",
+                )}
+              >
+                <div className="font-tight text-[22px] leading-none tabular-nums text-white">{l.n}</div>
+                <div className={clsx("mt-1 text-micro uppercase tracking-[.05em]", on ? "text-white/70" : "text-white/45")}>
+                  {l.label}
                 </div>
-              ))}
-              {rhythms.length > 3 && (
-                <div className="pt-1 text-caption text-white/35">+{rhythms.length - 3} more</div>
-              )}
-            </div>
-          </div>
-        )}
+              </button>
+            );
+          })}
+        </div>
 
-        {/* PRESENCE — the one thing you SET here; the effect line says what it does. */}
-        <div className="mt-6 border-t border-white/10 pt-5">
-          <div className="text-bodysm text-white/70">{effect}</div>
+        <div className="mt-3">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div key={lens} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }}>
+              {lens === "carrying" && (
+                openMine.length ? (
+                  <div>
+                    {openMine.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between gap-3 py-1.5">
+                        <span className="min-w-0 truncate text-bodysm text-white/85">{t.title}</span>
+                        <span className="shrink-0 text-caption text-white/45">{t.when || relative(t.due)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="py-1.5 text-bodysm text-white/50">Nothing on you right now.</p>
+                )
+              )}
+              {lens === "after" && (
+                jobs.length ? (
+                  <div className="flex flex-wrap gap-1.5 py-0.5">
+                    {jobs.map((j) => (
+                      <span key={j} className="rounded-pill border border-white/15 px-3 py-1.5 text-caption text-white/80">{j}</span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="py-1.5 text-bodysm text-white/50">No standing areas yet.</p>
+                )
+              )}
+              {lens === "rhythms" && (
+                rhythms.length ? (
+                  <div>
+                    {rhythms.map((r) => (
+                      <div key={r.id} className="flex items-center justify-between gap-3 py-1.5">
+                        <span className="min-w-0 truncate text-bodysm text-white/85">{r.title}</span>
+                        <span className="shrink-0 text-caption text-white/45">{r.recurring}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="py-1.5 text-bodysm text-white/50">No routines yet.</p>
+                )
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* PRESENCE — the one thing you SET here. State lives ONLY here now: the
+            active segment IS the status, so nothing announces it twice. */}
+        <div className="mt-5 border-t border-white/[.12] pt-5">
+          <div className="text-bodysm text-white/75">{effect}</div>
 
           {needsCover.length > 0 && (
             <Button tone="light" className="mt-3" onClick={() => s.coverAway(meId)}>
@@ -1362,7 +1377,7 @@ function PhoneYou() {
           )}
 
           {/* The 4-way selector. Its active state is the composition's ONE lemon. */}
-          <div className="mt-3 flex gap-1 rounded-pill bg-white/[.06] p-1">
+          <div className="mt-3 flex gap-1 rounded-pill bg-white/[.08] p-1">
             {PRESENCE_CHOICES.map(({ key }) => {
               const on = presence === key;
               return (
@@ -1372,7 +1387,7 @@ function PhoneYou() {
                   aria-pressed={on}
                   className={clsx(
                     "flex-1 rounded-pill py-2.5 text-bodysm font-medium transition-colors",
-                    on ? "bg-lemon text-ink" : "text-white/55 hover:text-white/80",
+                    on ? "bg-lemon text-ink" : "text-white/60 hover:text-white/90",
                   )}
                 >
                   {SEG[key]}
@@ -1390,7 +1405,7 @@ function PhoneYou() {
                 aria-expanded={dateOpen}
                 className={clsx(
                   "flex h-touch items-center gap-2 rounded-pill border px-3.5 text-bodysm font-medium transition-colors",
-                  av.to || dateOpen ? "border-white/25 bg-white/10 text-white" : "border-white/15 text-white/60 hover:text-white",
+                  av.to || dateOpen ? "border-white/25 bg-white/10 text-white" : "border-white/20 text-white/65 hover:text-white",
                 )}
               >
                 <Icon name="cal" size={14} />
@@ -1409,10 +1424,10 @@ function PhoneYou() {
           )}
 
           {/* QUIET HOURS — separate from presence: a window, not a state. */}
-          <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/[.12] pt-4">
             <div className="min-w-0">
               <div className="text-bodysm font-medium text-white">Quiet hours</div>
-              <div className="mt-hair text-caption text-white/45">
+              <div className="mt-hair text-caption text-white/55">
                 {av.quiet ? `${to12(av.quiet.from)} – ${to12(av.quiet.to)}` : "Reminders can reach you any time"}
               </div>
             </div>
@@ -1421,7 +1436,7 @@ function PhoneYou() {
               aria-expanded={quietOpen}
               className={clsx(
                 "flex h-touch shrink-0 items-center gap-2 rounded-pill border px-3.5 text-bodysm font-medium transition-colors",
-                av.quiet || quietOpen ? "border-white/25 bg-white/10 text-white" : "border-white/15 text-white/60 hover:text-white",
+                av.quiet || quietOpen ? "border-white/25 bg-white/10 text-white" : "border-white/20 text-white/65 hover:text-white",
               )}
             >
               <Icon name="clock" size={14} />
@@ -1451,19 +1466,6 @@ function PhoneYou() {
               </button>
             )}
           </PickerPanel>
-
-          {me.role !== "owner" && (
-            <p className="mt-4 flex items-center gap-1.5 text-caption text-white/40">
-              <Icon name="key" size={12} className="shrink-0" />
-              Only {ownerName(s)} can change your access
-            </p>
-          )}
-        </div>
-
-        {/* SERIAL FOOTER — the ID-card flourish that makes it a thing you own. */}
-        <div className="mt-5 flex items-center justify-between border-t border-white/[.06] pt-3.5 text-micro uppercase tracking-[.14em] text-white/25">
-          <span>No. {serial}</span>
-          <span className="truncate pl-3">{s.householdName}</span>
         </div>
       </div>
     </motion.div>
