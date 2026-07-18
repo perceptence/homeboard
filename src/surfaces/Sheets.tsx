@@ -355,20 +355,20 @@ function ShopSheet() {
         </p>
       )}
 
-      {/* Each aisle is a WHITE card on the grey sheet, and its header wears the
-          SAME anatomy as a hand-off row: an INK STADIUM with the aisle's glyph
-          in lemon, then the name over its count — the strong dark anchor that
-          keeps a list from reading as a link farm. One anatomy, two sheets. */}
+      {/* Each aisle is a WHITE card on the grey sheet. Its glyph sits in the
+          SMALL neutral well (32px, ink-wash) — a step BELOW the sheet header's
+          40px lemon tile, because a group heading outranking the page heading
+          is hierarchy upside-down. And no lemon-on-ink here: the ink-stadium
+          treatment was starting to answer every question, and an aisle label
+          is furniture, not a hero. */}
       <div className="mt-4 space-y-3">
         {groups.map((g) => (
           <div key={g.cat} className={clsx("rounded-card bg-card p-4", g.allDone && "opacity-60")}>
-            <div className="flex items-center gap-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-pill bg-ink text-lemon">
-                <Icon name={g.glyph} size={20} />
-              </span>
+            <div className="flex items-center gap-2.5">
+              <IconTile name={g.glyph} tone="onTint" size="sm" />
               <div className="min-w-0">
                 <Eyebrow>{g.cat}</Eyebrow>
-                <div className="mt-hair text-bodysm font-medium text-sub">
+                <div className="mt-hair text-caption font-medium text-sub">
                   {g.allDone ? "All bought" : `${g.left} to get`}
                 </div>
               </div>
@@ -634,12 +634,15 @@ function HandoffSheet({ id }: { id?: number }) {
                   onClick={toggle}
                   className="flex w-full cursor-pointer items-stretch gap-3 p-3 text-left"
                 >
-                  {/* THE STADIUM — the task-card anchor (DateBadge's shape),
-                      lemon-on-ink at rest, ink-on-lemon while open. */}
+                  {/* THE STADIUM — the task-card anchor (DateBadge's shape).
+                      WHITE glyph on ink at rest — the dark post carries the
+                      row on its own; lemon-on-ink everywhere was one sauce on
+                      every dish. The open state keeps the lemon lift: colour
+                      spent once, on the thing in hand. */}
                   <span
                     className={clsx(
                       "grid w-[44px] shrink-0 place-items-center self-stretch rounded-pill transition-colors duration-300",
-                      open ? "bg-lemon text-ink" : "bg-ink text-lemon",
+                      open ? "bg-lemon text-ink" : "bg-ink text-white",
                     )}
                   >
                     <Icon name={taskGlyph(t)} size={20} />
@@ -717,17 +720,21 @@ function HandoffSheet({ id }: { id?: number }) {
                                     onClick={() => setChoice(m.id)}
                                     aria-pressed={chosen}
                                     className={clsx(
+                                      // ONE lemon in this dock — the readback
+                                      // below. Selection is a white ring, the
+                                      // suggestion just its ✦ caption; three
+                                      // lemon accents in one panel was noise.
                                       "flex flex-1 flex-col items-center gap-1 rounded-2xl px-1 py-2.5 transition-colors duration-300",
                                       why
                                         ? "opacity-40"
                                         : chosen
-                                          ? "bg-lemon/10 ring-2 ring-inset ring-lemon"
+                                          ? "bg-white/10 ring-2 ring-inset ring-white/80"
                                           : "bg-white/[.06] hover:bg-white/[.14]",
                                     )}
                                   >
                                     <Avatar member={m} size={36} />
                                     <span className="max-w-full truncate text-caption font-semibold text-white">{m.name}</span>
-                                    <span className={clsx("max-w-full truncate text-[10px] leading-none", suggested ? "text-lemon" : "text-white/45")}>
+                                    <span className={clsx("max-w-full truncate text-[10px] leading-none", suggested ? "text-white/70" : "text-white/45")}>
                                       {why ?? (suggested ? "✦ lightest load" : `${pendingFor(s, m.id)} ${pendingFor(s, m.id) === 1 ? "task" : "tasks"}`)}
                                     </span>
                                   </button>
