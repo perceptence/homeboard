@@ -222,7 +222,6 @@ const DEAD_ZONE = 52;
  */
 function DynamicIsland() {
   const rawIsland = useHousehold((s) => s.island);
-  const dismiss = useHousehold((s) => s.dismissIsland);
   const setMode = useHousehold((s) => s.setIslandMode);
   const snooze = useHousehold((s) => s.snoozeIsland);
   const done = useHousehold((s) => s.islandDone);
@@ -479,8 +478,9 @@ function DynamicIsland() {
         // Taller than before (118 -> 150): the camera hardware keeps the top band
         // to itself now, so ALL content — the title row and the buttons — lives
         // BELOW the sensor line and needs the extra height to breathe. A live
-        // journey is taller still (172) — it carries the route line as well.
-        height: !island ? 34 : expanded ? (journey ? 172 : 150) : 34,
+        // journey is SHORTER (128): it carries the route line but no buttons —
+        // the audience watches; the trip ends itself.
+        height: !island ? 34 : expanded ? (journey ? 128 : 150) : 34,
         borderRadius: !island || !expanded ? 20 : 42,
       }}
     >
@@ -558,18 +558,13 @@ function DynamicIsland() {
                   <Icon name="pin" size={13} className="shrink-0 text-lemon" />
                 </div>
 
-                {/* NO "Arrived" button — arrival is the trip's own event (real
-                    location services would fire it); the ETA landing calls
-                    arrive() itself. And this island belongs to the AUDIENCE —
-                    the kids waiting — so their only verb is putting the widget
-                    away. Cancelling the drive is the TRAVELER's call, from the
-                    task itself (see the card/sheet's "Cancel trip"): Leo can't
-                    turn Dad's car around from the kerb. */}
-                <div className="flex gap-1.5">
-                  <IslandButton onClick={(e) => { e.stopPropagation(); dismiss(); }}>
-                    <Icon name="x" size={14} /> Dismiss
-                  </IslandButton>
-                </div>
+                {/* NO buttons at all. Arrival is the trip's own event (the ETA
+                    landing calls arrive() itself — location would, for real).
+                    This island belongs to the AUDIENCE — the kids waiting — and
+                    a live trip isn't theirs to end: cancelling is the TRAVELER's
+                    call, from the task's own card/sheet. Even "Dismiss" earned
+                    nothing a swipe-up doesn't already do — tuck it to the pill
+                    and the countdown keeps to itself. */}
               </div>
             ) : (
               <div className="flex flex-1 flex-col justify-center gap-3">

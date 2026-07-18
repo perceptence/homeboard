@@ -41,7 +41,11 @@ export function Splash() {
               animate={{ scale: 1, opacity: 1, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } }}
               className="grid grid-cols-2 gap-[7px]"
             >
-              <span className="h-[30px] w-[30px] rounded-[10px] bg-lemon" />
+              {/* The lead cell is the little HOUSE — logo option B, drawn from
+                  the same path as app/icon.svg so icon and splash never drift. */}
+              <svg width="30" height="30" viewBox="0 0 128 128" aria-hidden>
+                <path d="M0 64 L64 7 L128 64 V88 Q128 128 88 128 H40 Q0 128 0 88 Z" fill="#F4FF7A" />
+              </svg>
               <span className="h-[30px] w-[30px] rounded-[10px] bg-white/25" />
               <span className="h-[30px] w-[30px] rounded-[10px] bg-white/25" />
               <span className="h-[30px] w-[30px] rounded-[10px] bg-lavender/90" />

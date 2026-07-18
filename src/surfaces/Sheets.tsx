@@ -570,9 +570,9 @@ function HandoffSheet({ id }: { id?: number }) {
                 >
                   {/* THE STANDARD CARD GRAMMAR — the same trio every task card
                       wears (eyebrow · title · when + priority), with the task's
-                      own glyph in a lemon tile. This list is a set of tasks; it
-                      should read like one, not like a settings menu. */}
-                  <IconTile name={taskGlyph(t)} tone="lemon" />
+                      own glyph in a lemon tile — the SMALL one: row type is a
+                      step down from card type, and the tile steps with it. */}
+                  <IconTile name={taskGlyph(t)} tone="lemon" size="sm" />
                   <TitleBlock
                     className="flex-1"
                     oneLine
@@ -597,11 +597,13 @@ function HandoffSheet({ id }: { id?: number }) {
                       <span className="text-[10px] font-medium leading-none text-sub">{taker.name}</span>
                     </span>
                   )}
+                  {/* DOWN when closed — the row expands downward, and a right-
+                      pointing caret promises navigation. Flips up when open. */}
                   <motion.span
-                    animate={{ rotate: isOpen ? 90 : 0 }} transition={smooth}
+                    animate={{ rotate: isOpen ? 180 : 0 }} transition={smooth}
                     className="shrink-0 text-sub/60"
                   >
-                    <Icon name="fwd" size={16} />
+                    <Icon name="chevDown" size={16} />
                   </motion.span>
                 </button>
 

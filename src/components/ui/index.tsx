@@ -127,10 +127,20 @@ const tileTone: Record<TileTone, string> = {
  * Circle is the app's icon language. This is the component that speaks it, so it
  * changes here — which also updates the ~20 IconTiles on the iPad, deliberately.
  */
-export function IconTile({ name, tone = "neutral" }: { name: IconName; tone?: TileTone }) {
+export function IconTile({ name, tone = "neutral", size = "md" }: {
+  name: IconName; tone?: TileTone;
+  /** md 40/20 — cards and sheet headers. sm 32/16 — LIST ROWS, whose type is a
+   *  step smaller; a full-size well beside card-size text reads as a badge
+   *  shouting over its own label. Same 1:2 glyph-to-well ratio at both sizes. */
+  size?: "md" | "sm";
+}) {
   return (
-    <span className={clsx("grid h-10 w-10 shrink-0 place-items-center rounded-pill", tileTone[tone])}>
-      <Icon name={name} size={20} />
+    <span className={clsx(
+      "grid shrink-0 place-items-center rounded-pill",
+      size === "sm" ? "h-8 w-8" : "h-10 w-10",
+      tileTone[tone],
+    )}>
+      <Icon name={name} size={size === "sm" ? 16 : 20} />
     </span>
   );
 }
@@ -625,9 +635,9 @@ export function Toast({
           exit={{ opacity: 0, y: 8, scale: 0.96, x: "-50%" }}
           transition={{ type: "spring", stiffness: 500, damping: 26 }}
           className={clsx(
-            // whitespace-nowrap: an absolutely-positioned flex box shrink-wraps to
-            // content, but only up to its containing block — without this the text
-            // wraps to a second line and the pill stops reading as a pill.
+            // whitespace-nowrap keeps the pill a pill; the max-width plus a
+            // truncating text span keeps a long sentence ON the screen — nowrap
+            // alone let "Told Leo and Ada — Maps would open…" run past the glass.
             "pointer-events-none absolute bottom-[110px] left-1/2 z-[60] flex w-max items-center gap-2.5",
             "max-w-[calc(100%-32px)] whitespace-nowrap rounded-pill bg-card text-bodysm font-medium text-ink shadow-e3",
             who ? "py-1.5 pl-1.5 pr-5" : "h-touch px-5",
@@ -646,7 +656,7 @@ export function Toast({
               <Avatar member={who} size={32} />
             </motion.span>
           )}
-          {message}
+          <span className="min-w-0 truncate">{message}</span>
         </motion.div>
       )}
     </AnimatePresence>

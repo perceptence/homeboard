@@ -555,7 +555,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         waiting,
       },
       ...logged(s, `${name} is on the way${title ? ` — ${title}` : ""}`, who ?? undefined),
-      toast: `Told ${told} — Maps would open with ${where ?? "the route"}`,
+      // One short fact for the pill — the Maps hand-off is implied by leaving,
+      // and the long version ran clean off the glass.
+      toast: `On the way — told ${told}`,
       toastWho: who,
     }));
   },
