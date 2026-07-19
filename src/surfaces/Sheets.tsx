@@ -578,8 +578,9 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
                   className="overflow-hidden"
                 >
                 {/* The options sit in their OWN panel so they read as a menu, not
-                    loose text floating in the card. */}
-                <div className="mt-2 flex flex-col gap-0.5 rounded-xl border border-ink/[.07] bg-surface p-1.5">
+                    loose text floating in the card. Panel radius = option radius +
+                    padding, so the selected fill's corners track the frame's. */}
+                <div className="mt-2 flex flex-col gap-0.5 rounded-2xl border border-ink/[.07] bg-surface p-1">
                   {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
                     <button
                       key={r}
@@ -587,7 +588,7 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
                       disabled={m.role === "owner" && r !== "owner" && !Object.values(s.members).some((x) => x.id !== m.id && x.role === "owner")}
                       onClick={() => { s.setRole(m.id, r); setOpen(false); }}
                       className={clsx(
-                        "flex flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                        "flex flex-col items-start gap-0.5 rounded-xl px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40",
                         FOCUS,
                         r === m.role ? "bg-ink text-white" : "hover:bg-card",
                       )}
