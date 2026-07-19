@@ -16,7 +16,7 @@ import {
 import { addDays, iso, isToday, relative, relativeInline, todayIso } from "./dates";
 
 export interface Sheet {
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "addBill";
+  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "addBill" | "stock";
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;
@@ -310,6 +310,7 @@ interface HouseholdState {
 
   payBill: (id: string) => void;
   restock: (id: string) => void;
+  addInventory: (i: { title: string; location: string; quantity: string }) => void;
   scheduleMaint: (id: string) => void;
   toggleAutomation: (id: string) => void;
 
@@ -884,6 +885,12 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         toast: item ? `${item.title} back in stock` : null,
       };
     }),
+
+  addInventory: ({ title, location, quantity }) =>
+    set((s) => ({
+      inventory: [...s.inventory, { id: `inv${Date.now()}`, title: title.trim() || "New item", location: location.trim() || "Home", quantity: quantity.trim() || "In stock", status: "ok" }],
+      toast: "Added to the house",
+    })),
 
   scheduleMaint: (id) =>
     set((s) => {

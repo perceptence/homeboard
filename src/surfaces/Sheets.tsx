@@ -11,7 +11,7 @@ import { taskGlyph } from "@/lib/glyphs";
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
-import type { Member, MemberId, MemberKind, Priority, Role, ShopCategory, ShopItem, Task } from "@/lib/types";
+import type { Member, MemberId, MemberKind, Priority, Role, ShopCategory, ShopItem, StockStatus, Task } from "@/lib/types";
 import { ROLE_CAN, ROLE_HINT, ROLE_LABEL, ROLE_NEEDS } from "@/lib/types";
 
 /** Where a typed shopping item files itself — read from the words, shown live
@@ -52,6 +52,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
         {sheet?.type === "handoff" && <HandoffSheet id={sheet.id as number | undefined} />}
         {sheet?.type === "rebalance" && <RebalanceSheet />}
         {sheet?.type === "shop" && <ShopSheet />}
+        {sheet?.type === "stock" && <InventorySheet />}
         {sheet?.type === "activity" && <ActivitySheet />}
         {nav && (
           <motion.div
@@ -372,6 +373,14 @@ function ShopSheet() {
       <p className="mt-1.5 text-bodysm text-sub">
         {open.length ? `${open.length} to get · shared with everyone` : "All bought — nice work"}
       </p>
+      {/* The flip side of the list: what's already in the house. */}
+      <button
+        onClick={() => s.openSheet({ type: "stock" })}
+        className={clsx("mt-2 flex items-center gap-1 rounded-sm text-caption font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+      >
+        <Icon name="box" size={14} /> What&rsquo;s in the house
+        <Icon name="fwd" size={14} />
+      </button>
       {/* Said once, kindly, up front — not repeated as a nag on every row. */}
       {cantShop && (
         <p className="mt-2 flex items-center gap-1.5 text-caption text-sub">
@@ -1023,6 +1032,75 @@ function NewBillSheet() {
       >
         Add bill
       </Button>
+    </>
+  );
+}
+
+/** IN THE HOUSE — the stock view, reached from Shopping. See what's here, mark
+ *  things restocked, and add what the phone couldn't record before. */
+function InventorySheet() {
+  const s = useHousehold();
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+  const [loc, setLoc] = useState("");
+  const [qty, setQty] = useState("");
+  const low = s.inventory.filter((i) => i.status === "low").length;
+  const STOCK: Record<StockStatus, string> = { low: "Low", expiring: "Expiring", ok: "In stock" };
+  const save = () => {
+    if (!name.trim()) return;
+    s.addInventory({ title: name, location: loc, quantity: qty });
+    setName(""); setLoc(""); setQty(""); setAdding(false);
+  };
+  return (
+    <>
+      <button
+        onClick={() => s.openSheet({ type: "shop" })}
+        className={clsx("-ml-1 mb-3 flex items-center gap-0.5 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+      >
+        <Icon name="back" size={18} /> Shopping
+      </button>
+      <span className="flex items-center gap-3">
+        <IconTile name="box" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">In the house</h2>
+      </span>
+      <p className="mt-1.5 text-bodysm text-sub">
+        {low ? `${low} running low — ${low === 1 ? "it goes" : "they go"} onto the shopping list` : "Everything’s stocked"}
+      </p>
+
+      <div className="mt-4 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+        {s.inventory.map((i) => (
+          <div key={i.id} className="flex items-center gap-3 px-4 py-3">
+            <IconTile name="box" size="sm" />
+            <div className="min-w-0 flex-1">
+              <div className="text-bodysm font-medium">{i.title}</div>
+              <div className="text-caption text-sub">{i.location} · {i.quantity}</div>
+            </div>
+            <Pill tone="tag">{STOCK[i.status]}</Pill>
+            {i.status === "low" && <Button tone="outline" onClick={() => s.restock(i.id)}>Restocked</Button>}
+          </div>
+        ))}
+      </div>
+
+      {adding ? (
+        <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Item — e.g. Olive oil" aria-label="Item" autoFocus className={FIELD_INPUT} />
+          <div className="mt-3 flex gap-2 border-t border-ink/[.06] pt-3">
+            <input value={loc} onChange={(e) => setLoc(e.target.value)} placeholder="Where" aria-label="Location" className={clsx(FIELD_INPUT, "flex-1")} />
+            <input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="How much" aria-label="Quantity" className={clsx(FIELD_INPUT, "flex-1")} />
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button tone="dark" className="flex-1" disabled={!name.trim()} onClick={save}>Add</Button>
+            <Button tone="outline" onClick={() => { setAdding(false); setName(""); setLoc(""); setQty(""); }}>Cancel</Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          className={clsx("mt-3.5 flex items-center gap-1.5 rounded-sm px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+        >
+          <Icon name="plus" size={16} /> Add item
+        </button>
+      )}
     </>
   );
 }
