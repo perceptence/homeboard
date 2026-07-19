@@ -241,6 +241,8 @@ export interface Member {
   /** A custom profile picture, as a (downscaled) data URL. When set, it replaces
    *  the illustrated face everywhere. Set from Settings; absent by default. */
   photo?: string;
+  /** Emailed an invite but hasn't accepted yet — shown as "Pending". */
+  invited?: boolean;
   /** Real, and only ever used as a CAPABILITY gate against a task's minAge —
    *  never as a permission. Optional: plenty of adults won't type it in. */
   age?: number;

@@ -11,7 +11,7 @@ import { taskGlyph } from "@/lib/glyphs";
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
-import type { Member, MemberId, Priority, Role, ShopCategory, ShopItem, Task } from "@/lib/types";
+import type { Member, MemberId, MemberKind, Priority, Role, ShopCategory, ShopItem, Task } from "@/lib/types";
 import { ROLE_CAN, ROLE_HINT, ROLE_LABEL, ROLE_NEEDS } from "@/lib/types";
 
 /** Where a typed shopping item files itself — read from the words, shown live
@@ -32,11 +32,11 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
   // Settings ⇄ Manage household is a PUSH within the same sheet: manage is one
   // level deeper, so it slides in from the right and back slides in from the
   // left. Tracked so "back" actually reads as back.
-  const depth = (t?: string) => (t === "manage" ? 1 : 0);
+  const depth = (t?: string) => (t === "addPerson" ? 2 : t === "manage" ? 1 : 0);
   const prevDepth = useRef(0);
   const dir = depth(type) >= prevDepth.current ? 1 : -1;
   useEffect(() => { prevDepth.current = depth(type); }, [type]);
-  const nav = type === "settings" || type === "manage";
+  const nav = type === "settings" || type === "manage" || type === "addPerson";
 
   return (
     <>
@@ -61,6 +61,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
           >
             {type === "settings" && <SettingsSheet />}
             {type === "manage" && <ManageHouseholdSheet />}
+            {type === "addPerson" && <AddPersonSheet />}
           </motion.div>
         )}
       </Sheet>
@@ -508,7 +509,8 @@ function Switch({ on, onToggle, label }: { on: boolean; onToggle: () => void; la
       <motion.span
         layout
         transition={{ type: "spring", stiffness: 500, damping: 34 }}
-        className={clsx("absolute top-[4px] block h-[22px] w-[22px] rounded-pill shadow-sm", on ? "left-[24px] bg-lemon" : "left-[4px] bg-white")}
+        // Track is 48×28, knob 22 → 3px inset centres it both ways (was 4/2, off).
+        className={clsx("absolute top-[3px] block h-[22px] w-[22px] rounded-pill shadow-sm", on ? "left-[23px] bg-lemon" : "left-[3px] bg-white")}
       />
     </button>
   );
@@ -538,6 +540,7 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
             aria-label={`${m.name}'s name`}
             className="min-w-0 flex-1 bg-transparent text-bodysm font-medium leading-tight outline-none"
           />
+          {m.invited && <Pill tone="tag">Pending</Pill>}
           {canRemove && (
             <button
               onClick={() => s.removeMember(m.id)}
@@ -549,9 +552,11 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
           )}
         </div>
 
-        {/* Access — the one decision the owner makes about a person. Pets hold no
-            work, so they hold no role. */}
-        {!isPet && (
+        {/* Access — the one decision the owner makes about a person. A pet holds
+            no work, so it holds no role; it still says what it is. */}
+        {isPet ? (
+          <div className="mt-1 text-caption font-medium text-sub">Pet</div>
+        ) : (
           <>
             <button
               onClick={() => setOpen((v) => !v)}
@@ -572,7 +577,9 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
                   transition={smooth}
                   className="overflow-hidden"
                 >
-                <div className="mt-1.5 flex flex-col gap-1">
+                {/* The options sit in their OWN panel so they read as a menu, not
+                    loose text floating in the card. */}
+                <div className="mt-2 flex flex-col gap-0.5 rounded-xl border border-ink/[.07] bg-surface p-1.5">
                   {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
                     <button
                       key={r}
@@ -580,9 +587,9 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
                       disabled={m.role === "owner" && r !== "owner" && !Object.values(s.members).some((x) => x.id !== m.id && x.role === "owner")}
                       onClick={() => { s.setRole(m.id, r); setOpen(false); }}
                       className={clsx(
-                        "flex flex-col items-start gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                        "flex flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40",
                         FOCUS,
-                        r === m.role ? "bg-ink text-white" : "hover:bg-surface",
+                        r === m.role ? "bg-ink text-white" : "hover:bg-card",
                       )}
                     >
                       <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
@@ -757,15 +764,27 @@ function ManageHouseholdSheet() {
         <h2 className="min-w-0 font-tight text-h1">Manage household</h2>
       </span>
 
+      {/* NAME — the shared name, up top; it's the household's identity. */}
+      <Eyebrow className="mt-5">Name</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+        <input
+          defaultValue={s.householdName}
+          onBlur={(e) => s.setHouseholdName(e.target.value.trim() || s.householdName)}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          aria-label="Household name"
+          className="w-full bg-transparent text-bodysm font-medium outline-none"
+        />
+      </div>
+
       {/* PEOPLE — add, rename, set roles, remove. */}
-      <Eyebrow className="mt-5">People</Eyebrow>
+      <Eyebrow className="mt-6">People</Eyebrow>
       <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
         {everyone.map((m) => (
           <MemberManageRow key={m.id} member={m} canRemove={m.role !== "owner"} />
         ))}
       </div>
       <button
-        onClick={() => s.addMember()}
+        onClick={() => s.openSheet({ type: "addPerson" })}
         className={clsx("mt-2 flex items-center gap-1.5 rounded-sm px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
       >
         <Icon name="plus" size={16} /> Add person
@@ -783,18 +802,6 @@ function ManageHouseholdSheet() {
             <Switch on={a.on} onToggle={() => s.toggleAutomation(a.id)} label={a.title} />
           </div>
         ))}
-      </div>
-
-      {/* NAME — the shared name (the sheet header already says "Household"). */}
-      <Eyebrow className="mt-6">Name</Eyebrow>
-      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
-        <input
-          defaultValue={s.householdName}
-          onBlur={(e) => s.setHouseholdName(e.target.value.trim() || s.householdName)}
-          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          aria-label="Household name"
-          className="w-full bg-transparent text-bodysm font-medium outline-none"
-        />
       </div>
 
       {/* BILLS — pay what's due; the rest show their state. */}
@@ -816,6 +823,99 @@ function ManageHouseholdSheet() {
           </div>
         ))}
       </div>
+    </>
+  );
+}
+
+/**
+ * ADD SOMEONE — the invite form, a sub-screen of Manage household. A person
+ * needs a name, an email to send the invite to, and a role; a pet just needs a
+ * name. "Add person" is no longer a one-tap placeholder.
+ */
+function AddPersonSheet() {
+  const s = useHousehold();
+  const [kind, setKind] = useState<MemberKind>("person");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<Role>("guided");
+  const canSend = name.trim().length > 0;
+
+  const submit = () => {
+    if (!canSend) return;
+    s.addMember({ name, email, role, kind });
+    s.openSheet({ type: "manage" });
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => s.openSheet({ type: "manage" })}
+        className={clsx("-ml-1 mb-3 flex items-center gap-0.5 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+      >
+        <Icon name="back" size={18} /> Household
+      </button>
+      <span className="flex items-center gap-3">
+        <IconTile name="user" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">Add someone</h2>
+      </span>
+
+      {/* Person or pet — the choice shapes the rest of the form. */}
+      <div className="mt-5 flex gap-2">
+        <Choice selected={kind === "person"} onClick={() => setKind("person")}>Person</Choice>
+        <Choice selected={kind === "pet"} onClick={() => setKind("pet")}>Pet</Choice>
+      </div>
+
+      <Eyebrow className="mt-6">Name</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={kind === "pet" ? "The pet’s name" : "Their name"}
+          aria-label="Name"
+          className="w-full bg-transparent text-bodysm font-medium outline-none placeholder:text-sub/70"
+        />
+      </div>
+
+      {kind === "person" && (
+        <>
+          <Eyebrow className="mt-6">Email</Eyebrow>
+          <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              placeholder="name@email.com"
+              aria-label="Email"
+              className="w-full bg-transparent text-bodysm font-medium outline-none placeholder:text-sub/70"
+            />
+          </div>
+          <p className="mt-1.5 px-1 text-caption text-sub">
+            We’ll send an invite to join {s.householdName}. They can join without one, too.
+          </p>
+
+          <Eyebrow className="mt-6">Access</Eyebrow>
+          <div className="mt-2 flex flex-col gap-0.5 rounded-card bg-card p-1.5 shadow-e1">
+            {(Object.keys(ROLE_LABEL) as Role[]).filter((r) => r !== "owner").map((r) => (
+              <button
+                key={r}
+                onClick={() => setRole(r)}
+                className={clsx(
+                  "flex flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left transition-colors",
+                  FOCUS,
+                  r === role ? "bg-ink text-white" : "hover:bg-surface",
+                )}
+              >
+                <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
+                <span className={clsx("text-caption", r === role ? "text-white/60" : "text-sub")}>{ROLE_HINT[r]}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <Button tone="dark" size="lg" className="mt-6 w-full" onClick={submit} disabled={!canSend}>
+        {kind === "pet" ? "Add pet" : email.trim() ? "Send invite" : "Add person"}
+      </Button>
     </>
   );
 }

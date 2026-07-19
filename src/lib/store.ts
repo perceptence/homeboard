@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   ActivityEntry, Automation, Bill, DraftPerson, HouseEvent, HouseholdAxes, HouseholdPreset,
-  InventoryItem, IpadRoute, MaintItem, Member, MemberId, OnboardingDraft, Persona, PhoneRoute,
+  InventoryItem, IpadRoute, MaintItem, Member, MemberId, MemberKind, OnboardingDraft, Persona, PhoneRoute,
   Availability, IslandNote, Presence, Priority, Reminder, Role, ShopItem, Task,
 } from "./types";
 import { ROLE_RANK, ROLE_SET } from "./types";
@@ -16,7 +16,7 @@ import {
 import { addDays, iso, isToday, relative, relativeInline, todayIso } from "./dates";
 
 export interface Sheet {
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage";
+  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson";
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;
@@ -316,8 +316,9 @@ interface HouseholdState {
   /* --- household roster, managed post-setup (owner-only in the UI) --- */
   /** Rename any member. (setProfile only edits your OWN; this is the owner's.) */
   renameMember: (id: MemberId, name: string) => void;
-  /** Add a new person to the household — starts guided, named, and editable. */
-  addMember: () => void;
+  /** Add a member from the invite form — a named person (with an optional email
+   *  to invite and a chosen role) or a pet. */
+  addMember: (info: { name: string; email?: string; role: Role; kind: MemberKind }) => void;
   /** Remove a member: their open work goes back on the pile and every reference
    *  to them is scrubbed. The last owner can't be removed. */
   removeMember: (id: MemberId) => void;
@@ -949,18 +950,30 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       return { members: { ...s.members, [id]: { ...m, name: n } } };
     }),
 
-  addMember: () =>
+  addMember: (info) =>
     set((s) => {
-      // A palette past the five seeded member colours, so a sixth face isn't a
-      // clash. New people start `guided` — the safest floor; the owner lifts them.
+      // A palette past the five seeded member colours, so a sixth face isn't a clash.
       const palette = ["#D9488B", "#5B8C3E", "#B26BD6", "#3EB0C8", "#E8994B", "#6C7BE0"];
       const id = `m${Date.now()}`;
+      const name = info.name.trim() || "New member";
+      const email = info.email?.trim() || undefined;
+      // A person you emailed is INVITED (pending) until they accept; a pet, or a
+      // person added without an email, just joins.
+      const invited = info.kind === "person" && !!email;
       const member: Member = {
-        id, name: "New member", kind: "person", role: "guided",
+        id,
+        name,
+        kind: info.kind,
+        role: info.kind === "pet" ? "guided" : info.role,
+        email,
         color: palette[Object.keys(s.members).length % palette.length],
-        stars: 0,
+        stars: info.kind === "pet" ? undefined : 0,
+        invited: invited || undefined,
       };
-      return { members: { ...s.members, [id]: member }, toast: "Added a new member" };
+      return {
+        members: { ...s.members, [id]: member },
+        toast: invited ? `Invite sent to ${name}` : `${name} joined`,
+      };
     }),
 
   removeMember: (id) =>
