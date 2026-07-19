@@ -396,7 +396,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
 
   persona: "ipad",
   ipadRoute: "home",
-  phoneRoute: "feed",
+  phoneRoute: "today",
   sheet: null,
   toast: null,
   toastWho: null,
@@ -1355,10 +1355,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     const top = Math.max(999, ...state.tasks.map((t) => t.id),
       ...state.shopping.map((i) => Number(String(i.id).replace(/\D/g, "")) || 0));
     nextId = top;
-    // MIGRATION: "today" and "ahead" merged into "feed". A persisted route
-    // from before the merge names a screen that no longer exists — the shell
-    // would render an empty body.
-    if (!["feed", "house", "you"].includes(state.phoneRoute)) state.phoneRoute = "feed";
+    // MIGRATION: the short-lived "feed" merge is undone — a persisted route
+    // naming a screen that no longer exists would render an empty body.
+    if (!["today", "ahead", "house", "you"].includes(state.phoneRoute)) state.phoneRoute = "today";
   },
 }));
 
@@ -1453,6 +1452,7 @@ export const billTasks = (s: HouseholdState) =>
 export const autoWhenPhrase = (w: AutoWhen): string => {
   switch (w.kind) {
     case "low": return "something runs low";
+    case "daily": return `every day at ${w.time}`;
     case "weekday": return `every ${w.day} at ${w.time}`;
     case "email": return "a billing email arrives";
     case "unclaimed": return "a task sits unclaimed for a day";

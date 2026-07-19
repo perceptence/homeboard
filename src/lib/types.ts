@@ -482,6 +482,7 @@ export interface HouseEvent {
  */
 export type AutoWhen =
   | { kind: "low" }                                    // something runs low
+  | { kind: "daily"; time: string }                    // every day, at a time
   | { kind: "weekday"; day: string; time: string }     // a weekly moment
   | { kind: "email" }                                  // a billing email arrives
   | { kind: "unclaimed" }                              // work sits unclaimed
@@ -625,4 +626,4 @@ export type IpadRoute =
  * The phone has THREE tabs, on one axis: now -> later -> me.
  * today = what's on right now · ahead = the week/month/quarter · you = the person.
  */
-export type PhoneRoute = "feed" | "house" | "you";
+export type PhoneRoute = "today" | "ahead" | "house" | "you";

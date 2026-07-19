@@ -968,66 +968,37 @@ const FIELD_INPUT = "w-full bg-transparent text-bodysm font-medium outline-none 
 
 /* ─────────────── the automation builder ─────────────── */
 
-/** The vocabulary — every option is something the app can actually DO, so a
- *  saved rule is a working rule, not a wish in a text box. */
-const AUTO_WHEN: { kind: AutoWhen["kind"]; label: string; hint: string }[] = [
-  { kind: "low", label: "Something runs low", hint: "The pantry or supplies dip" },
-  { kind: "weekday", label: "A weekly moment", hint: "A day and time you pick" },
-  { kind: "email", label: "A billing email arrives", hint: "The inbox reader spots a bill" },
-  { kind: "unclaimed", label: "Work sits unclaimed", hint: "A task waits a day with no taker" },
-  { kind: "dueSoon", label: "A bill is 3 days out", hint: "Money due, nobody has moved" },
+/** The vocabulary, as PILLS — the same Choice chips the New-task sheet
+ *  speaks. Every option is something the app can actually DO, so a saved
+ *  rule is a working rule, not a wish in a text box. */
+const AUTO_WHEN: { kind: AutoWhen["kind"]; label: string }[] = [
+  { kind: "low", label: "Something runs low" },
+  { kind: "daily", label: "Every day" },
+  { kind: "weekday", label: "A weekly moment" },
+  { kind: "email", label: "A billing email" },
+  { kind: "unclaimed", label: "Work unclaimed" },
+  { kind: "dueSoon", label: "A bill due soon" },
 ];
-const AUTO_THEN: { kind: AutoThen["kind"]; label: string; hint: string }[] = [
-  { kind: "shop", label: "Add it to shopping", hint: "Straight onto the shared list" },
-  { kind: "task", label: "Create a task", hint: "Titled by you, routed fairly" },
-  { kind: "nudge", label: "Nudge someone", hint: "A quiet reminder, one person" },
-  { kind: "rebalance", label: "Even out the week", hint: "Run the balancer" },
-  { kind: "bill", label: "File the bill", hint: "Amount, due date and pay link" },
+const AUTO_THEN: { kind: AutoThen["kind"]; label: string }[] = [
+  { kind: "shop", label: "Add it to shopping" },
+  { kind: "task", label: "Create a task" },
+  { kind: "nudge", label: "Nudge someone" },
+  { kind: "rebalance", label: "Even out the week" },
+  { kind: "bill", label: "File the bill" },
 ];
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-/** One arm of the rule — the selection language the whole app speaks: white
- *  cards on a recessed panel, the chosen one wearing an ink ring. */
-function AutoOptionList<T extends string>({ options, value, onPick }: {
-  options: { kind: T; label: string; hint: string }[];
-  value: T | null;
-  onPick: (k: T) => void;
-}) {
-  return (
-    <div className="mt-2 flex flex-col gap-1.5 rounded-md bg-ink/[.04] p-1">
-      {options.map((o) => (
-        <button
-          key={o.kind}
-          onClick={() => onPick(o.kind)}
-          aria-pressed={value === o.kind}
-          className={clsx(
-            "flex items-baseline gap-2 rounded-sm bg-card px-3 py-2.5 text-left transition-shadow duration-300",
-            FOCUS,
-            value === o.kind ? "shadow-e2 ring-2 ring-inset ring-ink" : "shadow-e1 hover:shadow-e2",
-          )}
-        >
-          <span className="shrink-0 text-bodysm font-medium">{o.label}</span>
-          <span className="min-w-0 truncate text-caption text-sub">{o.hint}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /**
- * THE AUTOMATION BUILDER — create, edit, delete. A rule is WHEN + THEN picked
- * from a vocabulary the app executes (the runs-low rule literally gates
- * shoppingList), so what you save is what runs. Editing a rule opens the same
- * builder with its parts lit; the one legacy free-text rule (Guest mode)
- * opens blank and converts on save.
+ * THE AUTOMATION SHEET — the New-task experience, for rules. Say it or type
+ * it; the parse fills a ONE-CARD readback (title, spark line, why); "Adjust"
+ * folds open the same Choice pills New task uses, with each pick's own
+ * controls appearing right under its pill row. Editing an existing rule opens
+ * onto the readback with its parts already lit.
  */
 function AutomationSheet({ id }: { id?: string }) {
   const s = useHousehold();
   const existing = id ? s.automations.find((a) => a.id === id) : undefined;
 
-  // SAY IT, we build it — the New-task bargain, for rules. The sentence is
-  // parsed live; what it understood pre-selects the builder below, and a
-  // manual tap on any part wins over the parse from then on.
   const [raw, setRaw] = useState("");
   const dictation = useDictation((text) => setRaw(text));
   const parsed = parseAutomation(raw, doers(s));
@@ -1039,7 +1010,11 @@ function AutomationSheet({ id }: { id?: string }) {
   const setThen = setThenPick;
 
   const pickWhen = (kind: AutoWhen["kind"]) =>
-    setWhen(kind === "weekday" ? { kind, day: "Tuesday", time: "6:00 PM" } : { kind } as AutoWhen);
+    setWhen(
+      kind === "weekday" ? { kind, day: "Tuesday", time: "6:00 PM" }
+      : kind === "daily" ? { kind, time: "6:00 PM" }
+      : { kind } as AutoWhen,
+    );
   const pickThen = (kind: AutoThen["kind"]) =>
     setThen(
       kind === "task" ? { kind, title: "" }
@@ -1048,187 +1023,205 @@ function AutomationSheet({ id }: { id?: string }) {
     );
 
   const [timeOpen, setTimeOpen] = useState(false);
-  // The builder stays FOLDED for a new rule: the sentence is the interface,
-  // and the details sheet only opens when something is missing (or the user
-  // asks to adjust). Editing an existing rule opens straight onto its parts.
   const [adjusting, setAdjusting] = useState(!!existing);
   const ready = !!when && !!then
     && (then.kind !== "task" || then.title.trim().length > 0)
     && (then.kind !== "nudge" || !!s.members[then.who]);
   const done = () => (s.persona === "ipad" ? s.closeSheet() : s.openSheet({ type: "manage" }));
+  const commit = () => {
+    if (!when || !then) return;
+    if (existing) s.updateAutomation(existing.id, { when, then });
+    else s.addAutomation({ when, then });
+    done();
+  };
+
+  /** The one thing still missing, said plainly — or nothing. */
+  const missing =
+    !when ? "When should this run? Adjust below."
+    : !then ? "…and then what should happen? Adjust below."
+    : then.kind === "nudge" && !s.members[then.who] ? "Who should get the nudge? Adjust below."
+    : then.kind === "task" && !then.title.trim() ? "What should the task say? Adjust below."
+    : parsed.assumedTime && !whenPick && (when.kind === "daily" || when.kind === "weekday")
+      ? `We assumed ${when.time} — adjust if that's off.`
+    : null;
 
   return (
     <>
       <FormHead icon="bolt" title={existing ? "Edit automation" : "New automation"} />
 
-      {/* The composer — only for a NEW rule (an existing one is already
-          structured; its parts open lit below). Same two rooms as New task:
-          the mic explains itself, the field trails on. */}
+      {/* ONE input, two doors — identical to New task's composer. */}
       {!existing && (
-        <>
-          <div className={clsx(
-            "mt-5 overflow-hidden rounded-card border transition-colors",
-            dictation.listening ? "border-ink" : "border-ink/[.08]",
-          )}>
-            {dictation.supported && (
-              <button
-                onClick={() => (dictation.listening ? dictation.stop() : dictation.start())}
+        <div className={clsx(
+          "mt-5 overflow-hidden rounded-card border transition-colors",
+          dictation.listening ? "border-ink" : "border-ink/[.08]",
+        )}>
+          {dictation.supported && (
+            <button
+              onClick={() => (dictation.listening ? dictation.stop() : dictation.start())}
+              className={clsx(
+                "flex w-full items-center gap-3 p-card-pad text-left transition-colors",
+                dictation.listening ? "bg-ink text-white" : "bg-card hover:bg-surface",
+              )}
+            >
+              <motion.span
+                animate={dictation.listening ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+                transition={dictation.listening ? { duration: 1.4, repeat: Infinity } : smooth}
                 className={clsx(
-                  "flex w-full items-center gap-3 p-card-pad text-left transition-colors",
-                  dictation.listening ? "bg-ink text-white" : "bg-card hover:bg-surface",
+                  "grid h-11 w-11 shrink-0 place-items-center rounded-pill",
+                  dictation.listening ? "bg-danger text-white" : "bg-lemon text-ink",
                 )}
               >
-                <motion.span
-                  animate={dictation.listening ? { scale: [1, 1.12, 1] } : { scale: 1 }}
-                  transition={dictation.listening ? { duration: 1.4, repeat: Infinity } : smooth}
-                  className={clsx(
-                    "grid h-11 w-11 shrink-0 place-items-center rounded-pill",
-                    dictation.listening ? "bg-danger text-white" : "bg-lemon text-ink",
-                  )}
-                >
-                  <Icon name="mic" size={20} />
-                </motion.span>
-                <span className="min-w-0 flex-1">
-                  <b className="block text-bodysm">{dictation.listening ? "Listening…" : "Say what to automate"}</b>
-                  <span className={clsx("block truncate text-caption", dictation.listening ? "text-white/70" : "text-sub")}>
-                    {dictation.listening
-                      ? dictation.heard || "“Nudge Sam every Tuesday at 8pm”"
-                      : "Tap and talk — we'll build the rule"}
-                  </span>
+                <Icon name="mic" size={20} />
+              </motion.span>
+              <span className="min-w-0 flex-1">
+                <b className="block text-bodysm">{dictation.listening ? "Listening…" : "Say what to automate"}</b>
+                <span className={clsx("block truncate text-caption", dictation.listening ? "text-white/70" : "text-sub")}>
+                  {dictation.listening
+                    ? dictation.heard || "“Nudge Sam every Tuesday at 8pm”"
+                    : "Tap and talk — we'll build the rule"}
                 </span>
-              </button>
-            )}
-            <label className={clsx(
-              "flex items-center bg-card px-card-pad",
-              dictation.supported && "border-t border-ink/[.06]",
-            )}>
-              <span className="sr-only">What should the house do by itself?</span>
-              <input
-                value={raw}
-                onChange={(e) => setRaw(e.target.value)}
-                placeholder="…or write it"
-                className="h-touch w-full bg-transparent text-bodysm font-medium outline-none placeholder:text-sub/70"
-              />
-            </label>
-          </div>
-          {/* What we made of it — and the ONE thing we still need, if any.
-              The heavy lifting is ours; the ask is a tap, not a form. */}
-          {raw.trim().length > 0 && (
-            <p className="mt-2 px-1 text-caption text-sub">
-              {!when ? "Almost — it still needs a trigger: when should this run?"
-                : !then ? "Almost — and then what should happen?"
-                : then.kind === "nudge" && !s.members[then.who] ? "Got it — just tell us who should get the nudge."
-                : parsed.assumedTime && !whenPick && when.kind === "weekday" ? `Got it — we assumed ${when.time}.`
-                : "Got it — ready to add."}
-            </p>
-          )}
-        </>
-      )}
-
-      {adjusting && (<>
-      <Eyebrow className="mt-5">When</Eyebrow>
-      <AutoOptionList options={AUTO_WHEN} value={when?.kind ?? null} onPick={pickWhen} />
-      {when?.kind === "weekday" && (
-        <div className="mt-3 rounded-card bg-card p-3 shadow-e1">
-          <div className="flex flex-wrap gap-1.5">
-            {DAYS.map((d) => (
-              <Choice key={d} selected={when.day === d} onClick={() => setWhen({ ...when, day: d })} className="!h-8 !px-2.5 !text-caption">
-                {d.slice(0, 3)}
-              </Choice>
-            ))}
-          </div>
-          <div className="mt-3 border-t border-ink/[.06] pt-3">
-            <PickerChip kind="time" open={timeOpen} onToggle={() => setTimeOpen((v) => !v)} active>
-              {when.time}
-            </PickerChip>
-            <PickerPanel open={timeOpen}>
-              <MiniClock value={when.time} onPick={(t) => setWhen({ ...when, time: t })} />
-            </PickerPanel>
-          </div>
-        </div>
-      )}
-
-      <Eyebrow className="mt-6">Then</Eyebrow>
-      <AutoOptionList options={AUTO_THEN} value={then?.kind ?? null} onPick={pickThen} />
-      {then?.kind === "task" && (
-        <div className="mt-3 rounded-card bg-card p-4 shadow-e1">
-          <input
-            value={then.title}
-            onChange={(e) => setThen({ ...then, title: e.target.value })}
-            placeholder="What should the task say?"
-            aria-label="Task title"
-            className={FIELD_INPUT}
-          />
-        </div>
-      )}
-      {then?.kind === "nudge" && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {doers(s).map((m) => (
-            <Choice key={m.id} selected={then.who === m.id} onClick={() => setThen({ ...then, who: m.id })}>
-              <Avatar member={m} size={22} /> {m.name}
-            </Choice>
-          ))}
-        </div>
-      )}
-      </>)}
-
-      {/* The rule, read back as the sentence it will wear in the list. Only the
-          verb's first letter drops case — names keep theirs. */}
-      {ready && when && then && (
-        <p className="mt-4 px-1 text-bodysm text-sub">
-          When <b className="font-medium text-ink">{autoWhenPhrase(when)}</b> →{" "}
-          <b className="font-medium text-ink">
-            {(() => { const t = autoThenTitle(then, s.members); return t.charAt(0).toLowerCase() + t.slice(1); })()}
-          </b>.
-        </p>
-      )}
-
-      {/* THE FLOW: complete sentence -> one tap adds it. Incomplete -> the
-          button opens the details, pre-filled with everything we understood,
-          asking only for what's missing. Adjust stays one tap away even when
-          we got it all. */}
-      {!adjusting ? (
-        <>
-          <Button
-            tone="dark" size="lg" className="mt-6 w-full" disabled={!raw.trim()}
-            onClick={() => {
-              if (ready && when && then) { s.addAutomation({ when, then }); done(); }
-              else setAdjusting(true);
-            }}
-          >
-            {ready ? "Add automation" : "Add the details"}
-          </Button>
-          {ready && (
-            <button
-              onClick={() => setAdjusting(true)}
-              className={clsx("mx-auto mt-2 flex items-center gap-1 rounded-sm px-2 py-1 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
-            >
-              Adjust the parts <Icon name="chevDown" size={14} />
+              </span>
             </button>
           )}
-        </>
-      ) : (
-        <>
-          <Button
-            tone="dark" size="lg" className="mt-6 w-full" disabled={!ready}
-            onClick={() => {
-              if (!when || !then) return;
-              if (existing) s.updateAutomation(existing.id, { when, then });
-              else s.addAutomation({ when, then });
-              done();
-            }}
+          <label className={clsx(
+            "flex items-center bg-card px-card-pad",
+            dictation.supported && "border-t border-ink/[.06]",
+          )}>
+            <span className="sr-only">What should the house do by itself?</span>
+            <input
+              value={raw}
+              onChange={(e) => setRaw(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && ready && commit()}
+              placeholder={dictation.supported ? "…or write it" : "Nudge Sam every Tuesday at 8pm"}
+              className="min-w-0 flex-1 bg-transparent py-4 text-bodysm font-medium outline-none placeholder:text-sub"
+            />
+          </label>
+        </div>
+      )}
+
+      {/* ONE card of readback — the same card New task shows. Title is the
+          rule's action; the spark line is its trigger; the "why" slot carries
+          the one thing still missing, if anything. */}
+      {(existing || raw.trim().length > 0) && (
+        <div className="mt-4 rounded-card bg-card p-card-pad">
+          <b className="block text-body">{then ? autoThenTitle(then, s.members) : "Almost a rule"}</b>
+          <div className="mt-1 flex flex-wrap items-center gap-1 text-caption text-sub">
+            <Icon name="spark" size={12} className="text-ink" />
+            {when
+              ? <span className="text-ink">When {autoWhenPhrase(when)}</span>
+              : <span>no trigger yet</span>}
+            · <span className={ready ? "text-ink" : undefined}>{ready ? "runs on its own" : "not ready"}</span>
+          </div>
+          {missing && <p className="mt-1 text-caption text-sub">{missing}</p>}
+          <button
+            onClick={() => setAdjusting(!adjusting)}
+            aria-expanded={adjusting}
+            className="mt-2 flex items-center gap-1 text-caption font-medium text-sub transition-colors hover:text-ink"
           >
-            {existing ? "Save changes" : "Add automation"}
-          </Button>
-          {existing && (
-            <Button
-              tone="ghost" size="lg" className="mt-2 w-full !text-danger"
-              onClick={() => { s.removeAutomation(existing.id); done(); }}
-            >
-              Remove this automation
-            </Button>
-          )}
-        </>
+            {adjusting ? "Done adjusting" : "Adjust"}
+            <motion.span animate={{ rotate: adjusting ? 180 : 0 }} transition={smooth} className="flex">
+              <Icon name="chevDown" size={12} />
+            </motion.span>
+          </button>
+        </div>
+      )}
+
+      {/* The parts, folded away — New task's grammar exactly: caption label,
+          Choice pills, and each pick's own controls RIGHT UNDER its row. */}
+      <AnimatePresence initial={false}>
+        {adjusting && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={smooth}
+            className="overflow-hidden"
+          >
+            <div className="pt-4">
+              <span className="text-caption font-medium uppercase tracking-wide text-sub">When</span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {AUTO_WHEN.map((o) => (
+                  <Choice key={o.kind} selected={when?.kind === o.kind} onClick={() => pickWhen(o.kind)}>
+                    {o.label}
+                  </Choice>
+                ))}
+              </div>
+              {/* The picked trigger's own controls, right here — not at the
+                  bottom of a stack. */}
+              {when?.kind === "weekday" && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {DAYS.map((d) => (
+                    <Choice key={d} selected={when.day === d} onClick={() => setWhen({ ...when, day: d })} className="!h-8 !px-2.5 !text-caption">
+                      {d.slice(0, 3)}
+                    </Choice>
+                  ))}
+                </div>
+              )}
+              {(when?.kind === "weekday" || when?.kind === "daily") && (
+                <div className="mt-2.5">
+                  <PickerChip kind="time" open={timeOpen} onToggle={() => setTimeOpen((v) => !v)} active>
+                    {when.time}
+                  </PickerChip>
+                  <PickerPanel open={timeOpen}>
+                    <MiniClock value={when.time} onPick={(t) => setWhen({ ...when, time: t })} />
+                  </PickerPanel>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4">
+              <span className="text-caption font-medium uppercase tracking-wide text-sub">Then</span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {AUTO_THEN.map((o) => (
+                  <Choice key={o.kind} selected={then?.kind === o.kind} onClick={() => pickThen(o.kind)}>
+                    {o.label}
+                  </Choice>
+                ))}
+              </div>
+              {then?.kind === "task" && (
+                <div className="mt-2.5 rounded-card bg-card p-4 shadow-e1">
+                  <input
+                    value={then.title}
+                    onChange={(e) => setThen({ ...then, title: e.target.value })}
+                    placeholder="What should the task say?"
+                    aria-label="Task title"
+                    className={FIELD_INPUT}
+                  />
+                </div>
+              )}
+              {then?.kind === "nudge" && (
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {doers(s).map((m) => (
+                    <Choice key={m.id} selected={then.who === m.id} onClick={() => setThen({ ...then, who: m.id })}>
+                      <Avatar member={m} size={22} /> {m.name}
+                    </Choice>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Same commit as New task: lemon, full width. Not ready and not yet
+          adjusting -> the button IS the door to the details. */}
+      <Button
+        tone="lemon" size="lg"
+        className={clsx("mt-6 w-full", !ready && adjusting && "opacity-40")}
+        disabled={!existing && !raw.trim() && !when && !then}
+        onClick={() => (ready ? commit() : setAdjusting(true))}
+      >
+        {ready
+          ? existing ? "Save changes" : "Add automation"
+          : "Add the details"}
+      </Button>
+      {existing && (
+        <Button
+          tone="ghost" size="lg" className="mt-2 w-full !text-danger"
+          onClick={() => { s.removeAutomation(existing.id); done(); }}
+        >
+          Remove this automation
+        </Button>
       )}
     </>
   );

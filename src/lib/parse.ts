@@ -312,6 +312,11 @@ export function parseAutomation(
   const dayHit = AUTO_DAYS.find(([re]) => re.test(text));
   if (/\brun(?:s|ning)?\s+(?:low|out)\b|\blow\s+on\b|\bout\s+of\b/.test(text)) {
     out.when = { kind: "low" };
+  } else if (/\bevery\s*day\b|\bdaily\b|\beach\s+day\b/.test(text)) {
+    // "everyday" (one word) and "every day" both mean daily — checked BEFORE
+    // the weekday branch so "day" never half-matches a weekday rule.
+    out.when = { kind: "daily", time: time ?? "6:00 PM" };
+    out.assumedTime = !time;
   } else if (/\b(?:email|inbox|mail)\b/.test(text) && /\b(?:bill|invoice)/.test(text)) {
     out.when = { kind: "email" };
   } else if (/\bunclaimed\b|\bno\s*(?:body|one)\s+(?:takes|claims|picks)\b|\bunassigned\b/.test(text)) {
@@ -342,6 +347,7 @@ export function parseAutomation(
     let rest = explicit ? explicit[1] : input;
     rest = rest
       .replace(/\b(?:every|each|on)\s+\w+days?\b/gi, " ")
+      .replace(/\bevery\s*day\b|\bdaily\b|\beach\s+day\b/gi, " ")
       .replace(/\b(?:mon|tues?|wednes|thurs?|fri|satur|sun)days?\b/gi, " ")
       .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/gi, " ")
       .replace(/\b(?:when|if|then|at|automatically|auto)\b/gi, " ")
