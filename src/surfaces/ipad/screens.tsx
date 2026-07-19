@@ -233,7 +233,12 @@ export function IpadHome() {
                 key={e.id}
                 lead={<Avatar member={s.members[e.who]} size={32} />}
                 title={e.title}
-                meta={`${relative(e.due)} · ${e.time}`}
+                // e.time on the near-term demo events is seeded relative to
+                // NOW (see tAt in lib/seed.ts), computed fresh at module
+                // import — server and client import it moments apart, so
+                // the two initial renders can genuinely disagree by a few
+                // minutes. Same carve-out as todayLabel()/timeOfDay() above.
+                meta={<span suppressHydrationWarning>{relative(e.due)} · {e.time}</span>}
               />
             ))}
           </List>
