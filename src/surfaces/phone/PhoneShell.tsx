@@ -45,6 +45,9 @@ export function PhoneShell() {
   // scope re-bands the horizon.
   const [feedDay, setFeedDay] = useState<string>(() => todayIso());
   const [scope, setScope] = useState<Scope>("Week");
+  // Search folds to an icon — the horizon chips live where the bar was, and
+  // a field you're not using shouldn't hold a whole header row hostage.
+  const [searchOpen, setSearchOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const later = laterFor(s, meId, query, scope);
 
@@ -181,22 +184,53 @@ export function PhoneShell() {
               one row, and hiding it behind a tap only made you ask "where's search?".
               It lives here rather than in the list because the list scrolls past the
               current group on open — it would have opened out of sight. */}
-          {route === "feed" && (
+          {/* ONE row under the greeting: the horizon chips (the old period
+              control's seat) with search folded to an icon at its end — or,
+              opened, the search bar in the row's place. Closing search clears
+              the query: a hidden filter silently shaping the feed is a
+              haunting, not a feature. */}
+          {route === "feed" && (searchOpen ? (
             <label className="mt-3 flex h-touch items-center gap-2 rounded-pill border border-white/10 bg-white/[.06] px-3.5 text-white/45 focus-within:border-white/25">
               <Icon name="search" size={16} className="shrink-0" />
               <input
+                autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search tasks and events…"
                 className="w-full bg-transparent text-bodysm text-white outline-none placeholder:text-white/30"
               />
-              {query && (
-                <button onClick={() => setQuery("")} aria-label="Clear search" className="shrink-0 hover:text-white">
-                  <Icon name="x" size={14} />
-                </button>
-              )}
+              <button
+                onClick={() => { setQuery(""); setSearchOpen(false); }}
+                aria-label="Close search"
+                className="shrink-0 hover:text-white"
+              >
+                <Icon name="x" size={14} />
+              </button>
             </label>
-          )}
+          ) : (
+            <div className="mt-3 flex items-center gap-1.5">
+              {feedDay === todayIso() && SCOPES.map((sc) => (
+                <button
+                  key={sc}
+                  onClick={() => setScope(sc)}
+                  aria-pressed={scope === sc}
+                  className={clsx(
+                    "h-8 rounded-pill px-3.5 text-caption font-medium transition-colors",
+                    scope === sc ? "bg-lemon text-ink" : "bg-white/[.07] text-white/70 hover:bg-white/[.12] hover:text-white",
+                  )}
+                >
+                  {sc}
+                </button>
+              ))}
+              <button
+                onClick={() => setSearchOpen(true)}
+                aria-label="Search"
+                className="ml-auto grid h-8 w-8 place-items-center rounded-pill bg-white/[.07] text-white/70 transition-colors hover:bg-white/[.12] hover:text-white"
+              >
+                <Icon name="search" size={15} />
+              </button>
+            </div>
+          ))}
 
         </header>
 
@@ -214,10 +248,7 @@ export function PhoneShell() {
               horizon underneath it. */}
           {route === "feed" && !later.searching && <PhoneToday day={feedDay} onDay={setFeedDay} />}
           {route === "feed" && (later.searching || feedDay === todayIso()) && (
-            <PhoneLater
-              groups={later.groups} count={later.count} searching={later.searching} query={query}
-              scope={scope} setScope={setScope}
-            />
+            <PhoneLater groups={later.groups} count={later.count} searching={later.searching} query={query} />
           )}
           {route === "house" && <PhoneHouse />}
           {route === "you" && <PhoneYou />}
@@ -1118,37 +1149,14 @@ function laterFor(
 
 const isDone = (i: Item) => i.kind === "task" && i.task.done;
 
-function PhoneLater({ groups, count, searching, query, scope, setScope }: {
+function PhoneLater({ groups, count, searching, query }: {
   groups: ReturnType<typeof laterFor>["groups"];
   count: number;
   searching: boolean;
   query: string;
-  scope: Scope;
-  setScope: (s: Scope) => void;
 }) {
   return (
     <>
-      {/* THE LENS — how far Later looks. Four rolling windows, no stepper:
-          pick the reach, the bands re-cut themselves. Hidden while searching
-          (results span all time; there's no horizon to hold). */}
-      {!searching && (
-        <motion.div variants={listItem} className="flex items-center gap-1.5 px-1.5 pt-2">
-          {SCOPES.map((sc) => (
-            <button
-              key={sc}
-              onClick={() => setScope(sc)}
-              aria-pressed={scope === sc}
-              className={clsx(
-                "h-8 rounded-pill px-3.5 text-caption font-medium transition-colors",
-                scope === sc ? "bg-lemon text-ink" : "bg-white/[.07] text-white/70 hover:bg-white/[.12] hover:text-white",
-              )}
-            >
-              {sc}
-            </button>
-          ))}
-        </motion.div>
-      )}
-
       {groups.map((g) => (
         <div key={g.key} className="flex flex-col gap-tile">
           {/* A heading is a LABEL here, not a door — with the period lens gone

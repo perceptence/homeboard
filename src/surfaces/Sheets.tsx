@@ -1048,6 +1048,10 @@ function AutomationSheet({ id }: { id?: string }) {
     );
 
   const [timeOpen, setTimeOpen] = useState(false);
+  // The builder stays FOLDED for a new rule: the sentence is the interface,
+  // and the details sheet only opens when something is missing (or the user
+  // asks to adjust). Editing an existing rule opens straight onto its parts.
+  const [adjusting, setAdjusting] = useState(!!existing);
   const ready = !!when && !!then
     && (then.kind !== "task" || then.title.trim().length > 0)
     && (then.kind !== "nudge" || !!s.members[then.who]);
@@ -1111,16 +1115,17 @@ function AutomationSheet({ id }: { id?: string }) {
               The heavy lifting is ours; the ask is a tap, not a form. */}
           {raw.trim().length > 0 && (
             <p className="mt-2 px-1 text-caption text-sub">
-              {!when ? "When should this run? Pick below."
-                : !then ? "…and then what? Pick below."
-                : then.kind === "nudge" && !s.members[then.who] ? "Got it — who should get the nudge? Tap them below."
-                : parsed.assumedTime && !whenPick && when.kind === "weekday" ? `Got it — assumed ${when.time}; tap the time to change.`
-                : "Got it — check the parts below, then save."}
+              {!when ? "Almost — it still needs a trigger: when should this run?"
+                : !then ? "Almost — and then what should happen?"
+                : then.kind === "nudge" && !s.members[then.who] ? "Got it — just tell us who should get the nudge."
+                : parsed.assumedTime && !whenPick && when.kind === "weekday" ? `Got it — we assumed ${when.time}.`
+                : "Got it — ready to add."}
             </p>
           )}
         </>
       )}
 
+      {adjusting && (<>
       <Eyebrow className="mt-5">When</Eyebrow>
       <AutoOptionList options={AUTO_WHEN} value={when?.kind ?? null} onPick={pickWhen} />
       {when?.kind === "weekday" && (
@@ -1152,7 +1157,6 @@ function AutomationSheet({ id }: { id?: string }) {
             onChange={(e) => setThen({ ...then, title: e.target.value })}
             placeholder="What should the task say?"
             aria-label="Task title"
-            autoFocus
             className={FIELD_INPUT}
           />
         </div>
@@ -1166,6 +1170,7 @@ function AutomationSheet({ id }: { id?: string }) {
           ))}
         </div>
       )}
+      </>)}
 
       {/* The rule, read back as the sentence it will wear in the list. Only the
           verb's first letter drops case — names keep theirs. */}
@@ -1178,24 +1183,52 @@ function AutomationSheet({ id }: { id?: string }) {
         </p>
       )}
 
-      <Button
-        tone="dark" size="lg" className="mt-6 w-full" disabled={!ready}
-        onClick={() => {
-          if (!when || !then) return;
-          if (existing) s.updateAutomation(existing.id, { when, then });
-          else s.addAutomation({ when, then });
-          done();
-        }}
-      >
-        {existing ? "Save changes" : "Add automation"}
-      </Button>
-      {existing && (
-        <Button
-          tone="ghost" size="lg" className="mt-2 w-full !text-danger"
-          onClick={() => { s.removeAutomation(existing.id); done(); }}
-        >
-          Remove this automation
-        </Button>
+      {/* THE FLOW: complete sentence -> one tap adds it. Incomplete -> the
+          button opens the details, pre-filled with everything we understood,
+          asking only for what's missing. Adjust stays one tap away even when
+          we got it all. */}
+      {!adjusting ? (
+        <>
+          <Button
+            tone="dark" size="lg" className="mt-6 w-full" disabled={!raw.trim()}
+            onClick={() => {
+              if (ready && when && then) { s.addAutomation({ when, then }); done(); }
+              else setAdjusting(true);
+            }}
+          >
+            {ready ? "Add automation" : "Add the details"}
+          </Button>
+          {ready && (
+            <button
+              onClick={() => setAdjusting(true)}
+              className={clsx("mx-auto mt-2 flex items-center gap-1 rounded-sm px-2 py-1 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+            >
+              Adjust the parts <Icon name="chevDown" size={14} />
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          <Button
+            tone="dark" size="lg" className="mt-6 w-full" disabled={!ready}
+            onClick={() => {
+              if (!when || !then) return;
+              if (existing) s.updateAutomation(existing.id, { when, then });
+              else s.addAutomation({ when, then });
+              done();
+            }}
+          >
+            {existing ? "Save changes" : "Add automation"}
+          </Button>
+          {existing && (
+            <Button
+              tone="ghost" size="lg" className="mt-2 w-full !text-danger"
+              onClick={() => { s.removeAutomation(existing.id); done(); }}
+            >
+              Remove this automation
+            </Button>
+          )}
+        </>
       )}
     </>
   );
