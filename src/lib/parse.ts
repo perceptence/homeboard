@@ -37,6 +37,8 @@ export interface ParsedTask {
   priority?: Priority;
   /** Minimum role — set when the words imply money, contracts, or danger. */
   requires?: Role;
+  /** Money named in the text ("$64") — what makes the task a BILL. */
+  amount?: number;
   /** The phrases consumed, in the user's own words. Shown back to them. */
   matched: string[];
 }
@@ -214,6 +216,18 @@ const peopleRules = (people: { id: string; name: string }[]): Rule[] =>
 
 export function parseTask(input: string, people: { id: string; name: string }[] = []): ParsedTask {
   const out: ParsedTask = { title: input, matched: [] };
+
+  // MONEY first, outside the rules loop (its engine only consumes words that
+  // set due/when/owner/priority). "$64" makes this a bill: the amount rides
+  // the task, and money always needs an adult to hold it.
+  const money = out.title.match(/\$\s?(\d+(?:\.\d{1,2})?)/);
+  if (money) {
+    out.amount = Number(money[1]);
+    out.requires = "full";
+    out.matched.push(money[0].trim());
+    out.title = out.title.replace(money[0], " ");
+  }
+
   // People first: "get Leo to" must be consumed before "to" can confuse anything.
   const rules = [...peopleRules(people), ...RULES];
 

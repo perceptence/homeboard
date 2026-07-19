@@ -76,6 +76,10 @@ export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean 
         onOpen={() => openSheet({ type: "task", id: task.id })}
         subtitle={
           <>
+            {/* Money leads the meta — on a bill-task the amount IS the fact. */}
+            {typeof task.amount === "number" && (
+              <b className="font-medium tabular-nums text-ink">${task.amount}</b>
+            )}
             {clockLabel(task.when)}
             {task.recurring && (
               <>

@@ -307,8 +307,16 @@ export interface Task {
   completedAt?: number;
   priority: Priority;
   recurring?: string;
-  /** Where this task came from — the domain that raised it. Shown as the card eyebrow. */
+  /** Where this task came from — the domain that raised it. Shown as the card eyebrow.
+   *  A bill lifted from a billing email carries the provider: "Email · Pacific Power". */
   source?: string;
+  /** Money on the task — what makes it a BILL. "$142" beside the title, and the
+   *  iPad's money lens sums it. UI-ready for the email integration: the "Bills
+   *  from email" automation is what would set these. */
+  amount?: number;
+  /** The provider's own payment page. When present, "Pay" hands off to it in a
+   *  new tab (the app never takes card details) and records the task handled. */
+  payUrl?: string;
   /**
    * VERBATIM — exactly what the person typed or said, before we read it.
    *
@@ -411,24 +419,9 @@ export interface ShopItem {
   minAge?: number;
 }
 
-export type BillStatus = "due" | "upcoming" | "scheduled" | "paid";
-export interface Bill {
-  id: string;
-  title: string;
-  amount: number;
-  due: string;
-  status: BillStatus;
-  /**
-   * Where the app FOUND it — "Email · Pacific Power" for a bill lifted from a
-   * billing email by the "Bills from email" automation. Absent on bills a
-   * person typed in. UI-READY: the shape and badges exist; the actual inbox
-   * integration doesn't yet — seed data plays its part.
-   */
-  source?: string;
-  /** The provider's own payment page. When present, "Pay" hands off to it in a
-   *  new tab (the app never takes card details) and records the bill handled. */
-  payUrl?: string;
-}
+/* Bills are NOT a separate object — a bill is a Task wearing money (see
+   Task.amount / Task.payUrl). One timeline, one card, one completion model;
+   the iPad's Bills screen is a money LENS over those tasks, not a store. */
 
 export type StockStatus = "low" | "ok" | "expiring";
 export interface InventoryItem {

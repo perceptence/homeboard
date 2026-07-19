@@ -6,8 +6,8 @@ import { Icon, type IconName } from "@/components/Icons";
 import { Button, Card, type CardTone, Em, IconTile, List, Pill, type PillTone, Row, Sentence } from "@/components/ui";
 import { listItem, listStagger } from "@/lib/motion";
 import { relative } from "@/lib/dates";
-import { useHousehold } from "@/lib/store";
-import type { BillStatus, IpadRoute, MaintStatus, StockStatus } from "@/lib/types";
+import { billTasks, useHousehold } from "@/lib/store";
+import type { IpadRoute, MaintStatus, StockStatus } from "@/lib/types";
 
 /** Shared header for every More sub-domain. */
 function Back({ title, subtitle }: { title: string; subtitle?: string }) {
@@ -69,14 +69,17 @@ export function IpadMore() {
 
 /* ---------------- Bills ---------------- */
 
-const billTone: Record<BillStatus, PillTone> = { due: "light", upcoming: "tag", scheduled: "lavender", paid: "tag" };
-const billLabel: Record<BillStatus, string> = { due: "Due now", upcoming: "Upcoming", scheduled: "Scheduled", paid: "Paid" };
-
+/**
+ * A money LENS, not a store. The Bill object died — a bill is a task with an
+ * amount — so this screen just reads the money off the one timeline: what's
+ * still owed on top, settled underneath. Paying here is the same act as
+ * completing the task anywhere else.
+ */
 export function IpadBills() {
-  const { bills, payBill } = useHousehold();
-  const outstanding = bills
-    .filter((b) => b.status === "due" || b.status === "upcoming")
-    .reduce((sum, b) => sum + b.amount, 0);
+  const s = useHousehold();
+  const money = billTasks(s).sort((a, b) => Number(a.done) - Number(b.done) || a.due.localeCompare(b.due));
+  const owed = money.filter((t) => !t.done);
+  const outstanding = owed.reduce((sum, t) => sum + (t.amount ?? 0), 0);
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show">
@@ -85,40 +88,42 @@ export function IpadBills() {
         <Card tone="white" className="flex min-h-[150px] flex-col">
           <IconTile name="bill" tone="onTint" />
           <Sentence className="mt-auto max-w-[22ch] !text-[26px]">
-            <Em>${outstanding}</Em> due over the next three weeks.
+            {outstanding ? <><Em>${outstanding}</Em> still to pay.</> : <>Everything&rsquo;s <Em>paid</Em>.</>}
           </Sentence>
         </Card>
       </motion.div>
       <motion.div variants={listItem}>
         <Card pad="none">
           <List>
-            {bills.map((b) => (
+            {money.map((t) => (
               <Row
-                key={b.id}
-                lead={<IconTile name={b.source ? "mail" : "bill"} tone="neutral" />}
-                title={b.title}
+                key={t.id}
+                lead={<IconTile name={t.source?.startsWith("Email") ? "mail" : "bill"} tone="neutral" />}
+                title={t.title}
+                muted={t.done}
                 // Provenance leads: a bill that filed ITSELF (the email
                 // automation) says so, and wears the mail glyph.
-                meta={b.source ? `${b.source} · due ${b.due}` : `Due ${b.due}`}
+                meta={<span suppressHydrationWarning>
+                  {t.source ? `${t.source} · ` : ""}{t.done ? "settled" : relative(t.due).toLowerCase()}
+                </span>}
                 actions={
                   <>
-                    <b className="text-bodysm tabular-nums">${b.amount}</b>
-                    {b.status === "due" || b.status === "upcoming" ? (
+                    <b className="text-bodysm tabular-nums">${t.amount}</b>
+                    {t.done ? (
+                      <Pill tone="tag">Paid</Pill>
+                    ) : (
                       // With a payUrl, "Pay" is a HANDOFF to the provider's own
                       // page (new tab — the app never touches card details);
-                      // the bill is recorded handled here. Without one, the
-                      // demo's instant pay stands.
+                      // the task is recorded settled here.
                       <Button
                         size="touch"
                         onClick={() => {
-                          if (b.payUrl) window.open(b.payUrl, "_blank", "noopener");
-                          payBill(b.id);
+                          if (t.payUrl) window.open(t.payUrl, "_blank", "noopener");
+                          s.settleBill(t.id);
                         }}
                       >
-                        Pay{b.payUrl && <Icon name="out" size={13} />}
+                        Pay{t.payUrl && <Icon name="out" size={13} />}
                       </Button>
-                    ) : (
-                      <Pill tone={billTone[b.status]}>{billLabel[b.status]}</Pill>
                     )}
                   </>
                 }

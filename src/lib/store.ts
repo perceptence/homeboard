@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
-  ActivityEntry, Automation, Bill, DraftPerson, HouseEvent, HouseholdAxes, HouseholdPreset,
+  ActivityEntry, Automation, DraftPerson, HouseEvent, HouseholdAxes, HouseholdPreset,
   InventoryItem, IpadRoute, MaintItem, Member, MemberId, MemberKind, OnboardingDraft, Persona, PhoneRoute,
   Availability, IslandNote, Presence, Priority, Reminder, Role, ShopItem, Task,
 } from "./types";
@@ -11,12 +11,12 @@ import { ROLE_RANK, ROLE_SET } from "./types";
 import type { IconName } from "@/components/Icons";
 import { taskGlyph } from "./glyphs";
 import {
-  seedAutomations, seedBills, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
+  seedAutomations, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
 } from "./seed";
 import { addDays, iso, isToday, relative, relativeInline, todayIso } from "./dates";
 
 export interface Sheet {
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "addBill" | "stock";
+  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock";
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;
@@ -216,7 +216,6 @@ interface HouseholdState {
   members: Record<MemberId, Member>;
   tasks: Task[];
   shopping: ShopItem[];
-  bills: Bill[];
   inventory: InventoryItem[];
   maint: MaintItem[];
   events: HouseEvent[];
@@ -291,11 +290,10 @@ interface HouseholdState {
   markRead: () => void;
 
   toggleTask: (id: number) => void;
-  addTask: (t: { title: string; owner: MemberId | null; when: string; due: string; priority: Priority; requires?: Role; minAge?: number; source?: string; said?: string; recurring?: string }) => void;
+  addTask: (t: { title: string; owner: MemberId | null; when: string; due: string; priority: Priority; requires?: Role; minAge?: number; source?: string; said?: string; recurring?: string; amount?: number }) => void;
 
   /* --- creating the things the phone could only view (owner/permitted) --- */
   addAutomation: (a: { title: string; description: string }) => void;
-  addBill: (b: { title: string; amount: number; due: string; payUrl?: string }) => void;
   setOwner: (id: number, owner: MemberId | null) => void;
   /** A hand-off from the hand-off sheet: reassigns, LOGS it (the house should
    *  know work moved), keeps the sheet open — people hand off several in a row. */
@@ -308,7 +306,9 @@ interface HouseholdState {
   /** Sweep the crossed-off items away — the after-shopping reset. */
   clearBought: () => void;
 
-  payBill: (id: string) => void;
+  /** Settle a BILL-TASK: mark it done and log the money. The provider handoff
+   *  (payUrl -> new tab) happens at the glass; the store only records. */
+  settleBill: (id: number) => void;
   restock: (id: string) => void;
   addInventory: (i: { title: string; location: string; quantity: string }) => void;
   scheduleMaint: (id: string) => void;
@@ -380,7 +380,6 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   members: seedMembers,
   tasks: seedTasks,
   shopping: seedShopping,
-  bills: seedBills,
   inventory: seedInventory,
   maint: seedMaint,
   events: seedEvents,
@@ -717,17 +716,19 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
    * Anything unrecognised landed four days out, so a task typed "Tonight" showed
    * "Tonight" beside a badge for next Tuesday. A card must never argue with itself.
    */
-  addTask: ({ title, owner, when, due, priority, requires, minAge, source, said, recurring }) =>
+  addTask: ({ title, owner, when, due, priority, requires, minAge, source, said, recurring, amount }) =>
     set((s) => {
       const task: Task = {
-        id: ++nextId, title, owner, when, due, recurring,
+        id: ++nextId, title, owner, when, due, recurring, amount,
         // A repeating task IS a routine — label its provenance so, unless it
-        // already carries one.
-        done: false, priority, requires, minAge, source: source ?? (recurring ? "Routine" : undefined), said,
+        // already carries one. Money defaults to the Bills shelf.
+        done: false, priority, requires, minAge,
+        source: source ?? (typeof amount === "number" ? "Bills" : recurring ? "Routine" : undefined), said,
         // Nobody picked a person: leave it unowned and let the Balancer nominate,
         // rather than silently parking it on whoever opened the sheet. The gates
-        // ride along so the nomination is filtered the same way the sheet's was.
-        suggest: owner ? undefined : suggestTaker(s, { due, priority, requires, minAge, source } as Task)?.id,
+        // (and any money) ride along so the nomination is filtered the same way
+        // the sheet's was — suggestTaker routes bills to the Bills owner.
+        suggest: owner ? undefined : suggestTaker(s, { due, priority, requires, minAge, source, amount } as Task)?.id,
       };
       const forWho = owner ? ` for ${s.members[owner].name}` : "";
       return {
@@ -742,12 +743,6 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     set((s) => ({
       automations: [...s.automations, { id: `a${Date.now()}`, title: title.trim() || "New rule", description: description.trim(), on: true }],
       toast: "Automation added",
-    })),
-
-  addBill: ({ title, amount, due, payUrl }) =>
-    set((s) => ({
-      bills: [...s.bills, { id: `b${Date.now()}`, title: title.trim() || "New bill", amount, due, status: "upcoming", payUrl: payUrl?.trim() || undefined }],
-      toast: "Bill added",
     })),
 
   setOwner: (id, owner) =>
@@ -868,13 +863,14 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       };
     }),
 
-  payBill: (id) =>
+  settleBill: (id) =>
     set((s) => {
-      const bill = s.bills.find((b) => b.id === id);
+      const t = s.tasks.find((x) => x.id === id);
+      if (!t) return {};
       return {
-        bills: s.bills.map((b) => (b.id === id ? { ...b, status: "paid" as const } : b)),
-        toast: bill ? `Paid $${bill.amount} — ${bill.title}` : null,
-        ...(bill ? logged(s, `Paid the ${bill.title} bill`) : {}),
+        tasks: s.tasks.map((x) => (x.id === id ? { ...x, done: true, completedAt: Date.now() } : x)),
+        toast: `Paid $${t.amount ?? 0} — ${t.title}`,
+        ...logged(s, `Paid $${t.amount ?? 0} — ${t.title}`),
       };
     }),
 
@@ -1267,7 +1263,6 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         members,
         tasks,
         shopping: [],
-        bills: [],
         inventory: [],
         maint: [],
         events: [],
@@ -1288,7 +1283,6 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       members: seedMembers,
       tasks: seedTasks,
       shopping: seedShopping,
-      bills: seedBills,
       inventory: seedInventory,
       maint: seedMaint,
       events: seedEvents,
@@ -1327,7 +1321,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
    * should put the phone back in the hand it was in.
    */
   partialize: (s) => ({
-    members: s.members, tasks: s.tasks, shopping: s.shopping, bills: s.bills,
+    members: s.members, tasks: s.tasks, shopping: s.shopping,
     inventory: s.inventory, maint: s.maint, events: s.events, automations: s.automations,
     activity: s.activity, unread: s.unread, reminders: s.reminders,
     householdName: s.householdName, axes: s.axes, setupComplete: s.setupComplete,
@@ -1429,6 +1423,17 @@ export function previewRebalance(s: HouseholdState): Move | null {
 /** People who can be assigned work (everyone except pets). */
 export const doers = (s: HouseholdState) =>
   Object.values(s.members).filter((m) => m.kind !== "pet");
+
+/** The money among the tasks — a bill is a task with an amount on it. */
+export const billTasks = (s: HouseholdState) =>
+  s.tasks.filter((t) => typeof t.amount === "number");
+
+/** Who money lands on: whoever claimed the "Bills" domain in their
+ *  responsibilities; the owner failing that. Never a pet, never nobody. */
+export const billOwner = (s: HouseholdState): MemberId | null =>
+  doers(s).find((m) => m.responsibility?.domains.includes("Bills"))?.id
+  ?? doers(s).find((m) => m.role === "owner")?.id
+  ?? doers(s)[0]?.id ?? null;
 
 /* ============================================================
    READING A NEW TASK — what the household already knows.
@@ -1554,6 +1559,16 @@ export interface Suggestion {
 }
 
 export function suggestTaker(s: HouseholdState, task: Task): Suggestion | null {
+  // MONEY ROUTES BY RESPONSIBILITY, not by load. Whoever claimed the "Bills"
+  // domain gets the bill — a light day doesn't qualify anyone to hold the
+  // household's money. One rule, every caller: the composer's dock, addTask,
+  // and the rebalancer all agree on where a bill goes.
+  if (typeof task.amount === "number") {
+    const banker = billOwner(s);
+    const m = banker ? s.members[banker] : null;
+    if (m && m.id !== holder(task)) return { id: m.id, reason: "runs the bills" };
+    return null;
+  }
   const able = doers(s).filter((m) => m.id !== holder(task) && canAssign(m, task));
 
   /**
@@ -1704,10 +1719,6 @@ export const searchAll = (s: HouseholdState, raw: string): SearchHit[] => {
   shoppingList(s).forEach((i) => {
     if (!i.title.toLowerCase().includes(q)) return;
     hits.push({ key: `s${i.id}`, icon: "cart", title: i.title, meta: `Shopping · ${i.category}`, route: "shopping" });
-  });
-  s.bills.forEach((b) => {
-    if (!b.title.toLowerCase().includes(q)) return;
-    hits.push({ key: `b${b.id}`, icon: "bill", title: b.title, meta: `Bill · $${b.amount} · due ${b.due}`, route: "bills" });
   });
   s.inventory.forEach((i) => {
     if (!i.title.toLowerCase().includes(q)) return;

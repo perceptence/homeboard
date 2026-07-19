@@ -1,5 +1,5 @@
 import type {
-  Automation, Bill, HouseEvent, InventoryItem, MaintItem, Member, MemberId, ShopItem, Task,
+  Automation, HouseEvent, InventoryItem, MaintItem, Member, MemberId, ShopItem, Task,
 } from "./types";
 import { addDays, iso } from "./dates";
 
@@ -89,6 +89,17 @@ export const seedTasks: Task[] = [
   { id: 14, title: "Service the boiler", owner: "sam", when: "Morning", due: d(104), done: false, priority: "med", recurring: "Yearly", requires: "full", source: "Home maintenance" },
   { id: 15, title: "Sweep the chimney", owner: "sam", when: "Any time", due: d(137), done: false, priority: "med", recurring: "Yearly", requires: "full", source: "Home maintenance" },
   { id: 16, title: "Leo's parents evening", owner: "maya", when: "6:00 PM", due: d(196), done: false, priority: "med", requires: "full", source: "Kids" },
+
+  /* BILL-TASKS. The Bill object died — a bill is a task wearing money (amount,
+     and usually a payUrl + "Email · provider" source, filed by the "Bills from
+     email" automation). They land on whoever owns the "Bills" domain (Maya).
+     Rent is the counter-example: a hand-set standing order, no email, no link.
+     example.com hosts are deliberate — demo links that go nowhere real. */
+  { id: 30, title: "Pay the electric bill", owner: "maya", when: "Any time", due: d(-2), done: false, priority: "high", requires: "full", source: "Email · Pacific Power", amount: 142, payUrl: "https://pay.pacificpower.example.com" },
+  { id: 31, title: "Pay for internet", owner: "maya", when: "Any time", due: d(4), done: false, priority: "med", requires: "full", source: "Email · Speedline", amount: 79, payUrl: "https://my.speedline.example.com/billing" },
+  { id: 32, title: "Pay home insurance", owner: "maya", when: "Any time", due: d(10), done: false, priority: "med", requires: "full", source: "Email · Hearth & Home", amount: 168, payUrl: "https://portal.hearthhome.example.com/pay" },
+  { id: 33, title: "Pay the water bill", owner: "maya", when: "Any time", due: d(-15), done: true, completedAt: doneAgo(15), priority: "med", requires: "full", source: "Email · City Water", amount: 64 },
+  { id: 34, title: "Rent", owner: "maya", when: "Any time", due: d(14), done: false, priority: "high", recurring: "Monthly", requires: "full", source: "Bills", amount: 2400 },
 ];
 
 export const seedShopping: ShopItem[] = [
@@ -103,18 +114,6 @@ export const seedShopping: ShopItem[] = [
   { id: "s6", title: "Coffee", category: "Groceries", low: false, done: true, by: "maya" },
 ];
 
-/* Most bills arrive by THEMSELVES — the "Bills from email" automation reads the
-   billing email and files the bill with its due date and the provider's pay
-   page (source + payUrl). Rent is the counter-example: a standing order someone
-   set up by hand, so it carries neither. example.com hosts are deliberate —
-   demo links that go nowhere real. */
-export const seedBills: Bill[] = [
-  { id: "b1", title: "Rent", amount: 2400, due: "Aug 1", status: "scheduled" },
-  { id: "b2", title: "Electric", amount: 142, due: "Jul 16", status: "due", source: "Email · Pacific Power", payUrl: "https://pay.pacificpower.example.com" },
-  { id: "b3", title: "Internet", amount: 79, due: "Jul 22", status: "upcoming", source: "Email · Speedline", payUrl: "https://my.speedline.example.com/billing" },
-  { id: "b4", title: "Insurance", amount: 168, due: "Jul 28", status: "upcoming", source: "Email · Hearth & Home", payUrl: "https://portal.hearthhome.example.com/pay" },
-  { id: "b5", title: "Water", amount: 64, due: "Jul 3", status: "paid", source: "Email · City Water" },
-];
 
 export const seedInventory: InventoryItem[] = [
   { id: "i1", title: "Oat milk", location: "Fridge", quantity: "Almost out", status: "low" },

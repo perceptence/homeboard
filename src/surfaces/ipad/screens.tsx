@@ -8,7 +8,7 @@ import { TaskCard } from "@/components/TaskCard";
 import { Avatar, AvatarStack, Button, Card, type CardTone, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, type TileTone } from "@/components/ui";
 import { addDays, iso, isToday, relative, startOfWeek, timeOfDay, today as todayLabel } from "@/lib/dates";
 import { listItem, listStagger } from "@/lib/motion";
-import { doers, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
+import { billTasks, doers, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
 import type { Member, Role } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 
@@ -47,7 +47,8 @@ export function IpadHome() {
   const today = s.tasks.filter((t) => isToday(t.due) && !t.done);
   const doneCount = s.tasks.filter((t) => t.done).length;
   const low = s.inventory.filter((i) => i.status === "low");
-  const billDue = s.bills.find((b) => b.status === "due");
+  // The nearest unpaid bill-TASK — bills live on the one timeline now.
+  const billDue = billTasks(s).filter((t) => !t.done).sort((a, b) => a.due.localeCompare(b.due))[0];
   const people = doers(s).map((m) => m.id);
   const owner = doers(s).find((m) => m.role === "owner") ?? doers(s)[0];
   const maxLoad = Math.max(1, ...people.map((p) => pendingFor(s, p)));
@@ -55,18 +56,20 @@ export function IpadHome() {
   const attention: { key: string; icon: IconName; tone: TileTone; title: string; meta: string; action: React.ReactNode }[] = [];
   if (billDue) {
     attention.push({
-      key: billDue.id, icon: billDue.source ? "mail" : "bill", tone: "neutral",
-      title: `${billDue.title} bill — $${billDue.amount}`,
+      key: String(billDue.id), icon: billDue.source?.startsWith("Email") ? "mail" : "bill", tone: "neutral",
+      title: `${billDue.title} — $${billDue.amount}`,
       // The email automation's work announces itself; a hand-entered bill
-      // keeps the old line.
-      meta: billDue.source ? `${billDue.source} · due ${billDue.due}` : `Due ${billDue.due} · not on autopay`,
+      // keeps a plain line.
+      meta: billDue.source?.startsWith("Email")
+        ? `${billDue.source} · ${relative(billDue.due).toLowerCase()}`
+        : `${relative(billDue.due)} · not on autopay`,
       action: (
         <Button
           size="touch"
           onClick={() => {
-            // Hand off to the provider's page (new tab); record it handled here.
+            // Hand off to the provider's page (new tab); record it settled here.
             if (billDue.payUrl) window.open(billDue.payUrl, "_blank", "noopener");
-            s.payBill(billDue.id);
+            s.settleBill(billDue.id);
           }}
         >
           Pay{billDue.payUrl && <Icon name="out" size={13} />}
@@ -140,7 +143,7 @@ export function IpadHome() {
           <div className="mt-auto">
             <div className="text-display tabular-nums">${billDue?.amount ?? 0}</div>
             <Sentence className="mt-1 !text-[18px] !font-medium">
-              {billDue ? `${billDue.title}, due ${billDue.due}` : "Everything's paid"}
+              {billDue ? <span suppressHydrationWarning>{billDue.title}, {relative(billDue.due).toLowerCase()}</span> : "Everything's paid"}
             </Sentence>
           </div>
         </Card>

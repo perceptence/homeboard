@@ -32,8 +32,8 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
   // Settings ⇄ Manage household is a PUSH within the same sheet: manage is one
   // level deeper, so it slides in from the right and back slides in from the
   // left. Tracked so "back" actually reads as back.
-  const subForm = type === "addPerson" || type === "addAutomation" || type === "addBill";
-  const depth = (t?: string) => (t === "addPerson" || t === "addAutomation" || t === "addBill" ? 2 : t === "manage" ? 1 : 0);
+  const subForm = type === "addPerson" || type === "addAutomation";
+  const depth = (t?: string) => (t === "addPerson" || t === "addAutomation" ? 2 : t === "manage" ? 1 : 0);
   const prevDepth = useRef(0);
   const dir = depth(type) >= prevDepth.current ? 1 : -1;
   useEffect(() => { prevDepth.current = depth(type); }, [type]);
@@ -65,7 +65,6 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
             {type === "manage" && <ManageHouseholdSheet />}
             {type === "addPerson" && <AddPersonSheet />}
             {type === "addAutomation" && <NewAutomationSheet />}
-            {type === "addBill" && <NewBillSheet />}
           </motion.div>
         )}
       </Sheet>
@@ -158,14 +157,29 @@ function TaskSheet({ id }: { id: number }) {
                 <Icon name="car" size={16} /> On my way
               </Button>
             )}
-            <Button
-              tone={task.waiting?.length ? "outline" : "dark"}
-              size="lg"
-              className="flex-1"
-              onClick={() => s.toggleTask(id)}
-            >
-              <Icon name="check" size={16} /> Done
-            </Button>
+            {/* A BILL-TASK's primary verb is Pay: hand off to the provider's
+                own page (new tab — the app never touches card details) and
+                record it settled here. Plain Done stays for everything else. */}
+            {typeof task.amount === "number" ? (
+              <Button
+                tone="dark" size="lg" className="flex-1"
+                onClick={() => {
+                  if (task.payUrl) window.open(task.payUrl, "_blank", "noopener");
+                  s.settleBill(task.id);
+                }}
+              >
+                Pay ${task.amount}{task.payUrl && <Icon name="out" size={14} />}
+              </Button>
+            ) : (
+              <Button
+                tone={task.waiting?.length ? "outline" : "dark"}
+                size="lg"
+                className="flex-1"
+                onClick={() => s.toggleTask(id)}
+              >
+                <Icon name="check" size={16} /> Done
+              </Button>
+            )}
           </div>
           <Button tone="outline" size="lg" className="mt-2 w-full" onClick={() => s.remindForTask(task.id)}>
             <Icon name="bell" size={16} /> Remind me
@@ -715,7 +729,7 @@ function SettingsSheet() {
       </div>
 
       {/* HOUSEHOLD — the house at a glance. For the owner it's a DOOR into the
-          admin module (people, automations, bills); everyone else just sees it. */}
+          admin module (people, automations, the name); everyone else just sees it. */}
       <Eyebrow className="mt-6">Household</Eyebrow>
       {isOwner ? (
         <button
@@ -725,7 +739,7 @@ function SettingsSheet() {
           <AvatarStack members={people} size={30} ringClass="ring-card" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-bodysm font-medium">{s.householdName}</div>
-            <div className="text-caption text-sub">People, automations, bills</div>
+            <div className="text-caption text-sub">People, automations, the name</div>
           </div>
           <Icon name="fwd" size={18} className="shrink-0 text-sub" />
         </button>
@@ -822,43 +836,9 @@ function ManageHouseholdSheet() {
       >
         <Icon name="plus" size={16} /> New automation
       </button>
-
-      {/* BILLS — pay what's due; the rest show their state. */}
-      <Eyebrow className="mt-6">Bills</Eyebrow>
-      <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
-        {s.bills.map((b) => (
-          <div key={b.id} className="flex items-center gap-3 px-4 py-3">
-            <IconTile name={b.source ? "mail" : "bill"} size="sm" />
-            <div className="min-w-0 flex-1">
-              <div className="text-bodysm font-medium">{b.title}</div>
-              <div className="truncate text-caption text-sub">
-                {b.source ? `${b.source} · due ${b.due}` : `Due ${b.due}`}
-              </div>
-            </div>
-            <span className="shrink-0 text-bodysm font-medium tabular-nums">${b.amount}</span>
-            {b.status === "due" || b.status === "upcoming" ? (
-              <Button
-                tone="dark"
-                onClick={() => {
-                  // Provider handoff in a new tab; the app only records it.
-                  if (b.payUrl) window.open(b.payUrl, "_blank", "noopener");
-                  s.payBill(b.id);
-                }}
-              >
-                Pay{b.payUrl && <Icon name="out" size={13} />}
-              </Button>
-            ) : (
-              <Pill tone="tag">{b.status === "paid" ? "Paid" : "Scheduled"}</Pill>
-            )}
-          </div>
-        ))}
-      </div>
-      <button
-        onClick={() => s.openSheet({ type: "addBill" })}
-        className={clsx("mt-3.5 flex items-center gap-1.5 rounded-sm px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
-      >
-        <Icon name="plus" size={16} /> Add bill
-      </button>
+      {/* Bills left this screen for the FEED — a bill is a task now (an amount
+          on it, Pay on its sheet), due when it's due, not admin filing. The
+          "Bills from email" automation above is what files them. */}
     </>
   );
 }
@@ -1001,61 +981,6 @@ function NewAutomationSheet() {
         onClick={() => { s.addAutomation({ title, description: desc }); s.openSheet({ type: "manage" }); }}
       >
         Add automation
-      </Button>
-    </>
-  );
-}
-
-/** NEW BILL — a shared cost, with an amount and a due date. */
-function NewBillSheet() {
-  const s = useHousehold();
-  const [title, setTitle] = useState("");
-  const [amount, setAmount] = useState("");
-  const [dueIso, setDueIso] = useState("");
-  const [payUrl, setPayUrl] = useState("");
-  const [dateOpen, setDateOpen] = useState(false);
-  const amt = Math.max(0, Math.round(Number(amount) || 0));
-  const dueLabel = dueIso ? new Date(`${dueIso}T00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
-  const canSave = title.trim().length > 0 && amt > 0 && !!dueIso;
-  return (
-    <>
-      <FormHead icon="bill" title="New bill" />
-      <Eyebrow className="mt-5">Name</Eyebrow>
-      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Electric" aria-label="Name" className={FIELD_INPUT} />
-      </div>
-      <Eyebrow className="mt-6">Amount</Eyebrow>
-      <div className="mt-2 flex items-center gap-1 rounded-card bg-card p-4 shadow-e1">
-        <span className="text-bodysm font-medium text-sub">$</span>
-        <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="0" aria-label="Amount" className={FIELD_INPUT} />
-      </div>
-      <Eyebrow className="mt-6">Due</Eyebrow>
-      <div className="mt-2">
-        <PickerChip kind="date" open={dateOpen} onToggle={() => setDateOpen((v) => !v)} active={!!dueIso}>
-          {dueLabel || "Pick a date"}
-        </PickerChip>
-        <PickerPanel open={dateOpen}>
-          <MiniCalendar value={dueIso || todayIso()} onPick={(v) => { setDueIso(v); setDateOpen(false); }} />
-        </PickerPanel>
-      </div>
-      {/* Optional. With a link, this bill's "Pay" hands off to the provider's
-          page — same behaviour the email automation gives its bills. */}
-      <Eyebrow className="mt-6">Where you pay</Eyebrow>
-      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
-        <input
-          value={payUrl}
-          onChange={(e) => setPayUrl(e.target.value)}
-          placeholder="Provider link — optional"
-          inputMode="url"
-          aria-label="Where you pay (optional link)"
-          className={FIELD_INPUT}
-        />
-      </div>
-      <Button
-        tone="dark" size="lg" className="mt-6 w-full" disabled={!canSave}
-        onClick={() => { s.addBill({ title, amount: amt, due: dueLabel, payUrl }); s.openSheet({ type: "manage" }); }}
-      >
-        Add bill
       </Button>
     </>
   );
@@ -1647,7 +1572,8 @@ function NewTaskSheet({
   // name. A reason may only be shown by whoever supplied the answer.
   const ownerFrom = ownerPick !== undefined ? "picked" : parsed.owner ? "named" : known?.owner ? "known" : null;
 
-  const gate = { due, priority, requires, minAge } as Task;
+  // `amount` rides along so money routes to the Bills owner in the dock too.
+  const gate = { due, priority, requires, minAge, amount: parsed.amount } as Task;
   /**
    * The recommendation is about the TASK, not about who currently holds it — so
    * it stands whether or not you've overridden it.
@@ -1693,7 +1619,7 @@ function NewTaskSheet({
   // `requires` rides along: the gate the suggestion respected must also land on
   // the task, or a nomination refused here could be hand-assigned there.
   const commit = () =>
-    ready && s.addTask({ title, owner: assignee, when, due, priority, requires, minAge, source, said, recurring: recurring ?? undefined });
+    ready && s.addTask({ title, owner: assignee, when, due, priority, requires, minAge, source, said, recurring: recurring ?? undefined, amount: parsed.amount });
 
   return (
     <Sheet

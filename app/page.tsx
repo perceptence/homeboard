@@ -180,7 +180,6 @@ function DemoPanel() {
       { label: "Settings", run: owner("settings") },
       { label: "Manage household", run: owner("manage") },
       { label: "Add person", run: owner("addPerson") },
-      { label: "New bill", run: owner("addBill") },
       { label: "New automation", run: owner("addAutomation") },
     ] },
     { title: "Live trip", items: [
