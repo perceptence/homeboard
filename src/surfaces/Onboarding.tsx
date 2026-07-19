@@ -60,15 +60,20 @@ export function Onboarding() {
     <div className="absolute inset-0 flex flex-col bg-ink text-white">
       {/* progress */}
       <div className="flex items-center gap-3 px-7" style={{ paddingTop: phone ? SAFE_TOP + 12 : 24 }}>
-        {step > 0 && (
-          <button
-            onClick={() => s.setStep(step - 1)}
-            aria-label="Back"
-            className="grid h-touch w-touch shrink-0 place-items-center rounded-pill bg-white/10 text-white transition-colors hover:bg-white/[.16]"
-          >
-            <Icon name="back" size={16} />
-          </button>
-        )}
+        {/* Fixed-width slot, always in the flow — even on step 0, where the
+            button is merely invisible. The track beside it must never resize
+            when Back mounts, or every segment visibly jumps on step 1→2. */}
+        <button
+          onClick={() => s.setStep(step - 1)}
+          aria-label="Back"
+          tabIndex={step > 0 ? 0 : -1}
+          className={clsx(
+            "grid h-touch w-touch shrink-0 place-items-center rounded-pill bg-white/10 text-white transition-colors hover:bg-white/[.16]",
+            step > 0 ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
+        >
+          <Icon name="back" size={16} />
+        </button>
         <div className="flex flex-1 gap-1.5">
           {STEPS.map((_, i) => (
             <div key={i} className="h-1.5 flex-1 overflow-hidden rounded-pill bg-white/[.12]">
