@@ -472,6 +472,10 @@ function fileToAvatarDataUrl(file: File, size = 240): Promise<string> {
   });
 }
 
+/** The app's focus treatment for raw buttons: kill the browser's blue default,
+ *  show an ink ring on keyboard focus only (matches the Button component). */
+const FOCUS = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink";
+
 /** The pill switch, same shape as the iPad's automations toggle. */
 function Switch({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
   return (
@@ -480,7 +484,7 @@ function Switch({ on, onToggle, label }: { on: boolean; onToggle: () => void; la
       aria-checked={on}
       aria-label={label}
       onClick={onToggle}
-      className={clsx("relative h-7 w-12 shrink-0 rounded-pill transition-colors", on ? "bg-ink" : "bg-black/15")}
+      className={clsx("relative h-7 w-12 shrink-0 rounded-pill transition-colors", FOCUS, on ? "bg-ink" : "bg-black/15")}
     >
       <motion.span
         layout
@@ -516,7 +520,7 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
           <button
             onClick={() => s.removeMember(m.id)}
             aria-label={`Remove ${m.name}`}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-pill text-sub transition-colors hover:bg-danger/10 hover:text-danger"
+            className={clsx("grid h-8 w-8 shrink-0 place-items-center rounded-pill text-sub transition-colors hover:bg-danger/10 hover:text-danger", FOCUS)}
           >
             <Icon name="trash" size={15} />
           </button>
@@ -530,7 +534,7 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
           <button
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            className="mt-1 flex items-center gap-1 pl-[48px] text-caption font-medium text-sub transition-colors hover:text-ink"
+            className={clsx("mt-1 flex items-center gap-1 rounded-sm pl-[48px] text-caption font-medium text-sub transition-colors hover:text-ink", FOCUS)}
           >
             {ROLE_LABEL[m.role]}
             <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
@@ -555,6 +559,7 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
                       onClick={() => { s.setRole(m.id, r); setOpen(false); }}
                       className={clsx(
                         "flex flex-col items-start gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                        FOCUS,
                         r === m.role ? "bg-ink text-white" : "hover:bg-surface",
                       )}
                     >
@@ -672,7 +677,7 @@ function SettingsSheet() {
       {isOwner ? (
         <button
           onClick={() => s.openSheet({ type: "manage" })}
-          className="mt-2 flex w-full items-center gap-3 rounded-card bg-card p-4 text-left shadow-e1 transition-colors hover:bg-surface"
+          className={clsx("mt-2 flex w-full items-center gap-3 rounded-card bg-card p-4 text-left shadow-e1 transition-colors hover:bg-surface", FOCUS)}
         >
           <AvatarStack members={people} size={30} ringClass="ring-card" />
           <div className="min-w-0 flex-1">
@@ -731,7 +736,7 @@ function ManageHouseholdSheet() {
       </div>
       <button
         onClick={() => s.addMember()}
-        className="mt-2 flex items-center gap-1.5 px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink"
+        className={clsx("mt-2 flex items-center gap-1.5 rounded-sm px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
       >
         <Icon name="plus" size={16} /> Add person
       </button>
