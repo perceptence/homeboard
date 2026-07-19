@@ -43,6 +43,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
         {sheet?.type === "shop" && <ShopSheet />}
         {sheet?.type === "activity" && <ActivitySheet />}
         {sheet?.type === "settings" && <SettingsSheet />}
+        {sheet?.type === "manage" && <ManageHouseholdSheet />}
       </Sheet>
 
       {/* New Task renders its OWN Sheet: its pinned title and footer are part of
@@ -579,7 +580,6 @@ function SettingsSheet() {
   const owner = Object.values(s.members).find((m) => m.role === "owner");
   const people = doers(s);
   const isOwner = me.role === "owner";
-  const everyone = Object.values(s.members);
 
   return (
     <>
@@ -666,84 +666,29 @@ function SettingsSheet() {
         </div>
       </div>
 
+      {/* HOUSEHOLD — the house at a glance. For the owner it's a DOOR into the
+          admin module (people, automations, bills); everyone else just sees it. */}
+      <Eyebrow className="mt-6">Household</Eyebrow>
       {isOwner ? (
-        <>
-          {/* PEOPLE — add, rename, set roles, remove. The owner's "manage who's
-              in the home and what each can do", made real on the phone. */}
-          <Eyebrow className="mt-6">People</Eyebrow>
-          <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
-            {everyone.map((m) => (
-              <MemberManageRow key={m.id} member={m} canRemove={m.role !== "owner"} />
-            ))}
+        <button
+          onClick={() => s.openSheet({ type: "manage" })}
+          className="mt-2 flex w-full items-center gap-3 rounded-card bg-card p-4 text-left shadow-e1 transition-colors hover:bg-surface"
+        >
+          <AvatarStack members={people} size={30} ringClass="ring-card" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-bodysm font-medium">{s.householdName}</div>
+            <div className="text-caption text-sub">People, automations, bills</div>
           </div>
-          <button
-            onClick={() => s.addMember()}
-            className="mt-2 flex items-center gap-1.5 px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink"
-          >
-            <Icon name="plus" size={16} /> Add person
-          </button>
-
-          {/* AUTOMATIONS — the rules the house runs on its own. */}
-          <Eyebrow className="mt-6">Automations</Eyebrow>
-          <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
-            {s.automations.map((a) => (
-              <div key={a.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-bodysm font-medium">{a.title}</div>
-                  <div className="text-caption text-sub">{a.description}</div>
-                </div>
-                <Switch on={a.on} onToggle={() => s.toggleAutomation(a.id)} label={a.title} />
-              </div>
-            ))}
-          </div>
-
-          {/* HOUSEHOLD — the shared name, editable here. */}
-          <Eyebrow className="mt-6">Household</Eyebrow>
-          <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
-            <label className="flex items-center gap-3">
-              <span className="w-16 shrink-0 text-bodysm font-medium">Name</span>
-              <input
-                defaultValue={s.householdName}
-                onBlur={(e) => s.setHouseholdName(e.target.value.trim() || s.householdName)}
-                onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                aria-label="Household name"
-                className="min-w-0 flex-1 bg-transparent text-right text-bodysm outline-none"
-              />
-            </label>
-          </div>
-
-          {/* BILLS — pay what's due; the rest show their state. */}
-          <Eyebrow className="mt-6">Bills</Eyebrow>
-          <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
-            {s.bills.map((b) => (
-              <div key={b.id} className="flex items-center gap-3 px-4 py-3">
-                <IconTile name="bill" size="sm" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-bodysm font-medium">{b.title}</div>
-                  <div className="text-caption text-sub">Due {b.due}</div>
-                </div>
-                <span className="shrink-0 text-bodysm font-medium tabular-nums">${b.amount}</span>
-                {b.status === "due" || b.status === "upcoming" ? (
-                  <Button tone="dark" onClick={() => s.payBill(b.id)}>Pay</Button>
-                ) : (
-                  <Pill tone="tag">{b.status === "paid" ? "Paid" : "Scheduled"}</Pill>
-                )}
-              </div>
-            ))}
-          </div>
-        </>
+          <Icon name="fwd" size={18} className="shrink-0 text-sub" />
+        </button>
       ) : (
-        <>
-          {/* THE HOUSEHOLD — displayed, not managed (a non-owner can't change it). */}
-          <Eyebrow className="mt-6">Household</Eyebrow>
-          <div className="mt-2 flex items-center gap-3 rounded-card bg-card p-4 shadow-e1">
-            <AvatarStack members={people} size={30} ringClass="ring-card" />
-            <div className="min-w-0">
-              <div className="truncate text-bodysm font-medium">{s.householdName}</div>
-              <div className="text-caption text-sub">{people.length} people</div>
-            </div>
+        <div className="mt-2 flex items-center gap-3 rounded-card bg-card p-4 shadow-e1">
+          <AvatarStack members={people} size={30} ringClass="ring-card" />
+          <div className="min-w-0">
+            <div className="truncate text-bodysm font-medium">{s.householdName}</div>
+            <div className="text-caption text-sub">{people.length} people</div>
           </div>
-        </>
+        </div>
       )}
 
       <button
@@ -753,6 +698,89 @@ function SettingsSheet() {
         Sign out
       </button>
       <p className="mt-4 text-center text-caption text-sub">Homeboard · demo build</p>
+    </>
+  );
+}
+
+/**
+ * MANAGE HOUSEHOLD — the owner's admin, as its OWN module rather than a second
+ * job crammed into personal Settings. People (rename, roles, add, remove),
+ * automations, the shared name, and bills. Owner-only; reached from the
+ * Household door in Settings.
+ */
+function ManageHouseholdSheet() {
+  const s = useHousehold();
+  const meId = s.persona !== "ipad" ? s.persona : doers(s)[0]?.id;
+  const isOwner = meId ? s.members[meId]?.role === "owner" : false;
+  if (!isOwner) return null;
+  const everyone = Object.values(s.members);
+
+  return (
+    <>
+      <span className="flex items-center gap-3">
+        <IconTile name="people" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">Household</h2>
+      </span>
+
+      {/* PEOPLE — add, rename, set roles, remove. */}
+      <Eyebrow className="mt-5">People</Eyebrow>
+      <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+        {everyone.map((m) => (
+          <MemberManageRow key={m.id} member={m} canRemove={m.role !== "owner"} />
+        ))}
+      </div>
+      <button
+        onClick={() => s.addMember()}
+        className="mt-2 flex items-center gap-1.5 px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink"
+      >
+        <Icon name="plus" size={16} /> Add person
+      </button>
+
+      {/* AUTOMATIONS — the rules the house runs on its own. */}
+      <Eyebrow className="mt-6">Automations</Eyebrow>
+      <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+        {s.automations.map((a) => (
+          <div key={a.id} className="flex items-center gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-bodysm font-medium">{a.title}</div>
+              <div className="text-caption text-sub">{a.description}</div>
+            </div>
+            <Switch on={a.on} onToggle={() => s.toggleAutomation(a.id)} label={a.title} />
+          </div>
+        ))}
+      </div>
+
+      {/* NAME — the shared name (the sheet header already says "Household"). */}
+      <Eyebrow className="mt-6">Name</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+        <input
+          defaultValue={s.householdName}
+          onBlur={(e) => s.setHouseholdName(e.target.value.trim() || s.householdName)}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          aria-label="Household name"
+          className="w-full bg-transparent text-bodysm font-medium outline-none"
+        />
+      </div>
+
+      {/* BILLS — pay what's due; the rest show their state. */}
+      <Eyebrow className="mt-6">Bills</Eyebrow>
+      <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+        {s.bills.map((b) => (
+          <div key={b.id} className="flex items-center gap-3 px-4 py-3">
+            <IconTile name="bill" size="sm" />
+            <div className="min-w-0 flex-1">
+              <div className="text-bodysm font-medium">{b.title}</div>
+              <div className="text-caption text-sub">Due {b.due}</div>
+            </div>
+            <span className="shrink-0 text-bodysm font-medium tabular-nums">${b.amount}</span>
+            {b.status === "due" || b.status === "upcoming" ? (
+              <Button tone="dark" onClick={() => s.payBill(b.id)}>Pay</Button>
+            ) : (
+              <Pill tone="tag">{b.status === "paid" ? "Paid" : "Scheduled"}</Pill>
+            )}
+          </div>
+        ))}
+      </div>
     </>
   );
 }
