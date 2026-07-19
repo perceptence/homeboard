@@ -53,6 +53,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
         {sheet?.type === "rebalance" && <RebalanceSheet />}
         {sheet?.type === "shop" && <ShopSheet />}
         {sheet?.type === "stock" && <InventorySheet />}
+        {sheet?.type === "houseView" && <HouseholdViewSheet />}
         {sheet?.type === "activity" && <ActivitySheet />}
         {nav && (
           <motion.div
@@ -1100,6 +1101,66 @@ function InventorySheet() {
         >
           <Icon name="plus" size={16} /> Add item
         </button>
+      )}
+    </>
+  );
+}
+
+/** THE HOUSEHOLD — the shared overview a phone-only home has no iPad for: how
+ *  the day is split, what everyone's carrying, and the house at a glance. */
+function HouseholdViewSheet() {
+  const s = useHousehold();
+  const people = doers(s);
+  const board = people.map((m) => ({ m, n: pendingFor(s, m.id) })).sort((a, b) => b.n - a.n);
+  const maxN = Math.max(1, ...board.map((b) => b.n));
+  const totalOpen = board.reduce((sum, b) => sum + b.n, 0);
+  const weekAgo = Date.now() - 7 * 86_400_000;
+  const doneWeek = s.tasks.filter((t) => t.done && t.completedAt && t.completedAt >= weekAgo).length;
+  const move = previewRebalance(s);
+
+  const stats = [
+    { v: String(totalOpen), l: "On the go" },
+    { v: String(doneWeek), l: "Done · 7 days" },
+    { v: move ? "Uneven" : "Fair", l: "Balance" },
+  ];
+
+  return (
+    <>
+      <span className="flex items-center gap-3">
+        <IconTile name="people" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">{s.householdName}</h2>
+      </span>
+      <p className="mt-1.5 text-bodysm text-sub">{people.length} people · everyone’s day at a glance</p>
+
+      <div className="mt-5 grid grid-cols-3 gap-2">
+        {stats.map((st) => (
+          <div key={st.l} className="rounded-card bg-card p-3.5 shadow-e1">
+            <div className="font-tight text-[24px] leading-none">{st.v}</div>
+            <div className="mt-1.5 text-caption text-sub">{st.l}</div>
+          </div>
+        ))}
+      </div>
+
+      <Eyebrow className="mt-6">Who’s carrying what</Eyebrow>
+      <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+        {board.map(({ m, n }) => (
+          <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+            <Avatar member={m} size={34} />
+            <div className="min-w-0 flex-1">
+              <div className="text-bodysm font-medium">{m.name}</div>
+              <div className="mt-1.5 h-1.5 overflow-hidden rounded-pill bg-ink/[.06]">
+                <div className="h-full rounded-pill bg-ink transition-all" style={{ width: `${Math.round((n / maxN) * 100)}%` }} />
+              </div>
+            </div>
+            <span className="shrink-0 font-tight text-[18px] tabular-nums">{n}</span>
+          </div>
+        ))}
+      </div>
+
+      {move && (
+        <Button tone="dark" size="lg" className="mt-4 w-full" onClick={() => s.openSheet({ type: "rebalance" })}>
+          <Icon name="scale" size={16} /> Even things out
+        </Button>
       )}
     </>
   );
