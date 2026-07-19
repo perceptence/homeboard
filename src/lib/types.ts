@@ -418,6 +418,16 @@ export interface Bill {
   amount: number;
   due: string;
   status: BillStatus;
+  /**
+   * Where the app FOUND it — "Email · Pacific Power" for a bill lifted from a
+   * billing email by the "Bills from email" automation. Absent on bills a
+   * person typed in. UI-READY: the shape and badges exist; the actual inbox
+   * integration doesn't yet — seed data plays its part.
+   */
+  source?: string;
+  /** The provider's own payment page. When present, "Pay" hands off to it in a
+   *  new tab (the app never takes card details) and records the bill handled. */
+  payUrl?: string;
 }
 
 export type StockStatus = "low" | "ok" | "expiring";

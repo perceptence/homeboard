@@ -2,7 +2,7 @@
 
 import {
   ArrowRight, BarChart3, BatteryFull, Bell, CalendarDays, Check, ChevronLeft, ChevronRight,
-  Baby, CreditCard, House, LayoutGrid, ListChecks, Package, PawPrint, Repeat,
+  Baby, CreditCard, ExternalLink, House, LayoutGrid, ListChecks, Mail, Package, PawPrint, Repeat,
   ArrowLeftRight, ArrowUpRight, ChevronDown, ChevronUp, ChevronsUp, Plus, Search, Settings, ShoppingCart, Signal, Sparkles, TrendingUp, User, Users, Wifi, Wrench, X, Zap,
   Clock, Heart, KeyRound, Lock, MapPin, Mic, Moon, Scale, Sun, LayoutList,
   Trash2, Sprout, Music2, GraduationCap, Gift, Car, Navigation, PartyPopper, Utensils, RotateCcw, Carrot, Flower2, Camera,
@@ -65,6 +65,8 @@ const MAP = {
   handoff: ArrowLeftRight,
   trend: TrendingUp,      // progress / "doing well" — NOT urgency
   high: ArrowUpRight,     // the "High ↗" label only
+  out: ExternalLink,      // leaves the app — a provider's pay page
+  mail: Mail,             // came from email — the bills automation's badge
   chevDown: ChevronDown,
   chevUp: ChevronUp,
   chevsUp: ChevronsUp,    // "more above" — stacked to read as depth, not a stepper

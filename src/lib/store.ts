@@ -295,7 +295,7 @@ interface HouseholdState {
 
   /* --- creating the things the phone could only view (owner/permitted) --- */
   addAutomation: (a: { title: string; description: string }) => void;
-  addBill: (b: { title: string; amount: number; due: string }) => void;
+  addBill: (b: { title: string; amount: number; due: string; payUrl?: string }) => void;
   setOwner: (id: number, owner: MemberId | null) => void;
   /** A hand-off from the hand-off sheet: reassigns, LOGS it (the house should
    *  know work moved), keeps the sheet open — people hand off several in a row. */
@@ -744,9 +744,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       toast: "Automation added",
     })),
 
-  addBill: ({ title, amount, due }) =>
+  addBill: ({ title, amount, due, payUrl }) =>
     set((s) => ({
-      bills: [...s.bills, { id: `b${Date.now()}`, title: title.trim() || "New bill", amount, due, status: "upcoming" }],
+      bills: [...s.bills, { id: `b${Date.now()}`, title: title.trim() || "New bill", amount, due, status: "upcoming", payUrl: payUrl?.trim() || undefined }],
       toast: "Bill added",
     })),
 

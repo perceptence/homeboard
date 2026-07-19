@@ -55,10 +55,23 @@ export function IpadHome() {
   const attention: { key: string; icon: IconName; tone: TileTone; title: string; meta: string; action: React.ReactNode }[] = [];
   if (billDue) {
     attention.push({
-      key: billDue.id, icon: "bill", tone: "neutral",
+      key: billDue.id, icon: billDue.source ? "mail" : "bill", tone: "neutral",
       title: `${billDue.title} bill — $${billDue.amount}`,
-      meta: `Due ${billDue.due} · not on autopay`,
-      action: <Button size="touch" onClick={() => s.payBill(billDue.id)}>Pay</Button>,
+      // The email automation's work announces itself; a hand-entered bill
+      // keeps the old line.
+      meta: billDue.source ? `${billDue.source} · due ${billDue.due}` : `Due ${billDue.due} · not on autopay`,
+      action: (
+        <Button
+          size="touch"
+          onClick={() => {
+            // Hand off to the provider's page (new tab); record it handled here.
+            if (billDue.payUrl) window.open(billDue.payUrl, "_blank", "noopener");
+            s.payBill(billDue.id);
+          }}
+        >
+          Pay{billDue.payUrl && <Icon name="out" size={13} />}
+        </Button>
+      ),
     });
   }
   s.maint.filter((m) => m.status === "over").forEach((m) =>

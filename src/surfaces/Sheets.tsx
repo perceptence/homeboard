@@ -829,14 +829,25 @@ function ManageHouseholdSheet() {
       <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
         {s.bills.map((b) => (
           <div key={b.id} className="flex items-center gap-3 px-4 py-3">
-            <IconTile name="bill" size="sm" />
+            <IconTile name={b.source ? "mail" : "bill"} size="sm" />
             <div className="min-w-0 flex-1">
               <div className="text-bodysm font-medium">{b.title}</div>
-              <div className="text-caption text-sub">Due {b.due}</div>
+              <div className="truncate text-caption text-sub">
+                {b.source ? `${b.source} · due ${b.due}` : `Due ${b.due}`}
+              </div>
             </div>
             <span className="shrink-0 text-bodysm font-medium tabular-nums">${b.amount}</span>
             {b.status === "due" || b.status === "upcoming" ? (
-              <Button tone="dark" onClick={() => s.payBill(b.id)}>Pay</Button>
+              <Button
+                tone="dark"
+                onClick={() => {
+                  // Provider handoff in a new tab; the app only records it.
+                  if (b.payUrl) window.open(b.payUrl, "_blank", "noopener");
+                  s.payBill(b.id);
+                }}
+              >
+                Pay{b.payUrl && <Icon name="out" size={13} />}
+              </Button>
             ) : (
               <Pill tone="tag">{b.status === "paid" ? "Paid" : "Scheduled"}</Pill>
             )}
@@ -1002,6 +1013,7 @@ function NewBillSheet() {
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [dueIso, setDueIso] = useState("");
+  const [payUrl, setPayUrl] = useState("");
   const [dateOpen, setDateOpen] = useState(false);
   const amt = Math.max(0, Math.round(Number(amount) || 0));
   const dueLabel = dueIso ? new Date(`${dueIso}T00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
@@ -1027,9 +1039,22 @@ function NewBillSheet() {
           <MiniCalendar value={dueIso || todayIso()} onPick={(v) => { setDueIso(v); setDateOpen(false); }} />
         </PickerPanel>
       </div>
+      {/* Optional. With a link, this bill's "Pay" hands off to the provider's
+          page — same behaviour the email automation gives its bills. */}
+      <Eyebrow className="mt-6">Where you pay</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+        <input
+          value={payUrl}
+          onChange={(e) => setPayUrl(e.target.value)}
+          placeholder="Provider link — optional"
+          inputMode="url"
+          aria-label="Where you pay (optional link)"
+          className={FIELD_INPUT}
+        />
+      </div>
       <Button
         tone="dark" size="lg" className="mt-6 w-full" disabled={!canSave}
-        onClick={() => { s.addBill({ title, amount: amt, due: dueLabel }); s.openSheet({ type: "manage" }); }}
+        onClick={() => { s.addBill({ title, amount: amt, due: dueLabel, payUrl }); s.openSheet({ type: "manage" }); }}
       >
         Add bill
       </Button>

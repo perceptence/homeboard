@@ -95,14 +95,28 @@ export function IpadBills() {
             {bills.map((b) => (
               <Row
                 key={b.id}
-                lead={<IconTile name="bill" tone="neutral" />}
+                lead={<IconTile name={b.source ? "mail" : "bill"} tone="neutral" />}
                 title={b.title}
-                meta={`Due ${b.due}`}
+                // Provenance leads: a bill that filed ITSELF (the email
+                // automation) says so, and wears the mail glyph.
+                meta={b.source ? `${b.source} · due ${b.due}` : `Due ${b.due}`}
                 actions={
                   <>
                     <b className="text-bodysm tabular-nums">${b.amount}</b>
                     {b.status === "due" || b.status === "upcoming" ? (
-                      <Button size="touch" onClick={() => payBill(b.id)}>Pay</Button>
+                      // With a payUrl, "Pay" is a HANDOFF to the provider's own
+                      // page (new tab — the app never touches card details);
+                      // the bill is recorded handled here. Without one, the
+                      // demo's instant pay stands.
+                      <Button
+                        size="touch"
+                        onClick={() => {
+                          if (b.payUrl) window.open(b.payUrl, "_blank", "noopener");
+                          payBill(b.id);
+                        }}
+                      >
+                        Pay{b.payUrl && <Icon name="out" size={13} />}
+                      </Button>
                     ) : (
                       <Pill tone={billTone[b.status]}>{billLabel[b.status]}</Pill>
                     )}
