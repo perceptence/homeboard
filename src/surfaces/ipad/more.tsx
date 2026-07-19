@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
-import { Button, Card, type CardTone, Em, IconTile, List, Pill, type PillTone, Row, Sentence, TitleBlock } from "@/components/ui";
+import { Button, Card, Em, IconTile, List, Pill, type PillTone, Row, Sentence, TitleBlock } from "@/components/ui";
 import { listItem, listStagger } from "@/lib/motion";
 import { relative } from "@/lib/dates";
 import { billTasks, useHousehold } from "@/lib/store";
@@ -34,12 +34,12 @@ function Back({ title, subtitle }: { title: string; subtitle?: string }) {
 
 /* ---------------- More index ---------------- */
 
-const TILES: { route: IpadRoute; icon: IconName; card: CardTone; label: string; blurb: string }[] = [
-  { route: "bills", icon: "bill", card: "lemon", label: "Bills", blurb: "Rent, utilities, subscriptions" },
-  { route: "inventory", icon: "box", card: "white", label: "Inventory", blurb: "Pantry, supplies, medicine" },
-  { route: "maint", icon: "wrench", card: "lavender", label: "Maintenance", blurb: "Upkeep & warranties" },
-  { route: "autos", icon: "bolt", card: "white", label: "Automations", blurb: "Rules & AI" },
-  { route: "settings", icon: "gear", card: "white", label: "Settings", blurb: "Members, privacy, AI" },
+const TILES: { route: IpadRoute; icon: IconName; label: string; blurb: string }[] = [
+  { route: "bills", icon: "bill", label: "Bills", blurb: "Rent, utilities, subscriptions" },
+  { route: "inventory", icon: "box", label: "Inventory", blurb: "Pantry, supplies, medicine" },
+  { route: "maint", icon: "wrench", label: "Maintenance", blurb: "Upkeep & warranties" },
+  { route: "autos", icon: "bolt", label: "Automations", blurb: "Rules & AI" },
+  { route: "settings", icon: "gear", label: "Settings", blurb: "Members, privacy, AI" },
 ];
 
 export function IpadMore() {
@@ -49,18 +49,22 @@ export function IpadMore() {
       <motion.div variants={listItem}>
         <TitleBlock size="page" tone="onDark" title="More" subtext="Everything else your home runs on" />
       </motion.div>
+      {/* A MENU, in the sidebar's own idiom — translucent washes on the ink,
+          nothing shouting. Lemon marks the active thing, and a resting menu
+          has no active thing; five opaque slabs here was where the "too white
+          on black" feeling started. */}
       <motion.div variants={listItem} className="mt-section grid grid-cols-3 gap-card-pad">
         {TILES.map((t, i) => (
           <Card
             key={t.route}
-            tone={t.card}
+            tone="wash"
             onClick={() => goIpad(t.route)}
             className={clsx("flex min-h-[200px] flex-col", i === 0 && "col-span-2")}
           >
-            <IconTile name={t.icon} />
+            <IconTile name={t.icon} tone="onDark" />
             <div className="mt-auto">
               <b className="block text-h2">{t.label}</b>
-              <div className="mt-0.5 text-bodysm font-medium opacity-60">{t.blurb}</div>
+              <div className="mt-0.5 text-bodysm font-medium text-white/50">{t.blurb}</div>
             </div>
           </Card>
         ))}
@@ -86,13 +90,12 @@ export function IpadBills() {
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <Back title="Bills" />
-      <motion.div variants={listItem} className="mb-stack">
-        <Card tone="white" className="flex min-h-[160px] flex-col">
-          <IconTile name="bill" />
-          <Sentence className="mt-auto max-w-[22ch]">
-            {outstanding ? <><Em>${outstanding}</Em> still to pay.</> : <>Everything&rsquo;s <Em>paid</Em>.</>}
-          </Sentence>
-        </Card>
+      {/* The pulse — money's state said straight on the ink, page voice.
+          The list below carries the screen's white. */}
+      <motion.div variants={listItem} className="mb-stack px-1.5">
+        <Sentence className="max-w-[22ch] text-white">
+          {outstanding ? <><Em>${outstanding}</Em> still to pay.</> : <>Everything&rsquo;s <Em>paid</Em>.</>}
+        </Sentence>
       </motion.div>
       <motion.div variants={listItem}>
         <Card pad="none">
@@ -148,14 +151,11 @@ export function IpadInventory() {
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <Back title="Inventory" />
-      <motion.div variants={listItem} className="mb-stack">
-        <Card tone="lavender" className="flex min-h-[160px] flex-col">
-          <IconTile name="box" />
-          <Sentence className="mt-auto max-w-[26ch]">
-            <Em>{inventory.filter((i) => i.status === "low").length}</Em> things running low — they go
-            straight onto the shopping list.
-          </Sentence>
-        </Card>
+      <motion.div variants={listItem} className="mb-stack px-1.5">
+        <Sentence className="max-w-[26ch] text-white">
+          <Em>{inventory.filter((i) => i.status === "low").length}</Em> things running low — they go
+          straight onto the shopping list.
+        </Sentence>
       </motion.div>
       <motion.div variants={listItem}>
         <Card pad="none">
@@ -192,14 +192,11 @@ export function IpadMaint() {
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <Back title="Home maintenance" />
-      <motion.div variants={listItem} className="mb-stack">
-        <Card tone="white" className="flex min-h-[160px] flex-col">
-          <IconTile name="wrench" />
-          <Sentence className="mt-auto max-w-[24ch]">
-            <Em>{maint.filter((m) => m.status === "over" || m.status === "due").length}</Em> bits of
-            upkeep want a look. Nothing rots quietly.
-          </Sentence>
-        </Card>
+      <motion.div variants={listItem} className="mb-stack px-1.5">
+        <Sentence className="max-w-[24ch] text-white">
+          <Em>{maint.filter((m) => m.status === "over" || m.status === "due").length}</Em> bits of
+          upkeep want a look. Nothing rots quietly.
+        </Sentence>
       </motion.div>
       <motion.div variants={listItem}>
         <Card pad="none">
@@ -234,13 +231,10 @@ export function IpadAutomations() {
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <Back title="Automations" />
-      <motion.div variants={listItem} className="mb-stack">
-        <Card tone="lavender" className="flex min-h-[160px] flex-col">
-          <IconTile name="bolt" />
-          <Sentence className="mt-auto max-w-[24ch]">
-            <Em>{automations.filter((a) => a.on).length}</Em> things the house runs on its own.
-          </Sentence>
-        </Card>
+      <motion.div variants={listItem} className="mb-stack px-1.5">
+        <Sentence className="max-w-[24ch] text-white">
+          <Em>{automations.filter((a) => a.on).length}</Em> things the house runs on its own.
+        </Sentence>
       </motion.div>
       <motion.div variants={listItem}>
         <Card pad="none">

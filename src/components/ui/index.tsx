@@ -16,7 +16,7 @@ import type { Member, Priority } from "@/lib/types";
    Progress (lavender).
    ============================================================ */
 
-export type CardTone = "white" | "lemon" | "lavender" | "mint";
+export type CardTone = "white" | "lemon" | "lavender" | "mint" | "wash";
 export type Pad = "none" | "md" | "lg";
 
 const toneClass: Record<CardTone, string> = {
@@ -26,6 +26,11 @@ const toneClass: Record<CardTone, string> = {
   // The shared-list card — see the mint token. Reserved for the household's
   // collective surfaces; not a general-purpose fourth colour.
   mint: "bg-mint text-ink shadow-e2",
+  // The phone's ink-wash idiom, promoted to a tone: a translucent panel that
+  // BELONGS to the dark backdrop instead of sitting on it. No shadow — a
+  // see-through surface casting elevation reads false. This is the default
+  // furniture on a dark canvas; opaque tones are the punctuation.
+  wash: "border border-white/10 bg-white/[.06] text-white",
 };
 
 const padClass: Record<Pad, string> = {
@@ -41,6 +46,20 @@ export function Card({
 }) {
   const cls = clsx("w-full rounded-card text-left", toneClass[tone], padClass[pad], className);
   if (!onClick) return <div className={cls}>{children}</div>;
+
+  // A wash doesn't lift on hover — it BRIGHTENS (it's part of the backdrop,
+  // not an object above it), and its focus ring is lemon, the on-dark ring.
+  if (tone === "wash") {
+    return (
+      <motion.button
+        onClick={onClick}
+        whileTap={press}
+        className={clsx(cls, "transition-colors hover:bg-white/[.09] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lemon outline-none")}
+      >
+        {children}
+      </motion.button>
+    );
+  }
 
   return (
     <motion.button
@@ -335,13 +354,16 @@ export function AvatarStack({
    Pills
    ============================================================ */
 
-export type PillTone = "tag" | "light" | "lemon" | "lavender";
+export type PillTone = "tag" | "light" | "lemon" | "lavender" | "dark";
 
 const pillTone: Record<PillTone, string> = {
   tag: "bg-ink/[.05] text-sub",
   light: "bg-card text-ink shadow-e1",
   lemon: "bg-lemon text-ink",
   lavender: "bg-lavender text-ink",
+  // `tag`'s counterpart on a dark surface (a wash card, the ink backdrop) —
+  // ink-on-ink tags disappear there.
+  dark: "bg-white/10 text-white/80",
 };
 
 export function Pill({ tone = "tag", children }: { tone?: PillTone; children: ReactNode }) {

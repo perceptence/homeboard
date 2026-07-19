@@ -15,6 +15,8 @@ import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 /** Focus ring for raw buttons on a LIGHT surface (inside a Card) — the app's
  *  usual ink ring. */
 const FOCUS = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink";
+/** Its dark twin — for raw buttons on a wash or the ink backdrop. */
+const FOCUS_DARK = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lemon";
 
 
 export function IpadHome() {
@@ -111,13 +113,15 @@ export function IpadHome() {
         </Card>
       </motion.div>
 
-      {/* Two small pastels, stacked height */}
+      {/* Two quiet doors in the DARK idiom — the hero above is the screen's
+          one shout; these are ambient facts, so they wear the wash and let
+          the backdrop through instead of stacking more opaque slabs. */}
       <motion.div variants={listItem}>
-        <Card tone="white" className="flex h-full min-h-[240px] flex-col" onClick={() => s.goIpad("bills")}>
-          <IconTile name="bill" />
+        <Card tone="wash" className="flex h-full min-h-[240px] flex-col" onClick={() => s.goIpad("bills")}>
+          <IconTile name="bill" tone="onDark" />
           <div className="mt-auto">
             <div className="text-display tabular-nums">${billDue?.amount ?? 0}</div>
-            <div className="mt-1 text-h2">
+            <div className="mt-1 text-h2 text-white/70">
               {billDue ? <span suppressHydrationWarning>{billDue.title}, {relative(billDue.due).toLowerCase()}</span> : "Everything's paid"}
             </div>
           </div>
@@ -125,11 +129,11 @@ export function IpadHome() {
       </motion.div>
 
       <motion.div variants={listItem}>
-        <Card tone="lavender" className="flex h-full min-h-[240px] flex-col" onClick={() => s.goIpad("shopping")}>
-          <IconTile name="box" />
+        <Card tone="wash" className="flex h-full min-h-[240px] flex-col" onClick={() => s.goIpad("shopping")}>
+          <IconTile name="box" tone="onDark" />
           <div className="mt-auto">
             <div className="text-display tabular-nums">{low.length}</div>
-            <div className="mt-1 text-h2">
+            <div className="mt-1 text-h2 text-white/70">
               {low.length ? "things running low" : "Cupboards are full"}
             </div>
           </div>
@@ -156,10 +160,12 @@ export function IpadHome() {
         </motion.div>
       )}
 
-      {/* WHO'S CARRYING — tall, two rows */}
+      {/* WHO'S CARRYING — the balance display lives in the dark voice, like
+          the phone's House board: member colours pop against the wash, and
+          the one lavender strip stays the AI's accent. */}
       <motion.div variants={listItem} className="col-span-2 row-span-2">
-        <Card className="flex h-full flex-col">
-          <TitleBlock size="card" title="Who’s carrying today" />
+        <Card tone="wash" className="flex h-full flex-col">
+          <TitleBlock size="card" tone="onDark" title="Who’s carrying today" />
           <div className="mt-stack flex-1">
             {people.map((id) => {
               const m = s.members[id];
@@ -170,7 +176,7 @@ export function IpadHome() {
                     <Avatar member={m} size={26} />
                     <b className="text-bodysm font-medium">{m.name}</b>
                   </div>
-                  <div className="h-2.5 flex-1 overflow-hidden rounded-pill bg-black/[.06]">
+                  <div className="h-2.5 flex-1 overflow-hidden rounded-pill bg-white/10">
                     <motion.div
                       className="h-full rounded-pill"
                       style={{ background: m.color }}
@@ -181,7 +187,7 @@ export function IpadHome() {
                   </div>
                   {/* caption, not micro — a load count is meta text (it explains
                       the bar beside it); micro is reserved for whisper cues. */}
-                  <span className="w-14 text-right text-caption font-medium tabular-nums text-sub">
+                  <span className="w-14 text-right text-caption font-medium tabular-nums text-white/55">
                     {load}
                   </span>
                 </div>
@@ -203,8 +209,8 @@ export function IpadHome() {
       {/* UPKEEP — small, quiet: text-h2, the same weight class the bill/
           shopping cards above use for their caption, not a full hero. */}
       <motion.div variants={listItem} className="col-span-2">
-        <Card tone="white" className="flex min-h-[160px] flex-col" onClick={() => s.goIpad("maint")}>
-          <IconTile name="wrench" />
+        <Card tone="wash" className="flex min-h-[160px] flex-col" onClick={() => s.goIpad("maint")}>
+          <IconTile name="wrench" tone="onDark" />
           <div className="mt-auto text-h2">
             <Em>{s.maint.filter((m) => m.status === "over" || m.status === "due").length}</Em> bits of
             upkeep this week.
@@ -256,35 +262,36 @@ export function IpadTasks() {
       animate="show"
       className="grid grid-cols-4 gap-card-pad pb-2"
     >
-      {/* Hero — the day, in a sentence */}
-      <motion.div variants={listItem} className="col-span-2">
-        <Card tone="lemon" className="flex h-full min-h-[200px] flex-col">
-          <Eyebrow>Tasks</Eyebrow>
-          <div className="mt-auto">
-            <Sentence className="max-w-[18ch]">
-              <Em>{today.length}</Em> {today.length === 1 ? "thing" : "things"} on today,{" "}
-              <Em>{done.length}</Em> already done.
-            </Sentence>
-            <Button
-              size="touch"
-              className="mt-5"
-              onClick={() =>
-                s.openSheet({
-                  type: "newTask",
-                  draft: { title: "", owner: people[0]?.id ?? null, when: "Today", priority: "med" },
-                })
-              }
-            >
-              <Icon name="plus" size={16} /> New task
-            </Button>
-          </div>
-        </Card>
+      {/* THE PULSE — the day said straight on the ink, page voice. The white
+          task cards below are the screen's light; the hero doesn't need to be
+          another slab (heavy contrast was the iPad's whole problem). */}
+      <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
+        <Eyebrow tone="onDark">Tasks</Eyebrow>
+        <div className="mt-auto">
+          <Sentence className="max-w-[18ch] text-white">
+            <Em>{today.length}</Em> {today.length === 1 ? "thing" : "things"} on today,{" "}
+            <Em>{done.length}</Em> already done.
+          </Sentence>
+          <Button
+            size="touch"
+            tone="light"
+            className="mt-5"
+            onClick={() =>
+              s.openSheet({
+                type: "newTask",
+                draft: { title: "", owner: people[0]?.id ?? null, when: "Today", priority: "med" },
+              })
+            }
+          >
+            <Icon name="plus" size={16} /> New task
+          </Button>
+        </div>
       </motion.div>
 
-      {/* Who has what — a glance, not a chart */}
+      {/* Who has what — a glance, not a chart. Ambient fact → wash. */}
       <motion.div variants={listItem} className="col-span-2">
-        <Card tone="lavender" className="flex h-full min-h-[200px] flex-col">
-          <Eyebrow>Spread across the house</Eyebrow>
+        <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
+          <Eyebrow tone="onDark">Spread across the house</Eyebrow>
           <div className="mt-auto grid grid-cols-4 gap-3">
             {people.map((m) => (
               <div key={m.id} className="flex flex-col items-start gap-2">
@@ -294,7 +301,7 @@ export function IpadTasks() {
                     {pendingFor(s, m.id)}
                   </div>
                   {/* caption, not micro — a name is meta text, not a whisper cue. */}
-                  <div className="mt-1 text-caption font-medium opacity-60">{m.name}</div>
+                  <div className="mt-1 text-caption font-medium text-white/55">{m.name}</div>
                 </div>
               </div>
             ))}
@@ -304,29 +311,29 @@ export function IpadTasks() {
 
       {today.length > 0 && (
         <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
-          <Eyebrow>Today</Eyebrow>
+          <Eyebrow tone="onDark">Today</Eyebrow>
           {today.map((t) => <TaskCard key={t.id} task={t} showOwner />)}
         </motion.div>
       )}
 
       {week.length > 0 && (
         <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
-          <Eyebrow>This week</Eyebrow>
+          <Eyebrow tone="onDark">This week</Eyebrow>
           {week.map((t) => <TaskCard key={t.id} task={t} showOwner />)}
         </motion.div>
       )}
 
       {done.length > 0 && (
         <motion.div variants={listItem} className="col-span-4 flex flex-col gap-tile">
-          <Eyebrow>Done</Eyebrow>
+          <Eyebrow tone="onDark">Done</Eyebrow>
           {done.map((t) => <TaskCard key={t.id} task={t} showOwner />)}
         </motion.div>
       )}
 
       {s.tasks.length === 0 && (
         <motion.div variants={listItem} className="col-span-4">
-          <Card tone="white" pad="lg" className="min-h-[200px] text-center">
-            <Sentence className="mt-10">The house is caught up. <Em>Nothing to do.</Em></Sentence>
+          <Card tone="wash" pad="lg" className="min-h-[200px] text-center">
+            <Sentence className="mt-10 text-white">The house is caught up. <Em>Nothing to do.</Em></Sentence>
           </Card>
         </motion.div>
       )}
@@ -343,21 +350,20 @@ export function IpadShopping() {
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      <motion.div variants={listItem} className="col-span-2">
-        <Card tone="lavender" className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="cart" />
-          <div className="mt-auto">
-            <Sentence className="max-w-[18ch]">
-              <Em>{left.length}</Em> {left.length === 1 ? "thing" : "things"} to pick up.
-            </Sentence>
-          </div>
-        </Card>
+      {/* Pulse on the ink — the list below carries the white. */}
+      <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
+        <Eyebrow tone="onDark">Shopping</Eyebrow>
+        <Sentence className="mt-auto max-w-[18ch] text-white">
+          <Em>{left.length}</Em> {left.length === 1 ? "thing" : "things"} to pick up.
+        </Sentence>
       </motion.div>
 
+      {/* Lavender ONLY when the AI actually did something — the accent is
+          earned by the act, not standing furniture. Quiet state = wash. */}
       <motion.div variants={listItem} className="col-span-2">
-        <Card tone={low.length ? "lavender" : "white"} className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="spark" />
-          <div className="mt-auto text-h2">
+        <Card tone={low.length ? "lavender" : "wash"} className="flex h-full min-h-[200px] flex-col">
+          <IconTile name="spark" tone={low.length ? "neutral" : "onDark"} />
+          <div className={clsx("mt-auto text-h2", !low.length && "text-white/70")}>
             {low.length
               ? <>I added <Em>{low.length}</Em> things that were running low: {low.map((i) => i.title).join(", ")}.</>
               : <>Nothing&rsquo;s running low. <Em>Cupboards are full.</Em></>}
@@ -401,13 +407,12 @@ export function IpadCalendar() {
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      <motion.div variants={listItem} className="col-span-2">
-        <Card tone="lavender" className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="cal" />
-          <Sentence className="mt-auto max-w-[18ch]">
-            <Em>{s.events.length}</Em> things on the calendar this week.
-          </Sentence>
-        </Card>
+      {/* Pulse on the ink. */}
+      <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
+        <Eyebrow tone="onDark">Calendar</Eyebrow>
+        <Sentence className="mt-auto max-w-[18ch] text-white">
+          <Em>{s.events.length}</Em> things on the calendar this week.
+        </Sentence>
       </motion.div>
 
       <motion.div variants={listItem} className="col-span-2">
@@ -422,33 +427,39 @@ export function IpadCalendar() {
         </Card>
       </motion.div>
 
+      {/* The week, in the dark idiom — same as the phone's own calendar cells
+          (washes, lemon = today). Seven opaque columns was a wall of white;
+          the member-coloured event chips read BETTER against the wash. */}
       <motion.div variants={listItem} className="col-span-4 grid grid-cols-7 gap-3">
-        {weekDays().map((day) => (
-          <Card
-            key={iso(day)}
-            // The lemon card is TODAY — which is a date test, not "the first column".
-            tone={isToday(iso(day)) ? "lemon" : "white"}
-            pad="md"
-            className="min-h-[200px]"
-          >
-            <div className="flex items-baseline justify-between">
-              <span className="text-caption font-medium uppercase opacity-50">
-                {day.toLocaleDateString("en-GB", { weekday: "short" })}
-              </span>
-              <span className="text-h2 tabular-nums">{day.getDate()}</span>
-            </div>
-            {s.events.filter((e) => e.due === iso(day)).map((e) => (
-              <div
-                key={e.id}
-                style={{ background: s.members[e.who].color }}
-                className="mt-2 rounded-sm px-2 py-1.5 text-micro font-medium leading-tight text-white"
-              >
-                <div className="opacity-75">{e.time}</div>
-                {e.title}
+        {weekDays().map((day) => {
+          const isTodayCell = isToday(iso(day));
+          return (
+            <Card
+              key={iso(day)}
+              // The lemon card is TODAY — which is a date test, not "the first column".
+              tone={isTodayCell ? "lemon" : "wash"}
+              pad="md"
+              className="min-h-[200px]"
+            >
+              <div className="flex items-baseline justify-between">
+                <span className={clsx("text-caption font-medium uppercase", isTodayCell ? "opacity-50" : "text-white/45")}>
+                  {day.toLocaleDateString("en-GB", { weekday: "short" })}
+                </span>
+                <span className="text-h2 tabular-nums">{day.getDate()}</span>
               </div>
-            ))}
-          </Card>
-        ))}
+              {s.events.filter((e) => e.due === iso(day)).map((e) => (
+                <div
+                  key={e.id}
+                  style={{ background: s.members[e.who].color }}
+                  className="mt-2 rounded-sm px-2 py-1.5 text-micro font-medium leading-tight text-white"
+                >
+                  <div className="opacity-75">{e.time}</div>
+                  {e.title}
+                </div>
+              ))}
+            </Card>
+          );
+        })}
       </motion.div>
     </motion.div>
   );
@@ -481,7 +492,7 @@ function PersonCard({ member: m }: { member: Member }) {
   const jobs = [...(m.responsibility?.domains ?? []), ...(m.responsibility?.spaces ?? [])];
 
   return (
-    <Card className="flex min-h-[200px] flex-col">
+    <Card tone="wash" className="flex min-h-[200px] flex-col">
       <div className="flex items-start">
         <Avatar member={m} size={44} />
         {m.role === "guided" && m.kind === "person" && (
@@ -498,13 +509,13 @@ function PersonCard({ member: m }: { member: Member }) {
             don't get a role picker; a dog with permissions is a joke the
             model shouldn't be able to tell. */}
         {m.kind === "pet" ? (
-          <div className="text-bodysm font-medium text-sub">Pet</div>
+          <div className="text-bodysm font-medium text-white/50">Pet</div>
         ) : (
           <div className="mt-0.5">
             <button
               onClick={() => setOpen(!open)}
               aria-expanded={open}
-              className={clsx("flex items-center gap-1 rounded-sm text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+              className={clsx("flex items-center gap-1 rounded-sm text-bodysm font-medium text-white/50 transition-colors hover:text-white", FOCUS_DARK)}
             >
               {ROLE_LABEL[m.role]}
               <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
@@ -520,7 +531,10 @@ function PersonCard({ member: m }: { member: Member }) {
                   transition={smooth}
                   className="overflow-hidden"
                 >
-                  <div className="mt-2 flex flex-col gap-1.5 rounded-md bg-surface p-1.5">
+                  {/* The dark twin of the in-place picker: recessed ink panel,
+                      wash options, lemon ring on the chosen one — the phone's
+                      own dark-selector idiom (Ahead's scope picker). */}
+                  <div className="mt-2 flex flex-col gap-1.5 rounded-md bg-black/25 p-1.5">
                     {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
                       <button
                         key={r}
@@ -529,14 +543,16 @@ function PersonCard({ member: m }: { member: Member }) {
                         onClick={() => { s.setRole(m.id, r); setOpen(false); }}
                         aria-pressed={r === m.role}
                         className={clsx(
-                          "flex flex-col items-start gap-0.5 rounded-sm bg-card px-3 py-2 text-left transition-shadow duration-300",
+                          "flex flex-col items-start gap-0.5 rounded-sm px-3 py-2 text-left transition-colors duration-300",
                           "disabled:cursor-not-allowed disabled:opacity-40",
-                          FOCUS,
-                          r === m.role ? "shadow-e2 ring-2 ring-inset ring-ink" : "shadow-e1 hover:shadow-e2",
+                          FOCUS_DARK,
+                          r === m.role
+                            ? "bg-white/[.12] ring-2 ring-inset ring-lemon"
+                            : "bg-white/[.06] hover:bg-white/[.10]",
                         )}
                       >
-                        <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
-                        <span className="text-caption text-sub">{ROLE_HINT[r]}</span>
+                        <span className="text-bodysm font-medium text-white">{ROLE_LABEL[r]}</span>
+                        <span className="text-caption text-white/50">{ROLE_HINT[r]}</span>
                       </button>
                     ))}
                   </div>
@@ -551,7 +567,7 @@ function PersonCard({ member: m }: { member: Member }) {
         {jobs.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
             {jobs.slice(0, 3).map((j) => (
-              <Pill key={j} tone="tag">{j}</Pill>
+              <Pill key={j} tone="dark">{j}</Pill>
             ))}
           </div>
         )}
@@ -571,32 +587,31 @@ export function IpadHousehold() {
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      <motion.div variants={listItem} className="col-span-2">
-        <Card tone="lavender" className="flex h-full min-h-[200px] flex-col">
-          <div className="flex items-start">
-            <IconTile name="people" />
-            <span className="ml-auto flex -space-x-2">
-              {everyone.slice(0, 5).map((m) => (
-                <span key={m.id} className="ring-2 ring-card">
-                  <Avatar member={m} size={30} />
-                </span>
-              ))}
+      {/* Pulse on the ink — who lives here, said in the page voice, with the
+          faces beside it instead of wrapped in another slab. */}
+      <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
+        <span className="flex -space-x-2">
+          {everyone.slice(0, 5).map((m) => (
+            <span key={m.id} className="ring-2 ring-ink">
+              <Avatar member={m} size={30} />
             </span>
-          </div>
-          <Sentence className="mt-auto max-w-[20ch]">
-            <Em>{people}</Em> {people === 1 ? "person" : "people"}
-            {pets ? <> and <Em>{pets}</Em> {pets === 1 ? "pet" : "pets"}</> : null} live here.
-          </Sentence>
-        </Card>
+          ))}
+        </span>
+        <Sentence className="mt-auto max-w-[20ch] text-white">
+          <Em>{people}</Em> {people === 1 ? "person" : "people"}
+          {pets ? <> and <Em>{pets}</Em> {pets === 1 ? "pet" : "pets"}</> : null} live here.
+        </Sentence>
       </motion.div>
 
+      {/* Rooms are ambient structure, not work — wash, with the room chips in
+          the same translucent idiom. */}
       <motion.div variants={listItem} className="col-span-2">
-        <Card className="flex h-full min-h-[200px] flex-col">
-          <TitleBlock size="card" title="Rooms" />
+        <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
+          <TitleBlock size="card" tone="onDark" title="Rooms" />
           <div className="mt-auto flex flex-wrap gap-2">
             {ROOMS.map((r) => (
-              <span key={r} className="flex h-touch items-center gap-2 rounded-pill bg-surface px-3.5 text-bodysm font-medium">
-                <Icon name="house" size={14} className="text-sub" />
+              <span key={r} className="flex h-touch items-center gap-2 rounded-pill bg-white/[.08] px-3.5 text-bodysm font-medium text-white/85">
+                <Icon name="house" size={14} className="text-white/45" />
                 {r}
               </span>
             ))}
@@ -647,29 +662,32 @@ export function IpadInsights() {
         </Card>
       </motion.div>
 
+      {/* Two ambient stats in the wash — the lemon card above is the screen's
+          one shout; these are quiet numbers, not slabs. */}
       <motion.div variants={listItem}>
-        <Card tone="white" className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="spark" />
+        <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
+          <IconTile name="spark" tone="onDark" />
           <div className="mt-auto">
             <div className="text-display tabular-nums">~5 hrs</div>
-            <div className="mt-1 text-bodysm font-medium text-sub">coordinating saved</div>
+            <div className="mt-1 text-bodysm font-medium text-white/55">coordinating saved</div>
           </div>
         </Card>
       </motion.div>
 
       <motion.div variants={listItem}>
-        <Card tone="white" className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="chart" />
+        <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
+          <IconTile name="chart" tone="onDark" />
           <div className="mt-auto">
             <div className="text-display">Fair</div>
-            <div className="mt-1 text-bodysm font-medium text-sub">household balance</div>
+            <div className="mt-1 text-bodysm font-medium text-white/55">household balance</div>
           </div>
         </Card>
       </motion.div>
 
+      {/* The balance display, dark like Home's — member colours carry it. */}
       <motion.div variants={listItem} className="col-span-2">
-        <Card className="h-full">
-          <TitleBlock size="card" title="Share of the work" />
+        <Card tone="wash" className="h-full">
+          <TitleBlock size="card" tone="onDark" title="Share of the work" />
           <div className="mt-stack">
             {loads.map(({ m, load }) => {
               const share = Math.round((load / total) * 100);
@@ -679,7 +697,7 @@ export function IpadInsights() {
                     <Avatar member={m} size={24} />
                     <b className="text-bodysm">{m.name}</b>
                   </div>
-                  <div className="h-2.5 flex-1 overflow-hidden rounded-pill bg-black/[.06]">
+                  <div className="h-2.5 flex-1 overflow-hidden rounded-pill bg-white/10">
                     <motion.div
                       className="h-full rounded-pill"
                       style={{ background: m.color }}
@@ -688,7 +706,7 @@ export function IpadInsights() {
                       transition={{ duration: 0.7, ease: [0.2, 0.7, 0.2, 1] }}
                     />
                   </div>
-                  <span className="w-11 text-right text-caption font-medium tabular-nums text-sub">{share}%</span>
+                  <span className="w-11 text-right text-caption font-medium tabular-nums text-white/55">{share}%</span>
                 </div>
               );
             })}
