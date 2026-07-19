@@ -624,37 +624,58 @@ function PhoneHouse() {
 }
 
 
+/**
+ * COMING UP — the house's next few things, whoever they belong to. Same name
+ * as the iPad home's list, because it's the same idea: one vocabulary.
+ *
+ * Ordered by DATE then time-of-day (timeMinutes) — it briefly sorted the
+ * `when` STRING, where "10:00 AM" beats "9:00 AM" alphabetically and a thing
+ * next Friday could outrank tonight. Each row says who, which day, and what
+ * money rides on it — a glance answers "what's next, whose is it, when".
+ */
 function UpNextAcrossHouse() {
   const s = useHousehold();
   const upNext = [
     ...s.tasks.filter((t) => !t.done).map((t) => ({
-      key: `t${t.id}`, title: t.title, when: t.when, who: t.owner,
+      key: `t${t.id}`, title: t.title, due: t.due, when: t.when, who: t.owner, amount: t.amount,
       open: () => s.openSheet({ type: "task" as const, id: t.id }),
     })),
     ...s.events.filter((e) => !e.done).map((e) => ({
-      key: `e${e.id}`, title: e.title, when: e.time, who: e.who,
+      key: `e${e.id}`, title: e.title, due: e.due, when: e.time, who: e.who,
+      amount: undefined as number | undefined,
       open: () => s.openSheet({ type: "event" as const, id: e.id }),
     })),
   ]
-    .sort((a, b) => (a.when || "").localeCompare(b.when || ""))
+    .sort((a, b) => a.due.localeCompare(b.due) || timeMinutes(a.when) - timeMinutes(b.when))
     .slice(0, 5);
 
   if (upNext.length === 0) return null;
   return (
     <motion.div variants={listItem}>
-      <Eyebrow tone="onDark" className="mb-2 mt-2 px-1.5">Up next, across the house</Eyebrow>
-      <div className="divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card text-ink shadow-e2">
-        {upNext.map((item) => (
-          <button
-            key={item.key}
-            onClick={item.open}
-            className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface"
-          >
-            <Avatar member={item.who ? s.members[item.who] : undefined} size={26} />
-            <span className="min-w-0 flex-1 truncate text-bodysm font-medium">{item.title}</span>
-            <span className="shrink-0 text-caption text-sub">{item.when || "Any time"}</span>
-          </button>
-        ))}
+      <Eyebrow tone="onDark" className="mb-2 mt-2 px-1.5">Coming up</Eyebrow>
+      {/* py on the CARD, not just the rows — the first and last row were
+          sitting flush against the rounded corners. */}
+      <div className="divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card py-1.5 text-ink shadow-e2">
+        {upNext.map((item) => {
+          const who = item.who ? s.members[item.who] : undefined;
+          return (
+            <button
+              key={item.key}
+              onClick={item.open}
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface"
+            >
+              <Avatar member={who} size={30} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-bodysm font-medium">{item.title}</span>
+                <span suppressHydrationWarning className="block truncate text-caption text-sub">
+                  {who?.name ?? "Anyone"} · {relativeInline(item.due)}
+                  {typeof item.amount === "number" && <> · ${item.amount}</>}
+                </span>
+              </span>
+              <span className="shrink-0 text-caption text-sub">{item.when || "Any time"}</span>
+            </button>
+          );
+        })}
       </div>
     </motion.div>
   );
