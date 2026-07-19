@@ -1579,6 +1579,11 @@ function PhoneYou() {
 
   /** Which of the three standing stats is expanded below the toggle. */
   const [lens, setLens] = useState<"carrying" | "after" | "rhythms">("carrying");
+  /** A lens shows its first three, then a CTA reveals the rest. Reset on every
+   *  lens switch — "show all" is a decision about the list you're reading, not
+   *  a mode that outlives it. */
+  const [showAllStanding, setShowAllStanding] = useState(false);
+  const pickLens = (k: typeof lens) => { setLens(k); setShowAllStanding(false); };
 
   /* --- where you are --- */
   const av = me.availability ?? { presence: "here" as Presence };
@@ -1626,12 +1631,27 @@ function PhoneYou() {
    *  meaning, so the chips don't have to spell it out. */
   const SEG: Record<Presence, string> = { here: "Here", wfh: "Home", out: "Out", away: "Away" };
   /** The three stats are LENSES, not bare numbers: each opens its own detail in
-   *  one shared area below, so every stat earns its detail — not just Rhythms. */
+   *  one shared area below, so every stat earns its detail — not just Rhythms.
+   *  `rows` is the detail, normalised to {title, meta} so one renderer with one
+   *  cap serves all three. */
   const LENSES = [
-    { key: "carrying" as const, n: mine, label: "Carrying" },
-    { key: "after" as const, n: patch.length, label: "Looking after" },
-    { key: "rhythms" as const, n: rhythms.length, label: "Rhythms" },
+    {
+      key: "carrying" as const, n: mine, label: "Carrying", empty: "Nothing on you right now.",
+      rows: openMine.map((t) => ({ id: `t${t.id}`, title: t.title, meta: t.when || relative(t.due) })),
+    },
+    {
+      key: "after" as const, n: patch.length, label: "Looking after", empty: "Nothing on you right now.",
+      rows: patch.map((p) => ({ id: p.name, title: p.name, meta: `${p.load} ${p.load === 1 ? "task" : "tasks"}` })),
+    },
+    {
+      key: "rhythms" as const, n: rhythms.length, label: "Rhythms", empty: "No routines yet.",
+      rows: rhythms.map((r) => ({ id: `r${r.id}`, title: r.title, meta: r.recurring ?? "" })),
+    },
   ];
+  const active = LENSES.find((l) => l.key === lens)!;
+  const STANDING_CAP = 3;
+  const shown = showAllStanding ? active.rows : active.rows.slice(0, STANDING_CAP);
+  const hiddenCount = active.rows.length - shown.length;
 
   return (
     <>
@@ -1647,7 +1667,7 @@ function PhoneYou() {
             return (
               <button
                 key={l.key}
-                onClick={() => setLens(l.key)}
+                onClick={() => pickLens(l.key)}
                 aria-pressed={on}
                 className={clsx(
                   "flex-1 rounded-sm py-2.5 text-center transition-colors",
@@ -1666,49 +1686,30 @@ function PhoneYou() {
         <div className="mt-3">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={lens} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16 }}>
-              {lens === "carrying" && (
-                openMine.length ? (
-                  <div>
-                    {openMine.map((t) => (
-                      <div key={t.id} className="flex items-center justify-between gap-3 py-1.5">
-                        <span className="min-w-0 truncate text-bodysm text-white/85">{t.title}</span>
-                        <span className="shrink-0 text-caption text-white/45">{t.when || relative(t.due)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="py-1.5 text-bodysm text-white/50">Nothing on you right now.</p>
-                )
-              )}
-              {lens === "after" && (
-                patch.length ? (
-                  <div>
-                    {patch.map((p) => (
-                      <div key={p.name} className="flex items-center justify-between gap-3 py-1.5">
-                        <span className="min-w-0 truncate text-bodysm text-white/85">{p.name}</span>
-                        <span className="shrink-0 text-caption text-white/45">
-                          {p.load} {p.load === 1 ? "task" : "tasks"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="py-1.5 text-bodysm text-white/50">Nothing on you right now.</p>
-                )
-              )}
-              {lens === "rhythms" && (
-                rhythms.length ? (
-                  <div>
-                    {rhythms.map((r) => (
-                      <div key={r.id} className="flex items-center justify-between gap-3 py-1.5">
-                        <span className="min-w-0 truncate text-bodysm text-white/85">{r.title}</span>
-                        <span className="shrink-0 text-caption text-white/45">{r.recurring}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="py-1.5 text-bodysm text-white/50">No routines yet.</p>
-                )
+              {active.rows.length ? (
+                <>
+                  {shown.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between gap-3 py-1.5">
+                      <span className="min-w-0 truncate text-bodysm text-white/85">{r.title}</span>
+                      <span className="shrink-0 text-caption text-white/45">{r.meta}</span>
+                    </div>
+                  ))}
+                  {/* Tertiary CTA — text + icon, only when there's more than the
+                      first three. Toggles the whole rest in place. */}
+                  {(hiddenCount > 0 || showAllStanding) && active.rows.length > STANDING_CAP && (
+                    <button
+                      onClick={() => setShowAllStanding((v) => !v)}
+                      className="mt-1 flex items-center gap-1 text-caption font-medium text-white/60 transition-colors hover:text-white"
+                    >
+                      {showAllStanding ? "Show less" : `Show all ${active.rows.length}`}
+                      <motion.span animate={{ rotate: showAllStanding ? 180 : 0 }} transition={smooth} className="flex">
+                        <Icon name="chevDown" size={12} />
+                      </motion.span>
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="py-1.5 text-bodysm text-white/50">{active.empty}</p>
               )}
             </motion.div>
           </AnimatePresence>
