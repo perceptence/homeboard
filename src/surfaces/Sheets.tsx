@@ -10,9 +10,9 @@ import { addDays, ago, badge, clockLabel, dayLabel, iso, relative, startOfWeek, 
 import { taskGlyph } from "@/lib/glyphs";
 import { parseAutomation, parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
-import { autoThenTitle, autoWhenPhrase, doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
+import { autoThenTitle, autoWhenPhrase, currentMember, doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
 import type { AutoThen, AutoWhen, Member, MemberId, MemberKind, Priority, Role, ShopCategory, ShopItem, StockStatus, Task } from "@/lib/types";
-import { ROLE_CAN, ROLE_HINT, ROLE_LABEL, ROLE_NEEDS } from "@/lib/types";
+import { ROLE_CAN, ROLE_HINT, ROLE_LABEL, ROLE_NEEDS, ROLE_RANK } from "@/lib/types";
 
 /** Where a typed shopping item files itself — read from the words, shown live
  *  on the aisle chips, and one tap overrides it. Pet words win over Supplies
@@ -64,7 +64,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
             {type === "settings" && <SettingsSheet />}
             {type === "manage" && <ManageHouseholdSheet />}
             {type === "addPerson" && <AddPersonSheet />}
-            {type === "addAutomation" && <AutomationSheet id={sheet?.id as string | undefined} />}
+            {type === "addAutomation" && <AutomationSheet id={sheet?.id as string | undefined} seed={sheet?.autoText} />}
           </motion.div>
         )}
       </Sheet>
@@ -946,15 +946,17 @@ function AddPersonSheet() {
 }
 
 /** The shared header for the Manage-household sub-forms: a back door and a title. */
-function FormHead({ icon, title }: { icon: IconName; title: string }) {
+function FormHead({ icon, title, back, backLabel = "Household" }: {
+  icon: IconName; title: string; back?: () => void; backLabel?: string;
+}) {
   const s = useHousehold();
   return (
     <>
       <button
-        onClick={() => s.openSheet({ type: "manage" })}
+        onClick={back ?? (() => s.openSheet({ type: "manage" }))}
         className={clsx("-ml-1 mb-3 flex items-center gap-0.5 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
       >
-        <Icon name="back" size={18} /> Household
+        <Icon name="back" size={18} /> {backLabel}
       </button>
       <span className="flex items-center gap-3">
         <IconTile name={icon} tone="lemon" />
@@ -995,11 +997,13 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
  * controls appearing right under its pill row. Editing an existing rule opens
  * onto the readback with its parts already lit.
  */
-function AutomationSheet({ id }: { id?: string }) {
+function AutomationSheet({ id, seed }: { id?: string; seed?: string }) {
   const s = useHousehold();
   const existing = id ? s.automations.find((a) => a.id === id) : undefined;
 
-  const [raw, setRaw] = useState("");
+  // `seed` is the sentence carried over from the New-task nudge — it fills the
+  // composer as if the person had typed it here.
+  const [raw, setRaw] = useState(seed ?? "");
   const dictation = useDictation((text) => setRaw(text));
   const parsed = parseAutomation(raw, doers(s));
   const [whenPick, setWhenPick] = useState<AutoWhen | null>(existing?.when ?? null);
@@ -1027,7 +1031,10 @@ function AutomationSheet({ id }: { id?: string }) {
   const ready = !!when && !!then
     && (then.kind !== "task" || then.title.trim().length > 0)
     && (then.kind !== "nudge" || !!s.members[then.who]);
-  const done = () => (s.persona === "ipad" ? s.closeSheet() : s.openSheet({ type: "manage" }));
+  // Seeded from the New-task nudge -> return to the app on save, not into
+  // Manage household (you were adding a task, not administering the house).
+  const done = () =>
+    (seed || s.persona === "ipad") ? s.closeSheet() : s.openSheet({ type: "manage" });
   const commit = () => {
     if (!when || !then) return;
     if (existing) s.updateAutomation(existing.id, { when, then });
@@ -1047,7 +1054,12 @@ function AutomationSheet({ id }: { id?: string }) {
 
   return (
     <>
-      <FormHead icon="bolt" title={existing ? "Edit automation" : "New automation"} />
+      <FormHead
+        icon="bolt"
+        title={existing ? "Edit automation" : "New automation"}
+        back={seed ? () => s.closeSheet() : undefined}
+        backLabel={seed ? "Cancel" : "Household"}
+      />
 
       {/* ONE input, two doors — identical to New task's composer. */}
       {!existing && (
@@ -1762,6 +1774,17 @@ function NewTaskSheet({
 
   // ONE engine, two doors: speech and typing both land here.
   const parsed = parseTask(raw, people);
+
+  // IS THIS REALLY A ROUTINE? If the sentence names a repeating schedule
+  // ("every Friday", "everyday at 5pm"), it wants to be an automation, not a
+  // one-off task — so we offer to move it. Only to people who can hold
+  // automations (full and up); the nudge that leads somewhere you can't go is
+  // worse than no nudge.
+  const me = s.members[currentMember(s)];
+  const canAutomate = me && ROLE_RANK[me.role] >= ROLE_RANK.full;
+  const autoWhen = canAutomate ? parseAutomation(raw, people).when : undefined;
+  const routine = autoWhen && (autoWhen.kind === "daily" || autoWhen.kind === "weekday")
+    ? autoWhen : null;
   // The POLISHED name — "Leo water plants tonight" -> "Water plants". A list of
   // raw utterances is a mess to scan, so the card gets a clean title. But the
   // cleaning is an interpretation, so we keep the receipt: `said` is the verbatim
@@ -1972,6 +1995,28 @@ function NewTaskSheet({
             <motion.span animate={{ rotate: adjusting ? 180 : 0 }} transition={smooth} className="flex">
               <Icon name="chevDown" size={12} />
             </motion.span>
+          </button>
+        </div>
+      )}
+
+      {/* THE ROUTINE NUDGE. The sentence describes a schedule — so this wants
+          to be an automation that RECURS, not a task you'll re-add every week.
+          Offered, never forced: the task footer still adds it as-is. Handing
+          `autoText` over seeds the builder with the very words typed here. */}
+      {ready && routine && (
+        <div className="mt-3 flex items-center gap-3 rounded-card bg-lavender p-card-pad text-ink">
+          <IconTile name="repeat" tone="onTint" />
+          <div className="min-w-0 flex-1">
+            <b className="block text-bodysm">Sounds like a routine</b>
+            <span className="block text-caption text-ink/70">
+              Set it {autoWhenPhrase(routine)} and it comes back on its own.
+            </span>
+          </div>
+          <button
+            onClick={() => s.openSheet({ type: "addAutomation", autoText: raw.trim() })}
+            className={clsx("shrink-0 rounded-pill bg-ink px-3.5 py-2 text-caption font-medium text-white transition-colors hover:bg-ink/90", FOCUS)}
+          >
+            Automate
           </button>
         </div>
       )}

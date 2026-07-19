@@ -262,7 +262,9 @@ export function parseTask(input: string, people: { id: string; name: string }[] 
  * "may be" as "may". Then sentence-case: capitalise the first letter only, never
  * the rest, or every proper noun in the household gets flattened.
  */
-const DANGLING = /^(?:on|at|by|to|for|with|this|the|a|an|and|or|is|are|was|be|may|will|in)\b/i;
+// `every`/`each` join the list so "water plants every friday" -> "Water plants"
+// once the weekday is lifted: the recurrence word is scheduling, not the name.
+const DANGLING = /^(?:on|at|by|to|for|with|this|the|a|an|and|or|is|are|was|be|may|will|in|every|each)\b/i;
 
 function tidy(s: string): string {
   let w = s.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);

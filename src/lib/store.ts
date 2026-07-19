@@ -21,6 +21,10 @@ export interface Sheet {
    *  its own kind, so one field is honest here. */
   id?: number | string;
   draft?: { title: string; owner: MemberId | null; when: string; priority: Priority };
+  /** Seed text for the automation builder — the sentence someone typed into New
+   *  Task that turned out to be a routine. Present only when launched from that
+   *  nudge, which is also the signal to CLOSE (not return to Manage) on save. */
+  autoText?: string;
 }
 
 /** Colours cycle as people are added, so everyone stays visually distinct. */
