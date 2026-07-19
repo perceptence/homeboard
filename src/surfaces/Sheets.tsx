@@ -577,24 +577,24 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
                   transition={smooth}
                   className="overflow-hidden"
                 >
-                {/* The options sit in their OWN panel so they read as a menu, not
-                    loose text floating in the card. Panel radius = option radius +
-                    padding, so the selected fill's corners track the frame's. */}
-                <div className="mt-2 flex flex-col gap-0.5 rounded-2xl border border-ink/[.07] bg-surface p-1">
+                {/* Same selection language as the hand-off picker: white cards on
+                    a recessed panel, the chosen one wearing an ink ring. */}
+                <div className="mt-2 flex flex-col gap-1.5 rounded-2xl bg-surface p-1.5">
                   {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
                     <button
                       key={r}
                       // The last owner can't be demoted out of the house.
                       disabled={m.role === "owner" && r !== "owner" && !Object.values(s.members).some((x) => x.id !== m.id && x.role === "owner")}
                       onClick={() => { s.setRole(m.id, r); setOpen(false); }}
+                      aria-pressed={r === m.role}
                       className={clsx(
-                        "flex flex-col items-start gap-0.5 rounded-xl px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                        "flex flex-col items-start gap-0.5 rounded-xl bg-card px-3 py-2.5 text-left transition-shadow duration-300 disabled:cursor-not-allowed disabled:opacity-40",
                         FOCUS,
-                        r === m.role ? "bg-ink text-white" : "hover:bg-card",
+                        r === m.role ? "shadow-e2 ring-2 ring-inset ring-ink" : "shadow-e1 hover:shadow-e2",
                       )}
                     >
                       <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
-                      <span className={clsx("text-caption", r === m.role ? "text-white/60" : "text-sub")}>{ROLE_HINT[r]}</span>
+                      <span className="text-caption text-sub">{ROLE_HINT[r]}</span>
                     </button>
                   ))}
                 </div>
@@ -895,19 +895,20 @@ function AddPersonSheet() {
           </p>
 
           <Eyebrow className="mt-6">Access</Eyebrow>
-          <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+          <div className="mt-2 flex flex-col gap-1.5">
             {(Object.keys(ROLE_LABEL) as Role[]).filter((r) => r !== "owner").map((r) => (
               <button
                 key={r}
                 onClick={() => setRole(r)}
                 aria-pressed={r === role}
-                className={clsx("flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface", FOCUS)}
+                className={clsx(
+                  "flex flex-col items-start gap-0.5 rounded-2xl bg-card px-4 py-3 text-left transition-shadow duration-300",
+                  FOCUS,
+                  r === role ? "shadow-e2 ring-2 ring-inset ring-ink" : "shadow-e1 hover:shadow-e2",
+                )}
               >
-                <div className="min-w-0 flex-1">
-                  <div className="text-bodysm font-medium">{ROLE_LABEL[r]}</div>
-                  <div className="mt-hair text-caption text-sub">{ROLE_HINT[r]}</div>
-                </div>
-                {r === role && <Icon name="check" size={18} className="shrink-0 text-ink" />}
+                <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
+                <span className="text-caption text-sub">{ROLE_HINT[r]}</span>
               </button>
             ))}
           </div>
