@@ -609,4 +609,4 @@ export type IpadRoute =
  * The phone has THREE tabs, on one axis: now -> later -> me.
  * today = what's on right now · ahead = the week/month/quarter · you = the person.
  */
-export type PhoneRoute = "today" | "ahead" | "you";
+export type PhoneRoute = "today" | "ahead" | "house" | "you";

@@ -126,7 +126,7 @@ function DemoPanel() {
   };
 
   // Land on a phone screen (as a member — falls back to the owner from the iPad).
-  const phone = (route: "today" | "ahead" | "you", sheet?: string): Jump["run"] => () => {
+  const phone = (route: "today" | "ahead" | "house" | "you", sheet?: string): Jump["run"] => () => {
     const s = home();
     s.setPersona(memberOr());
     s.goPhone(route);
@@ -170,7 +170,7 @@ function DemoPanel() {
       { label: "Today", run: phone("today") },
       { label: "Ahead", run: phone("ahead") },
       { label: "You", run: phone("you") },
-      { label: "Household overview", run: phone("today", "houseView") },
+      { label: "Household", run: phone("house") },
       { label: "Shopping", run: phone("today", "shop") },
       { label: "In the house", run: phone("today", "stock") },
       { label: "New task", run: phone("today", "newTask") },
