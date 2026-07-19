@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { SAFE_TOP } from "@/components/DeviceFrame";
 import { Button, Card, Eyebrow, IconTile, Pill, TitleBlock } from "@/components/ui";
-import { spring } from "@/lib/motion";
+import { smooth, spring } from "@/lib/motion";
 import { PALETTE, PRESETS, useHousehold } from "@/lib/store";
 import type { HouseholdPreset, Role } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
@@ -193,6 +193,10 @@ export function Onboarding() {
                   {d.people.map((p, i) => (
                     <motion.div key={p.id} layout>
                       <Card pad="md">
+                        {/* Row 1 — WHO. The name owns the whole line: with the
+                            access pill sharing it, a name longer than ~5
+                            letters was clipping against a truncated pill and
+                            neither survived. */}
                         <div className="flex items-center gap-3">
                           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill text-body font-medium text-white"
                             style={{ background: PALETTE[i % PALETTE.length] }}>
@@ -216,25 +220,30 @@ export function Onboarding() {
                               value={p.age ?? ""}
                               onChange={(e) => s.updatePerson(p.id, { age: e.target.value ? Number(e.target.value) : undefined })}
                               placeholder="Age"
-                              className="w-16 rounded-sm bg-surface px-2 py-1.5 text-center text-bodysm font-medium outline-none placeholder:text-sub/60"
+                              className="w-16 shrink-0 rounded-sm bg-surface px-2 py-1.5 text-center text-bodysm font-medium outline-none placeholder:text-sub/60"
                               aria-label={`Age (optional) — used only to check task suitability`}
                             />
-                          )}
-                          {p.kind === "pet" ? (
-                            <Pill tone="tag">Pet</Pill>
-                          ) : (
-                            <RolePicker value={p.role} onPick={(role) => s.updatePerson(p.id, { role })} />
                           )}
                           {d.people.length > 1 && (
                             <button
                               onClick={() => s.removePerson(p.id)}
                               aria-label={`Remove ${p.name || "person"}`}
-                              className="grid h-7 w-7 place-items-center rounded-pill text-sub hover:bg-surface hover:text-ink"
+                              className="grid h-7 w-7 shrink-0 place-items-center rounded-pill text-sub hover:bg-surface hover:text-ink"
                             >
                               <Icon name="x" size={14} />
                             </button>
                           )}
                         </div>
+                        {/* Row 2 — WHAT THEY MAY DO, spelled out with its hint
+                            instead of squeezed into a pill. */}
+                        {p.kind === "pet" ? (
+                          <div className="mt-3 flex items-center justify-between border-t border-ink/[.06] pt-3">
+                            <span className="text-caption text-sub">Supervises, mostly</span>
+                            <Pill tone="tag">Pet</Pill>
+                          </div>
+                        ) : (
+                          <AccessRow value={p.role} onPick={(role) => s.updatePerson(p.id, { role })} />
+                        )}
                       </Card>
                     </motion.div>
                   ))}
@@ -368,11 +377,13 @@ export function Onboarding() {
                 <p className="mt-2 text-body text-white/55">
                   I&rsquo;ve set these up and shared them out. Nothing to configure — just live here.
                 </p>
-                {/* A white card of rows, like every list in the app — this was one
-                    unbroken lemon slab, a colour the system reserves for THE
-                    primary card, not for furniture. */}
-                <Card className="mt-5" pad="md">
-                  <Eyebrow>Starter routines</Eyebrow>
+                {/* The DARK card idiom (the You tab's standing card), not a
+                    white slab — the one light rectangle on an ink page pulled
+                    every eye to the furniture instead of the headline. This
+                    page is a quiet readout; the lemon highlight above is the
+                    celebration. */}
+                <div className="mt-5 rounded-card border border-white/10 bg-white/[.06] p-card-pad">
+                  <Eyebrow tone="onDark">Starter routines</Eyebrow>
                   <div className="mt-2 flex flex-col">
                     {d.domains.map((dom, i) => (
                       <motion.div
@@ -380,17 +391,17 @@ export function Onboarding() {
                         initial={{ opacity: 0, x: -12 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ ...spring, delay: 0.15 + i * 0.06 }}
-                        className="flex min-h-touch items-center gap-3 border-t border-ink/[.06] py-1.5 first:border-t-0"
+                        className="flex min-h-touch items-center gap-3 border-t border-white/[.06] py-1.5 first:border-t-0"
                       >
-                        <IconTile size="sm" name={DOMAINS.find((x) => x.id === dom)?.icon ?? "tasks"} />
-                        <span className="text-bodysm font-medium">{dom}</span>
-                        <span className="ml-auto text-caption text-sub">
+                        <IconTile size="sm" tone="onDark" name={DOMAINS.find((x) => x.id === dom)?.icon ?? "tasks"} />
+                        <span className="text-bodysm font-medium text-white/85">{dom}</span>
+                        <span className="ml-auto text-caption text-white/45">
                           {people > 1 ? `split between ${people}` : "all yours"}
                         </span>
                       </motion.div>
                     ))}
                   </div>
-                </Card>
+                </div>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <DarkPill><Icon name="repeat" size={12} /> Recurring work set up</DarkPill>
                   <DarkPill><Icon name="scale" size={12} /> Balanced automatically</DarkPill>
@@ -402,19 +413,14 @@ export function Onboarding() {
         </AnimatePresence>
       </div>
 
-      {/* footer CTA */}
-      <div className="flex items-center gap-3 border-t border-white/[.06] bg-ink px-7 py-4">
-        {step === 0 && (
-          <button onClick={s.skipOnboarding} className="text-bodysm font-medium text-white/55 transition-colors hover:text-white">
-            Skip — use the demo home
-          </button>
-        )}
+      {/* footer CTA — one full-width action, nothing else competing for the row */}
+      <div className="border-t border-white/[.06] bg-ink px-7 py-4">
         <Button
           tone="lemon"
           size="lg"
           disabled={!canContinue}
           onClick={next}
-          className="ml-auto"
+          className="w-full"
         >
           {step === 0 ? "Let's go" : step === STEPS.length - 1 ? "Step inside" : "Continue"}
         </Button>
@@ -474,52 +480,61 @@ function AxisRow({
  * "+ Child", and access fell out of that. Here you add a person and then say
  * what they can do, so the 15-year-old who runs the budget and the grandparent
  * who wants a simpler screen are both one tap away instead of impossible.
+ *
+ * It's a ROW, not a pill: squeezed beside the name, the label truncated
+ * ("Shares the ru…") and the selection was invisible. Here the current choice
+ * reads in full with its hint, and the picker expands IN PLACE — the same
+ * selection language as Manage household's role picker (white cards on a
+ * recessed panel, the chosen one wearing an ink ring), instead of a dropdown
+ * floating over the card.
  */
-function RolePicker({ value, onPick }: { value: Role; onPick: (r: Role) => void }) {
+function AccessRow({ value, onPick }: { value: Role; onPick: (r: Role) => void }) {
   const [open, setOpen] = useState(false);
   return (
-    <span className="relative shrink-0">
+    <div className="mt-3 border-t border-ink/[.06] pt-1">
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-label={`Access: ${ROLE_LABEL[value]}`}
-        className={clsx("flex shrink-0 items-center gap-1 rounded-pill", FOCUS)}
+        className={clsx("flex w-full items-center gap-3 rounded-sm py-2 text-left", FOCUS)}
       >
-        <Pill tone={value === "owner" ? "lavender" : "tag"}>
-          {/* Fixed width, not a min-width on the row: the pill's own label is
-              what varies ("A simpler view" vs "Shares the running"), so it's
-              the one that should truncate — capping it here keeps every row's
-              pill the SAME width without taking space from the name input,
-              which needs room a lot more than "Shares the ru…" needs to
-              spell itself out in full (the dropdown says the rest). */}
-          <span className="w-[102px] truncate">{ROLE_LABEL[value]}</span>
-          <Icon name="chevDown" size={12} />
-        </Pill>
+        <div className="min-w-0 flex-1">
+          <span className="text-bodysm font-medium">{ROLE_LABEL[value]}</span>
+          <div className="truncate text-caption text-sub">{ROLE_HINT[value]}</div>
+        </div>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex shrink-0 text-sub">
+          <Icon name="chevDown" size={14} />
+        </motion.span>
       </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-1 w-max overflow-hidden rounded-md
-                          border border-black/[.06] bg-card p-1 shadow-e3">
-            {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => { onPick(r); setOpen(false); }}
-                className={clsx(
-                  "flex w-full max-w-[280px] flex-col items-start gap-0.5 rounded-sm px-3 py-2 text-left transition-colors",
-                  FOCUS,
-                  r === value ? "bg-ink text-white" : "hover:bg-surface",
-                )}
-              >
-                <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
-                <span className={clsx("text-caption", r === value ? "text-white/60" : "text-sub")}>
-                  {ROLE_HINT[r]}
-                </span>
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </span>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={smooth}
+            className="overflow-hidden"
+          >
+            <div className="mb-1 flex flex-col gap-1.5 rounded-md bg-surface p-1">
+              {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => { onPick(r); setOpen(false); }}
+                  aria-pressed={r === value}
+                  className={clsx(
+                    "flex flex-col items-start gap-0.5 rounded-sm bg-card px-3 py-2.5 text-left transition-shadow duration-300",
+                    FOCUS,
+                    r === value ? "shadow-e2 ring-2 ring-inset ring-ink" : "shadow-e1 hover:shadow-e2",
+                  )}
+                >
+                  <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
+                  <span className="text-caption text-sub">{ROLE_HINT[r]}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

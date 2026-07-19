@@ -108,6 +108,14 @@ type Jump = { label: string; run: () => void };
 function DemoPanel() {
   const [open, setOpen] = useState(true);
   const st = () => useHousehold.getState();
+  // Every jump must land IN THE APP. If a setup run is in progress the app
+  // renders Onboarding regardless of routes — so navigating without clearing
+  // it changes screens underneath a flow that never shows them, and every
+  // link in this panel reads as dead. Restore the demo home first.
+  const home = () => {
+    if (!st().setupComplete) st().skipOnboarding();
+    return st();
+  };
   const memberOr = (fallback = "maya") => {
     const p = st().persona;
     return p === "ipad" ? fallback : p;
@@ -115,7 +123,7 @@ function DemoPanel() {
 
   // Land on a phone screen (as a member — falls back to the owner from the iPad).
   const phone = (route: "today" | "ahead" | "you", sheet?: string): Jump["run"] => () => {
-    const s = st();
+    const s = home();
     s.setPersona(memberOr());
     s.goPhone(route);
     if (sheet) s.openSheet({ type: sheet } as never);
@@ -123,13 +131,13 @@ function DemoPanel() {
   };
   // Owner-only journeys always view as Maya so every control is live.
   const owner = (sheet: string): Jump["run"] => () => {
-    const s = st();
+    const s = home();
     s.setPersona("maya");
     s.goPhone("you");
     s.openSheet({ type: sheet } as never);
   };
   const ipad = (route: string): Jump["run"] => () => {
-    const s = st();
+    const s = home();
     s.setPersona("ipad");
     s.goIpad(route as never);
     s.closeSheet();
@@ -173,8 +181,8 @@ function DemoPanel() {
       { label: "New automation", run: owner("addAutomation") },
     ] },
     { title: "Live trip", items: [
-      { label: "On my way · Sam", run: () => { const s = st(); s.setPersona("sam"); s.goPhone("today"); s.closeSheet(); s.onWay(4); } },
-      { label: "Waiting · Leo", run: () => { const s = st(); s.setPersona("leo"); s.goPhone("today"); s.closeSheet(); } },
+      { label: "On my way · Sam", run: () => { const s = home(); s.setPersona("sam"); s.goPhone("today"); s.closeSheet(); s.onWay(4); } },
+      { label: "Waiting · Leo", run: () => { const s = home(); s.setPersona("leo"); s.goPhone("today"); s.closeSheet(); } },
     ] },
     { title: "iPad", items: [
       { label: "Home", run: ipad("home") },
