@@ -1099,7 +1099,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   /* ---------------- onboarding ---------------- */
 
   startOnboarding: () =>
-    set({ setupComplete: false, onboarding: emptyDraft(), persona: "ipad", sheet: null }),
+    // Keep the current surface: start it from a phone and you set up on a phone
+    // (a household with no iPad), from the iPad and you set up there.
+    set({ setupComplete: false, onboarding: emptyDraft(), sheet: null }),
 
   setStep: (step) =>
     set((s) => ({ onboarding: { ...s.onboarding, step }, navTick: s.navTick + 1 })),

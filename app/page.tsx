@@ -35,8 +35,9 @@ export default function Page() {
   const onboarding = !s.setupComplete;
   const people = doers(s);
 
-  // Onboarding is an owner flow — always shown on the tablet.
-  const kind = isPhone && !onboarding ? "phone" : "tablet";
+  // Setup follows whatever surface you're on: a household with no iPad onboards
+  // on a phone. (Switch to a member before "+ New home" to see phone setup.)
+  const kind = isPhone ? "phone" : "tablet";
 
   // Stable identity, deliberately. Toast's timer effect re-runs when onDone
   // changes — an inline arrow here is a new function every render, so every

@@ -4,6 +4,7 @@ import clsx from "clsx";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
+import { SAFE_TOP } from "@/components/DeviceFrame";
 import { Button, Card, Pill } from "@/components/ui";
 import { spring } from "@/lib/motion";
 import { PALETTE, PRESETS, useHousehold } from "@/lib/store";
@@ -29,6 +30,9 @@ export function Onboarding() {
   const s = useHousehold();
   const d = s.onboarding;
   const step = d.step;
+  // The device frame is scaled, so CSS breakpoints can't see its width — read
+  // the surface from the persona and adapt the few tablet-only layouts by hand.
+  const phone = s.persona !== "ipad";
 
   const named = d.people.filter((p) => p.name.trim());
   const canContinue =
@@ -42,7 +46,7 @@ export function Onboarding() {
   return (
     <div className="absolute inset-0 flex flex-col bg-ink text-white">
       {/* progress */}
-      <div className="flex items-center gap-3 px-7 pt-6">
+      <div className="flex items-center gap-3 px-7" style={{ paddingTop: phone ? SAFE_TOP + 12 : 24 }}>
         {step > 0 && (
           <button
             onClick={() => s.setStep(step - 1)}
@@ -106,7 +110,7 @@ export function Onboarding() {
                   className="mt-5 w-full rounded-2xl border border-black/[.08] bg-card px-4 py-4 text-xl font-medium outline-none focus:border-ink"
                 />
                 <h2 className="mt-8 text-lg font-medium">Who shares it?</h2>
-                <div className="mt-3 grid grid-cols-4 gap-3">
+                <div className={clsx("mt-3 grid gap-3", phone ? "grid-cols-2" : "grid-cols-4")}>
                   {(Object.keys(PRESETS) as HouseholdPreset[]).map((id) => (
                     <button key={id} onClick={() => s.setPreset(id)} className="text-left">
                       <Card tone={d.preset === id ? "lemon" : "white"} pad="md">
