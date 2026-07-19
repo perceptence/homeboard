@@ -16,7 +16,7 @@ import {
 import { addDays, iso, isToday, relative, relativeInline, todayIso } from "./dates";
 
 export interface Sheet {
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson";
+  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "addBill";
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;
@@ -291,7 +291,11 @@ interface HouseholdState {
   markRead: () => void;
 
   toggleTask: (id: number) => void;
-  addTask: (t: { title: string; owner: MemberId | null; when: string; due: string; priority: Priority; requires?: Role; minAge?: number; source?: string; said?: string }) => void;
+  addTask: (t: { title: string; owner: MemberId | null; when: string; due: string; priority: Priority; requires?: Role; minAge?: number; source?: string; said?: string; recurring?: string }) => void;
+
+  /* --- creating the things the phone could only view (owner/permitted) --- */
+  addAutomation: (a: { title: string; description: string }) => void;
+  addBill: (b: { title: string; amount: number; due: string }) => void;
   setOwner: (id: number, owner: MemberId | null) => void;
   /** A hand-off from the hand-off sheet: reassigns, LOGS it (the house should
    *  know work moved), keeps the sheet open — people hand off several in a row. */
@@ -709,11 +713,13 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
    * Anything unrecognised landed four days out, so a task typed "Tonight" showed
    * "Tonight" beside a badge for next Tuesday. A card must never argue with itself.
    */
-  addTask: ({ title, owner, when, due, priority, requires, minAge, source, said }) =>
+  addTask: ({ title, owner, when, due, priority, requires, minAge, source, said, recurring }) =>
     set((s) => {
       const task: Task = {
-        id: ++nextId, title, owner, when, due,
-        done: false, priority, requires, minAge, source, said,
+        id: ++nextId, title, owner, when, due, recurring,
+        // A repeating task IS a routine — label its provenance so, unless it
+        // already carries one.
+        done: false, priority, requires, minAge, source: source ?? (recurring ? "Routine" : undefined), said,
         // Nobody picked a person: leave it unowned and let the Balancer nominate,
         // rather than silently parking it on whoever opened the sheet. The gates
         // ride along so the nomination is filtered the same way the sheet's was.
@@ -727,6 +733,18 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         ...logged(s, `Added “${title}”${forWho}`, owner ?? undefined),
       };
     }),
+
+  addAutomation: ({ title, description }) =>
+    set((s) => ({
+      automations: [...s.automations, { id: `a${Date.now()}`, title: title.trim() || "New rule", description: description.trim(), on: true }],
+      toast: "Automation added",
+    })),
+
+  addBill: ({ title, amount, due }) =>
+    set((s) => ({
+      bills: [...s.bills, { id: `b${Date.now()}`, title: title.trim() || "New bill", amount, due, status: "upcoming" }],
+      toast: "Bill added",
+    })),
 
   setOwner: (id, owner) =>
     set((s) => ({

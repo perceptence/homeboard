@@ -32,11 +32,12 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
   // Settings ⇄ Manage household is a PUSH within the same sheet: manage is one
   // level deeper, so it slides in from the right and back slides in from the
   // left. Tracked so "back" actually reads as back.
-  const depth = (t?: string) => (t === "addPerson" ? 2 : t === "manage" ? 1 : 0);
+  const subForm = type === "addPerson" || type === "addAutomation" || type === "addBill";
+  const depth = (t?: string) => (t === "addPerson" || t === "addAutomation" || t === "addBill" ? 2 : t === "manage" ? 1 : 0);
   const prevDepth = useRef(0);
   const dir = depth(type) >= prevDepth.current ? 1 : -1;
   useEffect(() => { prevDepth.current = depth(type); }, [type]);
-  const nav = type === "settings" || type === "manage" || type === "addPerson";
+  const nav = type === "settings" || type === "manage" || subForm;
 
   return (
     <>
@@ -62,6 +63,8 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
             {type === "settings" && <SettingsSheet />}
             {type === "manage" && <ManageHouseholdSheet />}
             {type === "addPerson" && <AddPersonSheet />}
+            {type === "addAutomation" && <NewAutomationSheet />}
+            {type === "addBill" && <NewBillSheet />}
           </motion.div>
         )}
       </Sheet>
@@ -804,6 +807,12 @@ function ManageHouseholdSheet() {
           </div>
         ))}
       </div>
+      <button
+        onClick={() => s.openSheet({ type: "addAutomation" })}
+        className={clsx("mt-3.5 flex items-center gap-1.5 rounded-sm px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+      >
+        <Icon name="plus" size={16} /> New automation
+      </button>
 
       {/* BILLS — pay what's due; the rest show their state. */}
       <Eyebrow className="mt-6">Bills</Eyebrow>
@@ -824,6 +833,12 @@ function ManageHouseholdSheet() {
           </div>
         ))}
       </div>
+      <button
+        onClick={() => s.openSheet({ type: "addBill" })}
+        className={clsx("mt-3.5 flex items-center gap-1.5 rounded-sm px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+      >
+        <Icon name="plus" size={16} /> Add bill
+      </button>
     </>
   );
 }
@@ -917,6 +932,96 @@ function AddPersonSheet() {
 
       <Button tone="dark" size="lg" className="mt-6 w-full" onClick={submit} disabled={!canSend}>
         {kind === "pet" ? "Add pet" : email.trim() ? "Send invite" : "Add person"}
+      </Button>
+    </>
+  );
+}
+
+/** The shared header for the Manage-household sub-forms: a back door and a title. */
+function FormHead({ icon, title }: { icon: IconName; title: string }) {
+  const s = useHousehold();
+  return (
+    <>
+      <button
+        onClick={() => s.openSheet({ type: "manage" })}
+        className={clsx("-ml-1 mb-3 flex items-center gap-0.5 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+      >
+        <Icon name="back" size={18} /> Household
+      </button>
+      <span className="flex items-center gap-3">
+        <IconTile name={icon} tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">{title}</h2>
+      </span>
+    </>
+  );
+}
+
+const FIELD_INPUT = "w-full bg-transparent text-bodysm font-medium outline-none placeholder:text-sub/70";
+
+/** NEW AUTOMATION — a described rule the house runs on its own. */
+function NewAutomationSheet() {
+  const s = useHousehold();
+  const [title, setTitle] = useState("");
+  const [desc, setDesc] = useState("");
+  const canSave = title.trim().length > 0;
+  return (
+    <>
+      <FormHead icon="bolt" title="New automation" />
+      <Eyebrow className="mt-5">Name</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Water-the-plants nudge" aria-label="Name" className={FIELD_INPUT} />
+      </div>
+      <Eyebrow className="mt-6">What it does</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+        <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Describe the rule in a line" aria-label="Description" className={FIELD_INPUT} />
+      </div>
+      <p className="mt-1.5 px-1 text-caption text-sub">It starts switched on. Yours records the intent — the built-in rules are the ones the app actually runs.</p>
+      <Button
+        tone="dark" size="lg" className="mt-6 w-full" disabled={!canSave}
+        onClick={() => { s.addAutomation({ title, description: desc }); s.openSheet({ type: "manage" }); }}
+      >
+        Add automation
+      </Button>
+    </>
+  );
+}
+
+/** NEW BILL — a shared cost, with an amount and a due date. */
+function NewBillSheet() {
+  const s = useHousehold();
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
+  const [dueIso, setDueIso] = useState("");
+  const [dateOpen, setDateOpen] = useState(false);
+  const amt = Math.max(0, Math.round(Number(amount) || 0));
+  const dueLabel = dueIso ? new Date(`${dueIso}T00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+  const canSave = title.trim().length > 0 && amt > 0 && !!dueIso;
+  return (
+    <>
+      <FormHead icon="bill" title="New bill" />
+      <Eyebrow className="mt-5">Name</Eyebrow>
+      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Electric" aria-label="Name" className={FIELD_INPUT} />
+      </div>
+      <Eyebrow className="mt-6">Amount</Eyebrow>
+      <div className="mt-2 flex items-center gap-1 rounded-card bg-card p-4 shadow-e1">
+        <span className="text-bodysm font-medium text-sub">$</span>
+        <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d]/g, ""))} inputMode="numeric" placeholder="0" aria-label="Amount" className={FIELD_INPUT} />
+      </div>
+      <Eyebrow className="mt-6">Due</Eyebrow>
+      <div className="mt-2">
+        <PickerChip kind="date" open={dateOpen} onToggle={() => setDateOpen((v) => !v)} active={!!dueIso}>
+          {dueLabel || "Pick a date"}
+        </PickerChip>
+        <PickerPanel open={dateOpen}>
+          <MiniCalendar value={dueIso || todayIso()} onPick={(v) => { setDueIso(v); setDateOpen(false); }} />
+        </PickerPanel>
+      </div>
+      <Button
+        tone="dark" size="lg" className="mt-6 w-full" disabled={!canSave}
+        onClick={() => { s.addBill({ title, amount: amt, due: dueLabel }); s.openSheet({ type: "manage" }); }}
+      >
+        Add bill
       </Button>
     </>
   );
@@ -1364,6 +1469,7 @@ function NewTaskSheet({
   const [pickedDue, setPickedDue] = useState<string | null>(null);
   const [pickedWhen, setPickedWhen] = useState<string | null>(null);
   const [pickedPri, setPickedPri] = useState<Priority | null>(null);
+  const [recurring, setRecurring] = useState<string | null>(null);
   const [dateOpen, setDateOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
 
@@ -1377,6 +1483,7 @@ function NewTaskSheet({
     setPickedDue(null);
     setPickedWhen(null);
     setPickedPri(null);
+    setRecurring(null);
     setDateOpen(false);
     setTimeOpen(false);
   }, [open]);
@@ -1483,7 +1590,7 @@ function NewTaskSheet({
   // `requires` rides along: the gate the suggestion respected must also land on
   // the task, or a nomination refused here could be hand-assigned there.
   const commit = () =>
-    ready && s.addTask({ title, owner: assignee, when, due, priority, requires, minAge, source, said });
+    ready && s.addTask({ title, owner: assignee, when, due, priority, requires, minAge, source, said, recurring: recurring ?? undefined });
 
   return (
     <Sheet
@@ -1712,6 +1819,18 @@ function NewTaskSheet({
                   <Choice key={p} className="!gap-1" selected={priority === p} onClick={() => setPickedPri(p)}>
                     {PRIORITY_LABEL[p]}
                     {p === "high" && <Icon name="high" size={12} className={priority === p ? "" : "text-danger"} />}
+                  </Choice>
+                ))}
+              </div>
+            </div>
+
+            {/* REPEAT — a repeating task is a routine; the house keeps the clock. */}
+            <div className="mt-4">
+              <span className="text-caption font-medium uppercase tracking-wide text-sub">Repeat</span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {([["Never", null], ["Daily", "Daily"], ["Weekly", "Weekly"], ["Monthly", "Monthly"]] as const).map(([label, val]) => (
+                  <Choice key={label} selected={recurring === val} onClick={() => setRecurring(val)}>
+                    {label}
                   </Choice>
                 ))}
               </div>
