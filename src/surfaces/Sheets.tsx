@@ -11,7 +11,7 @@ import { taskGlyph } from "@/lib/glyphs";
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
-import type { Member, MemberId, Priority, ShopCategory, ShopItem, Task } from "@/lib/types";
+import type { Member, MemberId, Priority, Role, ShopCategory, ShopItem, Task } from "@/lib/types";
 import { ROLE_CAN, ROLE_HINT, ROLE_LABEL, ROLE_NEEDS } from "@/lib/types";
 
 /** Where a typed shopping item files itself — read from the words, shown live
@@ -471,6 +471,106 @@ function fileToAvatarDataUrl(file: File, size = 240): Promise<string> {
   });
 }
 
+/** The pill switch, same shape as the iPad's automations toggle. */
+function Switch({ on, onToggle, label }: { on: boolean; onToggle: () => void; label: string }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={onToggle}
+      className={clsx("relative h-7 w-12 shrink-0 rounded-pill transition-colors", on ? "bg-ink" : "bg-black/15")}
+    >
+      <motion.span
+        layout
+        transition={{ type: "spring", stiffness: 500, damping: 34 }}
+        className={clsx("absolute top-[4px] block h-[22px] w-[22px] rounded-pill shadow-sm", on ? "left-[24px] bg-lemon" : "left-[4px] bg-white")}
+      />
+    </button>
+  );
+}
+
+/** One person in the owner's People list: rename inline, change their role
+ *  (the access model's one real control), and remove them. */
+function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: boolean }) {
+  const s = useHousehold();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(m.name);
+  useEffect(() => setName(m.name), [m.name]);
+  const isPet = m.kind === "pet";
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-3">
+        <Avatar member={m} size={36} />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => s.renameMember(m.id, name)}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          aria-label={`${m.name}'s name`}
+          className="min-w-0 flex-1 bg-transparent text-bodysm font-medium outline-none"
+        />
+        {canRemove && (
+          <button
+            onClick={() => s.removeMember(m.id)}
+            aria-label={`Remove ${m.name}`}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-pill text-sub transition-colors hover:bg-danger/10 hover:text-danger"
+          >
+            <Icon name="trash" size={15} />
+          </button>
+        )}
+      </div>
+
+      {/* Access — the one decision the owner makes about a person. Pets hold no
+          work, so they hold no role. */}
+      {!isPet && (
+        <>
+          <button
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="mt-1 flex items-center gap-1 pl-[48px] text-caption font-medium text-sub transition-colors hover:text-ink"
+          >
+            {ROLE_LABEL[m.role]}
+            <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
+              <Icon name="chevDown" size={12} />
+            </motion.span>
+          </button>
+          <AnimatePresence initial={false}>
+            {open && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={smooth}
+                className="overflow-hidden pl-[48px]"
+              >
+                <div className="mt-1.5 flex flex-col gap-1">
+                  {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+                    <button
+                      key={r}
+                      // The last owner can't be demoted out of the house.
+                      disabled={m.role === "owner" && r !== "owner" && !Object.values(s.members).some((x) => x.id !== m.id && x.role === "owner")}
+                      onClick={() => { s.setRole(m.id, r); setOpen(false); }}
+                      className={clsx(
+                        "flex flex-col items-start gap-0.5 rounded-md px-2.5 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                        r === m.role ? "bg-ink text-white" : "hover:bg-surface",
+                      )}
+                    >
+                      <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
+                      <span className={clsx("text-caption", r === m.role ? "text-white/60" : "text-sub")}>{ROLE_HINT[r]}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SettingsSheet() {
   const s = useHousehold();
   const meId = s.persona !== "ipad" ? s.persona : doers(s)[0]?.id;
@@ -478,6 +578,8 @@ function SettingsSheet() {
   if (!me) return null;
   const owner = Object.values(s.members).find((m) => m.role === "owner");
   const people = doers(s);
+  const isOwner = me.role === "owner";
+  const everyone = Object.values(s.members);
 
   return (
     <>
@@ -564,15 +666,85 @@ function SettingsSheet() {
         </div>
       </div>
 
-      {/* THE HOUSEHOLD — displayed, not managed here (it's a shared thing). */}
-      <Eyebrow className="mt-6">Household</Eyebrow>
-      <div className="mt-2 flex items-center gap-3 rounded-card bg-card p-4 shadow-e1">
-        <AvatarStack members={people} size={30} ringClass="ring-card" />
-        <div className="min-w-0">
-          <div className="truncate text-bodysm font-medium">{s.householdName}</div>
-          <div className="text-caption text-sub">{people.length} people</div>
-        </div>
-      </div>
+      {isOwner ? (
+        <>
+          {/* PEOPLE — add, rename, set roles, remove. The owner's "manage who's
+              in the home and what each can do", made real on the phone. */}
+          <Eyebrow className="mt-6">People</Eyebrow>
+          <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+            {everyone.map((m) => (
+              <MemberManageRow key={m.id} member={m} canRemove={m.role !== "owner"} />
+            ))}
+          </div>
+          <button
+            onClick={() => s.addMember()}
+            className="mt-2 flex items-center gap-1.5 px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink"
+          >
+            <Icon name="plus" size={16} /> Add person
+          </button>
+
+          {/* AUTOMATIONS — the rules the house runs on its own. */}
+          <Eyebrow className="mt-6">Automations</Eyebrow>
+          <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+            {s.automations.map((a) => (
+              <div key={a.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-bodysm font-medium">{a.title}</div>
+                  <div className="text-caption text-sub">{a.description}</div>
+                </div>
+                <Switch on={a.on} onToggle={() => s.toggleAutomation(a.id)} label={a.title} />
+              </div>
+            ))}
+          </div>
+
+          {/* HOUSEHOLD — the shared name, editable here. */}
+          <Eyebrow className="mt-6">Household</Eyebrow>
+          <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
+            <label className="flex items-center gap-3">
+              <span className="w-16 shrink-0 text-bodysm font-medium">Name</span>
+              <input
+                defaultValue={s.householdName}
+                onBlur={(e) => s.setHouseholdName(e.target.value.trim() || s.householdName)}
+                onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                aria-label="Household name"
+                className="min-w-0 flex-1 bg-transparent text-right text-bodysm outline-none"
+              />
+            </label>
+          </div>
+
+          {/* BILLS — pay what's due; the rest show their state. */}
+          <Eyebrow className="mt-6">Bills</Eyebrow>
+          <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+            {s.bills.map((b) => (
+              <div key={b.id} className="flex items-center gap-3 px-4 py-3">
+                <IconTile name="bill" size="sm" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-bodysm font-medium">{b.title}</div>
+                  <div className="text-caption text-sub">Due {b.due}</div>
+                </div>
+                <span className="shrink-0 text-bodysm font-medium tabular-nums">${b.amount}</span>
+                {b.status === "due" || b.status === "upcoming" ? (
+                  <Button tone="dark" onClick={() => s.payBill(b.id)}>Pay</Button>
+                ) : (
+                  <Pill tone="tag">{b.status === "paid" ? "Paid" : "Scheduled"}</Pill>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* THE HOUSEHOLD — displayed, not managed (a non-owner can't change it). */}
+          <Eyebrow className="mt-6">Household</Eyebrow>
+          <div className="mt-2 flex items-center gap-3 rounded-card bg-card p-4 shadow-e1">
+            <AvatarStack members={people} size={30} ringClass="ring-card" />
+            <div className="min-w-0">
+              <div className="truncate text-bodysm font-medium">{s.householdName}</div>
+              <div className="text-caption text-sub">{people.length} people</div>
+            </div>
+          </div>
+        </>
+      )}
 
       <button
         onClick={() => s.notify("Signed out — this is a demo")}

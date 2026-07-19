@@ -313,6 +313,15 @@ interface HouseholdState {
    *  code path that infers one. Owner-only in the UI; the model just does as told. */
   setRole: (id: MemberId, role: Role) => void;
 
+  /* --- household roster, managed post-setup (owner-only in the UI) --- */
+  /** Rename any member. (setProfile only edits your OWN; this is the owner's.) */
+  renameMember: (id: MemberId, name: string) => void;
+  /** Add a new person to the household — starts guided, named, and editable. */
+  addMember: () => void;
+  /** Remove a member: their open work goes back on the pile and every reference
+   *  to them is scrubbed. The last owner can't be removed. */
+  removeMember: (id: MemberId) => void;
+
   /** Where you are. ANY role may set their OWN — declaring your absence is a fact
    *  about your life, not a permission an owner grants. */
   setPresence: (id: MemberId, presence: Presence, span?: { from?: string; to?: string }) => void;
@@ -929,6 +938,54 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
           ? `${m.name} now ${ROLE_SET[role]} — ${stranded} ${stranded === 1 ? "task needs" : "tasks need"} a new owner`
           : `${m.name} now ${ROLE_SET[role]}`,
         toastWho: id,
+      };
+    }),
+
+  renameMember: (id, name) =>
+    set((s) => {
+      const m = s.members[id];
+      const n = name.trim();
+      if (!m || !n || m.name === n) return {};
+      return { members: { ...s.members, [id]: { ...m, name: n } } };
+    }),
+
+  addMember: () =>
+    set((s) => {
+      // A palette past the five seeded member colours, so a sixth face isn't a
+      // clash. New people start `guided` — the safest floor; the owner lifts them.
+      const palette = ["#D9488B", "#5B8C3E", "#B26BD6", "#3EB0C8", "#E8994B", "#6C7BE0"];
+      const id = `m${Date.now()}`;
+      const member: Member = {
+        id, name: "New member", kind: "person", role: "guided",
+        color: palette[Object.keys(s.members).length % palette.length],
+        stars: 0,
+      };
+      return { members: { ...s.members, [id]: member }, toast: "Added a new member" };
+    }),
+
+  removeMember: (id) =>
+    set((s) => {
+      const m = s.members[id];
+      if (!m) return {};
+      // The house always needs an owner; demote them first.
+      if (m.role === "owner") return { toast: "Make someone else the owner first" };
+      const members = { ...s.members };
+      delete members[id];
+      // Their open work goes back on the pile; every reference is scrubbed so
+      // nothing points at a person who's gone.
+      const tasks = s.tasks.map((t) => ({
+        ...t,
+        owner: t.owner === id ? null : t.owner,
+        coveredBy: t.coveredBy === id ? undefined : t.coveredBy,
+        suggest: t.suggest === id ? undefined : t.suggest,
+      }));
+      return {
+        members,
+        tasks,
+        events: s.events.filter((e) => e.who !== id),
+        shopping: s.shopping.map((it) => (it.by === id ? { ...it, by: undefined } : it)),
+        reminders: s.reminders.filter((r) => r.who !== id),
+        toast: `${m.name} removed`,
       };
     }),
 
