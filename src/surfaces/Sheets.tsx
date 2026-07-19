@@ -32,16 +32,20 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
   // Settings ⇄ Manage household is a PUSH within the same sheet: manage is one
   // level deeper, so it slides in from the right and back slides in from the
   // left. Tracked so "back" actually reads as back.
-  const subForm = type === "addPerson" || type === "addAutomation";
-  const depth = (t?: string) => (t === "addPerson" || t === "addAutomation" ? 2 : t === "manage" ? 1 : 0);
+  const subForm = type === "addPerson";
+  const depth = (t?: string) => (t === "addPerson" ? 2 : t === "manage" ? 1 : 0);
   const prevDepth = useRef(0);
   const dir = depth(type) >= prevDepth.current ? 1 : -1;
   useEffect(() => { prevDepth.current = depth(type); }, [type]);
   const nav = type === "settings" || type === "manage" || subForm;
 
+  // newTask AND addAutomation render their OWN <Sheet> (pinned title + footer)
+  // — the shared router sheet must stand down for both, or two sheets stack.
+  const ownSheet = type === "newTask" || type === "addAutomation";
+
   return (
     <>
-      <Sheet open={!!sheet && sheet.type !== "newTask"} onClose={close} variant={variant} scrollKey={type}>
+      <Sheet open={!!sheet && !ownSheet} onClose={close} variant={variant} scrollKey={type}>
         {sheet?.type === "task" && <TaskSheet id={sheet.id as number} />}
         {/* Events and upkeep wear the same card as a task, so they must open like
             one. Until now only tasks had a sheet, and the other two silently
@@ -64,15 +68,16 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
             {type === "settings" && <SettingsSheet />}
             {type === "manage" && <ManageHouseholdSheet />}
             {type === "addPerson" && <AddPersonSheet />}
-            {type === "addAutomation" && <AutomationSheet id={sheet?.id as string | undefined} seed={sheet?.autoText} />}
           </motion.div>
         )}
       </Sheet>
 
-      {/* New Task renders its OWN Sheet: its pinned title and footer are part of
-          its chrome, and the footer's label reads state that lives inside it.
+      {/* New Task and New Automation each render their OWN Sheet — same chrome
+          (pinned title + pinned footer), so a rule launched from the New-task
+          nudge lands in a sheet that looks and behaves like the one it left.
           Kept mounted while closed so the dismiss still animates. */}
       <NewTaskSheet open={sheet?.type === "newTask"} variant={variant} onClose={close} />
+      <AutomationSheet open={sheet?.type === "addAutomation"} variant={variant} onClose={close} />
     </>
   );
 }
@@ -945,27 +950,6 @@ function AddPersonSheet() {
   );
 }
 
-/** The shared header for the Manage-household sub-forms: a back door and a title. */
-function FormHead({ icon, title, back, backLabel = "Household" }: {
-  icon: IconName; title: string; back?: () => void; backLabel?: string;
-}) {
-  const s = useHousehold();
-  return (
-    <>
-      <button
-        onClick={back ?? (() => s.openSheet({ type: "manage" }))}
-        className={clsx("-ml-1 mb-3 flex items-center gap-0.5 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
-      >
-        <Icon name="back" size={18} /> {backLabel}
-      </button>
-      <span className="flex items-center gap-3">
-        <IconTile name={icon} tone="lemon" />
-        <h2 className="min-w-0 font-tight text-h1">{title}</h2>
-      </span>
-    </>
-  );
-}
-
 const FIELD_INPUT = "w-full bg-transparent text-bodysm font-medium outline-none placeholder:text-sub/70";
 
 /* ─────────────── the automation builder ─────────────── */
@@ -991,23 +975,48 @@ const AUTO_THEN: { kind: AutoThen["kind"]; label: string }[] = [
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 /**
- * THE AUTOMATION SHEET — the New-task experience, for rules. Say it or type
- * it; the parse fills a ONE-CARD readback (title, spark line, why); "Adjust"
- * folds open the same Choice pills New task uses, with each pick's own
- * controls appearing right under its pill row. Editing an existing rule opens
- * onto the readback with its parts already lit.
+ * THE AUTOMATION SHEET — deliberately the SAME sheet as New task, down to the
+ * chrome: its OWN <Sheet> with a pinned title and a pinned lemon footer, a
+ * mic+field composer, a ONE-CARD readback, and the "Adjust" fold of Choice
+ * pills. A rule launched from the New-task nudge lands somewhere that looks and
+ * behaves exactly like the sheet it came from.
+ *
+ * Kept mounted (open drives it) so the dismiss animates; state snapshots on
+ * open from the live sheet payload — `id` (edit) and `autoText` (the nudge's
+ * seed sentence).
  */
-function AutomationSheet({ id, seed }: { id?: string; seed?: string }) {
+function AutomationSheet({ open, variant, onClose }: {
+  open: boolean; variant: "phone" | "ipad"; onClose: () => void;
+}) {
   const s = useHousehold();
-  const existing = id ? s.automations.find((a) => a.id === id) : undefined;
-
-  // `seed` is the sentence carried over from the New-task nudge — it fills the
-  // composer as if the person had typed it here.
-  const [raw, setRaw] = useState(seed ?? "");
+  const [id, setId] = useState<string | undefined>(undefined);
+  const [seed, setSeed] = useState<string | undefined>(undefined);
+  const [raw, setRaw] = useState("");
+  const [whenPick, setWhenPick] = useState<AutoWhen | null>(null);
+  const [thenPick, setThenPick] = useState<AutoThen | null>(null);
+  const [adjusting, setAdjusting] = useState(false);
+  const [timeOpen, setTimeOpen] = useState(false);
   const dictation = useDictation((text) => setRaw(text));
+
+  // Snapshot the payload the moment it opens — reading it live would blank the
+  // content mid-exit, when `sheet` has already moved on.
+  useEffect(() => {
+    if (!open) return;
+    const sh = useHousehold.getState().sheet;
+    const eid = sh?.type === "addAutomation" ? (sh.id as string | undefined) : undefined;
+    const esd = sh?.type === "addAutomation" ? sh.autoText : undefined;
+    const ex = eid ? useHousehold.getState().automations.find((a) => a.id === eid) : undefined;
+    setId(eid);
+    setSeed(esd);
+    setRaw(esd ?? "");
+    setWhenPick(ex?.when ?? null);
+    setThenPick(ex?.then ?? null);
+    setAdjusting(!!ex);
+    setTimeOpen(false);
+  }, [open]);
+
+  const existing = id ? s.automations.find((a) => a.id === id) : undefined;
   const parsed = parseAutomation(raw, doers(s));
-  const [whenPick, setWhenPick] = useState<AutoWhen | null>(existing?.when ?? null);
-  const [thenPick, setThenPick] = useState<AutoThen | null>(existing?.then ?? null);
   const when = whenPick ?? parsed.when ?? null;
   const then = thenPick ?? parsed.then ?? null;
   const setWhen = setWhenPick;
@@ -1026,20 +1035,20 @@ function AutomationSheet({ id, seed }: { id?: string; seed?: string }) {
       : { kind } as AutoThen,
     );
 
-  const [timeOpen, setTimeOpen] = useState(false);
-  const [adjusting, setAdjusting] = useState(!!existing);
   const ready = !!when && !!then
     && (then.kind !== "task" || then.title.trim().length > 0)
     && (then.kind !== "nudge" || !!s.members[then.who]);
-  // Seeded from the New-task nudge -> return to the app on save, not into
-  // Manage household (you were adding a task, not administering the house).
-  const done = () =>
-    (seed || s.persona === "ipad") ? s.closeSheet() : s.openSheet({ type: "manage" });
+
+  // WHERE "done" GOES. Reached from Manage household (owner, on a phone, no
+  // nudge seed) -> back into Manage. From the New-task nudge or the iPad ->
+  // just close, the way New task does. Dismiss (swipe/tap-away) obeys the same.
+  const backToManage = !seed && s.persona !== "ipad";
+  const dismiss = () => (backToManage ? s.openSheet({ type: "manage" }) : onClose());
   const commit = () => {
     if (!when || !then) return;
     if (existing) s.updateAutomation(existing.id, { when, then });
     else s.addAutomation({ when, then });
-    done();
+    dismiss();
   };
 
   /** The one thing still missing, said plainly — or nothing. */
@@ -1052,19 +1061,31 @@ function AutomationSheet({ id, seed }: { id?: string; seed?: string }) {
       ? `We assumed ${when.time} — adjust if that's off.`
     : null;
 
-  return (
-    <>
-      <FormHead
-        icon="bolt"
-        title={existing ? "Edit automation" : "New automation"}
-        back={seed ? () => s.closeSheet() : undefined}
-        backLabel={seed ? "Cancel" : "Household"}
-      />
+  const empty = !existing && !raw.trim() && !when && !then;
 
-      {/* ONE input, two doors — identical to New task's composer. */}
+  return (
+    <Sheet
+      open={open}
+      onClose={dismiss}
+      variant={variant}
+      title={existing ? "Edit automation" : "New automation"}
+      footer={
+        // Pinned lemon button — the New-task footer, verbatim. Not ready but not
+        // empty -> the button IS the door to the details.
+        <Button
+          tone="lemon" size="lg"
+          className={clsx("w-full", empty && "opacity-40")}
+          onClick={() => (empty ? undefined : ready ? commit() : setAdjusting(true))}
+        >
+          {ready ? (existing ? "Save changes" : "Add automation") : "Add the details"}
+        </Button>
+      }
+    >
+      {/* ONE input, two doors — the New-task composer, verbatim. Edit opens
+          straight onto the readback, so the composer is new-only. */}
       {!existing && (
         <div className={clsx(
-          "mt-5 overflow-hidden rounded-card border transition-colors",
+          "overflow-hidden rounded-card border transition-colors",
           dictation.listening ? "border-ink" : "border-ink/[.08]",
         )}>
           {dictation.supported && (
@@ -1110,6 +1131,8 @@ function AutomationSheet({ id, seed }: { id?: string; seed?: string }) {
           </label>
         </div>
       )}
+
+      {dictation.error && <p className="mt-2 text-caption text-danger">{dictation.error}</p>}
 
       {/* ONE card of readback — the same card New task shows. Title is the
           rule's action; the spark line is its trigger; the "why" slot carries
@@ -1215,27 +1238,17 @@ function AutomationSheet({ id, seed }: { id?: string; seed?: string }) {
         )}
       </AnimatePresence>
 
-      {/* Same commit as New task: lemon, full width. Not ready and not yet
-          adjusting -> the button IS the door to the details. */}
-      <Button
-        tone="lemon" size="lg"
-        className={clsx("mt-6 w-full", !ready && adjusting && "opacity-40")}
-        disabled={!existing && !raw.trim() && !when && !then}
-        onClick={() => (ready ? commit() : setAdjusting(true))}
-      >
-        {ready
-          ? existing ? "Save changes" : "Add automation"
-          : "Add the details"}
-      </Button>
+      {/* A destructive action stays OUT of the pinned footer (never pin
+          "delete" beside the primary) — it lives at the foot of the body. */}
       {existing && (
         <Button
-          tone="ghost" size="lg" className="mt-2 w-full !text-danger"
-          onClick={() => { s.removeAutomation(existing.id); done(); }}
+          tone="ghost" size="lg" className="mt-4 w-full !text-danger"
+          onClick={() => { s.removeAutomation(existing.id); dismiss(); }}
         >
           Remove this automation
         </Button>
       )}
-    </>
+    </Sheet>
   );
 }
 
