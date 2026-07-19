@@ -3,28 +3,31 @@
 import clsx from "clsx";
 import { motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
-import { Button, Card, type CardTone, Em, IconTile, List, Pill, type PillTone, Row, Sentence } from "@/components/ui";
+import { Button, Card, type CardTone, Em, IconTile, List, Pill, type PillTone, Row, Sentence, TitleBlock } from "@/components/ui";
 import { listItem, listStagger } from "@/lib/motion";
 import { relative } from "@/lib/dates";
 import { billTasks, useHousehold } from "@/lib/store";
 import type { IpadRoute, MaintStatus, StockStatus } from "@/lib/types";
 
-/** Shared header for every More sub-domain. */
+/**
+ * Shared header for every More sub-domain — `TitleBlock tone="onDark"`, same
+ * as every page header on the phone. The title itself read fine before (it
+ * inherits white from the page), but the subtitle was set in `text-sub`, a
+ * LIGHT-surface gray, directly on the dark ink backdrop — nearly illegible.
+ * `onDark` gets it back to white/55.
+ */
 function Back({ title, subtitle }: { title: string; subtitle?: string }) {
   const goIpad = useHousehold((s) => s.goIpad);
   return (
-    <motion.div variants={listItem} className="mb-stack">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => goIpad("more")}
-          aria-label="Back to More"
-          className="grid h-touch w-touch place-items-center rounded-pill bg-card text-ink shadow-e2 transition-shadow hover:shadow-e3"
-        >
-          <Icon name="back" size={18} />
-        </button>
-        <h1 className="text-h1">{title}</h1>
-      </div>
-      {subtitle && <p className="ml-[52px] mt-1 text-body font-medium text-sub">{subtitle}</p>}
+    <motion.div variants={listItem} className="mb-stack flex items-center gap-4">
+      <button
+        onClick={() => goIpad("more")}
+        aria-label="Back to More"
+        className="grid h-touch w-touch shrink-0 place-items-center rounded-pill bg-card text-ink shadow-e2 transition-shadow hover:shadow-e3"
+      >
+        <Icon name="back" size={18} />
+      </button>
+      <TitleBlock size="page" tone="onDark" title={title} subtext={subtitle} />
     </motion.div>
   );
 }
@@ -44,18 +47,17 @@ export function IpadMore() {
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <motion.div variants={listItem}>
-        <h1 className="text-h1">More</h1>
-        <p className="mt-1 text-body font-medium text-sub">Everything else your home runs on</p>
+        <TitleBlock size="page" tone="onDark" title="More" subtext="Everything else your home runs on" />
       </motion.div>
-      <motion.div variants={listItem} className="mt-section grid grid-cols-3 gap-tile">
+      <motion.div variants={listItem} className="mt-section grid grid-cols-3 gap-card-pad">
         {TILES.map((t, i) => (
           <Card
             key={t.route}
             tone={t.card}
             onClick={() => goIpad(t.route)}
-            className={clsx("flex min-h-[170px] flex-col", i === 0 && "col-span-2")}
+            className={clsx("flex min-h-[200px] flex-col", i === 0 && "col-span-2")}
           >
-            <IconTile name={t.icon} tone="onTint" />
+            <IconTile name={t.icon} />
             <div className="mt-auto">
               <b className="block text-h2">{t.label}</b>
               <div className="mt-0.5 text-bodysm font-medium opacity-60">{t.blurb}</div>
@@ -85,9 +87,9 @@ export function IpadBills() {
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <Back title="Bills" />
       <motion.div variants={listItem} className="mb-stack">
-        <Card tone="white" className="flex min-h-[150px] flex-col">
-          <IconTile name="bill" tone="onTint" />
-          <Sentence className="mt-auto max-w-[22ch] !text-[26px]">
+        <Card tone="white" className="flex min-h-[160px] flex-col">
+          <IconTile name="bill" />
+          <Sentence className="mt-auto max-w-[22ch]">
             {outstanding ? <><Em>${outstanding}</Em> still to pay.</> : <>Everything&rsquo;s <Em>paid</Em>.</>}
           </Sentence>
         </Card>
@@ -98,7 +100,7 @@ export function IpadBills() {
             {money.map((t) => (
               <Row
                 key={t.id}
-                lead={<IconTile name={t.source?.startsWith("Email") ? "mail" : "bill"} tone="neutral" />}
+                lead={<IconTile name={t.source?.startsWith("Email") ? "mail" : "bill"} />}
                 title={t.title}
                 muted={t.done}
                 // Provenance leads: a bill that filed ITSELF (the email
@@ -147,9 +149,9 @@ export function IpadInventory() {
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <Back title="Inventory" />
       <motion.div variants={listItem} className="mb-stack">
-        <Card tone="lavender" className="flex min-h-[150px] flex-col">
-          <IconTile name="box" tone="onTint" />
-          <Sentence className="mt-auto max-w-[26ch] !text-[26px]">
+        <Card tone="lavender" className="flex min-h-[160px] flex-col">
+          <IconTile name="box" />
+          <Sentence className="mt-auto max-w-[26ch]">
             <Em>{inventory.filter((i) => i.status === "low").length}</Em> things running low — they go
             straight onto the shopping list.
           </Sentence>
@@ -161,7 +163,7 @@ export function IpadInventory() {
             {inventory.map((i) => (
               <Row
                 key={i.id}
-                lead={<IconTile name="box" tone="neutral" />}
+                lead={<IconTile name="box" />}
                 title={i.title}
                 meta={`${i.location} · ${i.quantity}`}
                 actions={
@@ -191,9 +193,9 @@ export function IpadMaint() {
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <Back title="Home maintenance" />
       <motion.div variants={listItem} className="mb-stack">
-        <Card tone="white" className="flex min-h-[150px] flex-col">
-          <IconTile name="wrench" tone="onTint" />
-          <Sentence className="mt-auto max-w-[24ch] !text-[26px]">
+        <Card tone="white" className="flex min-h-[160px] flex-col">
+          <IconTile name="wrench" />
+          <Sentence className="mt-auto max-w-[24ch]">
             <Em>{maint.filter((m) => m.status === "over" || m.status === "due").length}</Em> bits of
             upkeep want a look. Nothing rots quietly.
           </Sentence>
@@ -205,7 +207,7 @@ export function IpadMaint() {
             {maint.map((m) => (
               <Row
                 key={m.id}
-                lead={<IconTile name="wrench" tone="neutral" />}
+                lead={<IconTile name="wrench" />}
                 title={m.title}
                 meta={`${m.asset} · ${m.cadence}`}
                 actions={
@@ -233,9 +235,9 @@ export function IpadAutomations() {
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <Back title="Automations" />
       <motion.div variants={listItem} className="mb-stack">
-        <Card tone="lavender" className="flex min-h-[150px] flex-col">
-          <IconTile name="bolt" tone="onTint" />
-          <Sentence className="mt-auto max-w-[24ch] !text-[26px]">
+        <Card tone="lavender" className="flex min-h-[160px] flex-col">
+          <IconTile name="bolt" />
+          <Sentence className="mt-auto max-w-[24ch]">
             <Em>{automations.filter((a) => a.on).length}</Em> things the house runs on its own.
           </Sentence>
         </Card>
@@ -246,7 +248,9 @@ export function IpadAutomations() {
             {automations.map((a) => (
               <Row
                 key={a.id}
-                lead={<IconTile name="bolt" tone={a.on ? "onTint" : "neutral"} />}
+                // On/off already reads from the switch itself (filled ink
+                // track = on) — the icon tone doesn't need to double-encode it.
+                lead={<IconTile name="bolt" />}
                 title={a.title}
                 meta={a.description}
                 // The row opens the BUILDER; the switch (in actions, which

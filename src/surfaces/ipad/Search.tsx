@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { Icon } from "@/components/Icons";
-import { Card, IconTile, List, Row } from "@/components/ui";
+import { Card, IconTile, List, Row, TitleBlock } from "@/components/ui";
 import { listItem, listStagger } from "@/lib/motion";
 import { searchAll, useHousehold } from "@/lib/store";
 
@@ -14,10 +14,15 @@ export function SearchResults() {
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <motion.div variants={listItem}>
-        <h1 className="text-h1">Results for &ldquo;{s.query}&rdquo;</h1>
-        <p className="mt-1 text-body font-medium text-sub">
-          {hits.length} {hits.length === 1 ? "thing" : "things"} across your home
-        </p>
+        {/* Same dark-backdrop contrast bug as `more.tsx`'s Back — the subtitle
+            was text-sub (a light-surface gray) directly on bg-ink. Also
+            dropped "your home": the iPad never addresses a person. */}
+        <TitleBlock
+          size="page"
+          tone="onDark"
+          title={`Results for “${s.query}”`}
+          subtext={`${hits.length} ${hits.length === 1 ? "thing" : "things"} across the home`}
+        />
       </motion.div>
 
       <motion.div variants={listItem} className="mt-section">

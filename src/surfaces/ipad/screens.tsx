@@ -2,45 +2,20 @@
 
 import clsx from "clsx";
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { TaskCard } from "@/components/TaskCard";
-import { Avatar, AvatarStack, Button, Card, type CardTone, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, type TileTone } from "@/components/ui";
+import { Avatar, AvatarStack, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TitleBlock, type TileTone } from "@/components/ui";
 import { addDays, iso, isToday, relative, startOfWeek, timeOfDay, today as todayLabel } from "@/lib/dates";
-import { listItem, listStagger } from "@/lib/motion";
+import { listItem, listStagger, smooth } from "@/lib/motion";
 import { billTasks, doers, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
 import type { Member, Role } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 
-function Section({ title, count, action }: { title: string; count?: number; action?: React.ReactNode }) {
-  return (
-    <div className="mb-stack mt-section flex items-center gap-2">
-      <h3 className="text-h2">{title}</h3>
-      {count !== undefined && <span className="text-[12px] font-medium text-sub">{count}</span>}
-      {action && <div className="ml-auto">{action}</div>}
-    </div>
-  );
-}
+/** Focus ring for raw buttons on a LIGHT surface (inside a Card) — the app's
+ *  usual ink ring. */
+const FOCUS = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink";
 
-/** A headline stat. Icon, not emoji (DESIGN.md §7). */
-function Stat({
-  icon, tone, value, label, sub, onClick, cardTone,
-}: {
-  icon: IconName; tone: TileTone; value: string | number; label: string; sub: string;
-  onClick: () => void; cardTone?: CardTone;
-}) {
-  
-  return (
-    <Card tone={cardTone ?? "white"} onClick={onClick}>
-      <IconTile name={icon} tone={tone} />
-      <div className="mt-6 text-display tabular-nums">{value}</div>
-      <div className="mt-1 text-bodysm font-medium">{label}</div>
-      <div className="text-caption text-sub">{sub}</div>
-    </Card>
-  );
-}
-
-const DAY = ["Today", "Tomorrow", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export function IpadHome() {
   const s = useHousehold();
@@ -50,7 +25,6 @@ export function IpadHome() {
   // The nearest unpaid bill-TASK — bills live on the one timeline now.
   const billDue = billTasks(s).filter((t) => !t.done).sort((a, b) => a.due.localeCompare(b.due))[0];
   const people = doers(s).map((m) => m.id);
-  const owner = doers(s).find((m) => m.role === "owner") ?? doers(s)[0];
   const maxLoad = Math.max(1, ...people.map((p) => pendingFor(s, p)));
 
   const attention: { key: string; icon: IconName; tone: TileTone; title: string; meta: string; action: React.ReactNode }[] = [];
@@ -106,13 +80,14 @@ export function IpadHome() {
       variants={listStagger}
       initial="hidden"
       animate="show"
-      className="grid auto-rows-[minmax(0,auto)] grid-cols-4 gap-tile pb-2"
+      className="grid auto-rows-[minmax(0,auto)] grid-cols-4 gap-card-pad pb-2"
     >
-      {/* HERO — the day, said out loud. Two columns, tall, mostly air. */}
+      {/* HERO — the day, said out loud, in the HOUSE's voice — never "you":
+          the count is everyone's, and the iPad is never a personal lens. */}
       <motion.div variants={listItem} className="col-span-2">
-        <Card tone="lemon" className="flex h-full min-h-[232px] flex-col">
+        <Card tone="lemon" className="flex h-full min-h-[240px] flex-col">
           <div className="flex items-start">
-            <p suppressHydrationWarning className="text-bodysm font-medium opacity-55">{todayLabel()}</p>
+            <Eyebrow><span suppressHydrationWarning>{todayLabel()}</span></Eyebrow>
             <span className="ml-auto flex -space-x-2">
               {people.slice(0, 4).map((id) => (
                 <span key={id} className="ring-2 ring-lemon">
@@ -122,9 +97,9 @@ export function IpadHome() {
             </span>
           </div>
           <div className="mt-auto">
-            <Sentence className="max-w-[20ch] !text-[32px]">
-              <span suppressHydrationWarning>{timeOfDay()}</span>, {owner?.name ?? "there"}. You have <Em>{today.length}</Em>{" "}
-              {today.length === 1 ? "thing" : "things"} on today.
+            <Sentence className="max-w-[20ch]">
+              <span suppressHydrationWarning>{timeOfDay()}</span>. <Em>{s.householdName}</Em> has{" "}
+              <Em>{today.length}</Em> {today.length === 1 ? "thing" : "things"} on today.
             </Sentence>
             <div className="mt-5 flex items-center gap-2">
               <Pill tone="tag">{doneCount} already done</Pill>
@@ -138,25 +113,25 @@ export function IpadHome() {
 
       {/* Two small pastels, stacked height */}
       <motion.div variants={listItem}>
-        <Card tone="white" className="flex h-full min-h-[232px] flex-col" onClick={() => s.goIpad("bills")}>
-          <IconTile name="bill" tone="onTint" />
+        <Card tone="white" className="flex h-full min-h-[240px] flex-col" onClick={() => s.goIpad("bills")}>
+          <IconTile name="bill" />
           <div className="mt-auto">
             <div className="text-display tabular-nums">${billDue?.amount ?? 0}</div>
-            <Sentence className="mt-1 !text-[18px] !font-medium">
+            <div className="mt-1 text-h2">
               {billDue ? <span suppressHydrationWarning>{billDue.title}, {relative(billDue.due).toLowerCase()}</span> : "Everything's paid"}
-            </Sentence>
+            </div>
           </div>
         </Card>
       </motion.div>
 
       <motion.div variants={listItem}>
-        <Card tone="lavender" className="flex h-full min-h-[232px] flex-col" onClick={() => s.goIpad("shopping")}>
-          <IconTile name="box" tone="onTint" />
+        <Card tone="lavender" className="flex h-full min-h-[240px] flex-col" onClick={() => s.goIpad("shopping")}>
+          <IconTile name="box" />
           <div className="mt-auto">
             <div className="text-display tabular-nums">{low.length}</div>
-            <Sentence className="mt-1 !text-[18px] !font-medium">
+            <div className="mt-1 text-h2">
               {low.length ? "things running low" : "Cupboards are full"}
-            </Sentence>
+            </div>
           </div>
         </Card>
       </motion.div>
@@ -165,7 +140,7 @@ export function IpadHome() {
       {attention.length > 0 && (
         <motion.div variants={listItem} className="col-span-2 row-span-2">
           <Card pad="none" className="flex h-full flex-col">
-            <h3 className="px-card-pad pt-card-pad text-h2">Worth a look</h3>
+            <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Worth a look" />
             <List className="pb-2">
               {attention.map((a) => (
                 <Row
@@ -184,7 +159,7 @@ export function IpadHome() {
       {/* WHO'S CARRYING — tall, two rows */}
       <motion.div variants={listItem} className="col-span-2 row-span-2">
         <Card className="flex h-full flex-col">
-          <h3 className="text-h2">Who&rsquo;s carrying today</h3>
+          <TitleBlock size="card" title="Who’s carrying today" />
           <div className="mt-stack flex-1">
             {people.map((id) => {
               const m = s.members[id];
@@ -204,7 +179,9 @@ export function IpadHome() {
                       transition={{ duration: 0.7, ease: [0.2, 0.7, 0.2, 1] }}
                     />
                   </div>
-                  <span className="w-14 text-right text-[12px] font-medium tabular-nums text-sub">
+                  {/* caption, not micro — a load count is meta text (it explains
+                      the bar beside it); micro is reserved for whisper cues. */}
+                  <span className="w-14 text-right text-caption font-medium tabular-nums text-sub">
                     {load}
                   </span>
                 </div>
@@ -223,14 +200,15 @@ export function IpadHome() {
         </Card>
       </motion.div>
 
-      {/* UPKEEP — small, quiet */}
+      {/* UPKEEP — small, quiet: text-h2, the same weight class the bill/
+          shopping cards above use for their caption, not a full hero. */}
       <motion.div variants={listItem} className="col-span-2">
-        <Card tone="white" className="flex min-h-[150px] flex-col" onClick={() => s.goIpad("maint")}>
-          <IconTile name="wrench" tone="onTint" />
-          <Sentence className="mt-auto !text-[20px] !font-medium">
+        <Card tone="white" className="flex min-h-[160px] flex-col" onClick={() => s.goIpad("maint")}>
+          <IconTile name="wrench" />
+          <div className="mt-auto text-h2">
             <Em>{s.maint.filter((m) => m.status === "over" || m.status === "due").length}</Em> bits of
             upkeep this week.
-          </Sentence>
+          </div>
         </Card>
       </motion.div>
 
@@ -238,7 +216,7 @@ export function IpadHome() {
       <motion.div variants={listItem} className="col-span-2">
         <Card pad="none">
           <div className="flex items-center px-card-pad pt-card-pad">
-            <h3 className="text-h2">Coming up</h3>
+            <TitleBlock size="card" title="Coming up" />
             <Button size="touch" tone="ghost" className="ml-auto" onClick={() => s.goIpad("calendar")}>
               Calendar <Icon name="fwd" size={14} />
             </Button>
@@ -276,14 +254,14 @@ export function IpadTasks() {
       variants={listStagger}
       initial="hidden"
       animate="show"
-      className="grid grid-cols-4 gap-tile pb-2"
+      className="grid grid-cols-4 gap-card-pad pb-2"
     >
       {/* Hero — the day, in a sentence */}
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="lemon" className="flex h-full min-h-[200px] flex-col">
-          <p className="text-bodysm font-medium opacity-55">Tasks</p>
+          <Eyebrow>Tasks</Eyebrow>
           <div className="mt-auto">
-            <Sentence className="max-w-[18ch] !text-[30px]">
+            <Sentence className="max-w-[18ch]">
               <Em>{today.length}</Em> {today.length === 1 ? "thing" : "things"} on today,{" "}
               <Em>{done.length}</Em> already done.
             </Sentence>
@@ -306,7 +284,7 @@ export function IpadTasks() {
       {/* Who has what — a glance, not a chart */}
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="lavender" className="flex h-full min-h-[200px] flex-col">
-          <p className="text-bodysm font-medium opacity-55">Spread across the house</p>
+          <Eyebrow>Spread across the house</Eyebrow>
           <div className="mt-auto grid grid-cols-4 gap-3">
             {people.map((m) => (
               <div key={m.id} className="flex flex-col items-start gap-2">
@@ -315,7 +293,8 @@ export function IpadTasks() {
                   <div className="text-[22px] font-medium leading-none tabular-nums">
                     {pendingFor(s, m.id)}
                   </div>
-                  <div className="mt-1 text-[12px] font-medium opacity-60">{m.name}</div>
+                  {/* caption, not micro — a name is meta text, not a whisper cue. */}
+                  <div className="mt-1 text-caption font-medium opacity-60">{m.name}</div>
                 </div>
               </div>
             ))}
@@ -363,12 +342,12 @@ export function IpadShopping() {
   const cats = Array.from(new Set(list.map((i) => i.category)));
 
   return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-tile pb-2">
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="lavender" className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="cart" tone="onTint" />
+          <IconTile name="cart" />
           <div className="mt-auto">
-            <Sentence className="max-w-[18ch] !text-[30px]">
+            <Sentence className="max-w-[18ch]">
               <Em>{left.length}</Em> {left.length === 1 ? "thing" : "things"} to pick up.
             </Sentence>
           </div>
@@ -377,23 +356,21 @@ export function IpadShopping() {
 
       <motion.div variants={listItem} className="col-span-2">
         <Card tone={low.length ? "lavender" : "white"} className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="spark" tone="onTint" />
-          <div className="mt-auto">
-            <Sentence className="!text-[20px] !font-medium">
-              {low.length
-                ? <>I added <Em>{low.length}</Em> things that were running low: {low.map((i) => i.title).join(", ")}.</>
-                : <>Nothing&rsquo;s running low. <Em>Cupboards are full.</Em></>}
-            </Sentence>
+          <IconTile name="spark" />
+          <div className="mt-auto text-h2">
+            {low.length
+              ? <>I added <Em>{low.length}</Em> things that were running low: {low.map((i) => i.title).join(", ")}.</>
+              : <>Nothing&rsquo;s running low. <Em>Cupboards are full.</Em></>}
           </div>
         </Card>
       </motion.div>
 
-      {cats.map((cat, i) => (
-        <motion.div key={cat} variants={listItem} className={i === 0 ? "col-span-2" : "col-span-2"}>
+      {cats.map((cat) => (
+        <motion.div key={cat} variants={listItem} className="col-span-2">
           <Card pad="none">
             <div className="flex items-center px-card-pad pt-card-pad">
-              <h3 className="text-h2">{cat}</h3>
-              <span className="ml-auto text-[12px] font-medium text-sub">
+              <TitleBlock size="card" title={cat} />
+              <span className="ml-auto text-caption font-medium text-sub">
                 {list.filter((x) => x.category === cat && !x.done).length}
               </span>
             </div>
@@ -423,11 +400,11 @@ export function IpadCalendar() {
   const s = useHousehold();
 
   return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-tile pb-2">
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
       <motion.div variants={listItem} className="col-span-2">
-        <Card tone="lavender" className="flex h-full min-h-[170px] flex-col">
-          <IconTile name="cal" tone="onTint" />
-          <Sentence className="mt-auto max-w-[18ch] !text-[28px]">
+        <Card tone="lavender" className="flex h-full min-h-[200px] flex-col">
+          <IconTile name="cal" />
+          <Sentence className="mt-auto max-w-[18ch]">
             <Em>{s.events.length}</Em> things on the calendar this week.
           </Sentence>
         </Card>
@@ -435,7 +412,7 @@ export function IpadCalendar() {
 
       <motion.div variants={listItem} className="col-span-2">
         <Card pad="none" className="h-full">
-          <h3 className="px-card-pad pt-card-pad text-h2">Today</h3>
+          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Today" />
           <List className="pb-2">
             {s.events.filter((e) => isToday(e.due)).map((e) => (
               <Row key={e.id} lead={<Avatar member={s.members[e.who]} size={32} />} title={e.title}
@@ -452,7 +429,7 @@ export function IpadCalendar() {
             // The lemon card is TODAY — which is a date test, not "the first column".
             tone={isToday(iso(day)) ? "lemon" : "white"}
             pad="md"
-            className="min-h-[190px]"
+            className="min-h-[200px]"
           >
             <div className="flex items-baseline justify-between">
               <span className="text-caption font-medium uppercase opacity-50">
@@ -464,7 +441,7 @@ export function IpadCalendar() {
               <div
                 key={e.id}
                 style={{ background: s.members[e.who].color }}
-                className="mt-2 rounded-sm px-2 py-1.5 text-[12px] font-medium leading-tight text-white"
+                className="mt-2 rounded-sm px-2 py-1.5 text-micro font-medium leading-tight text-white"
               >
                 <div className="opacity-75">{e.time}</div>
                 {e.title}
@@ -491,67 +468,81 @@ const ASSETS: [string, string, string][] = [
  * that's the whole point of the model.
  *
  * The role is a CONTROL, not a label. It's assigned, so it must be changeable;
- * a role you can only read is one the app is secretly deriving.
+ * a role you can only read is one the app is secretly deriving. The picker
+ * expands IN PLACE — white cards on a recessed panel, an ink ring on the
+ * chosen one — the same selector language as the phone's Manage-household
+ * role picker, not a floating dropdown (which risks clipping inside a grid
+ * cell, and was the exact "feels misplaced" pattern the phone moved away
+ * from).
  */
 function PersonCard({ member: m }: { member: Member }) {
   const s = useHousehold();
   const [open, setOpen] = useState(false);
-  const owned = Object.values(s.members).some((x) => x.role === "owner");
   const jobs = [...(m.responsibility?.domains ?? []), ...(m.responsibility?.spaces ?? [])];
 
   return (
-    <Card className="flex min-h-[150px] flex-col">
+    <Card className="flex min-h-[200px] flex-col">
       <div className="flex items-start">
         <Avatar member={m} size={44} />
         {m.role === "guided" && m.kind === "person" && (
-          <span className="ml-auto text-bodysm font-medium text-star">★ {m.stars ?? 0}</span>
+          <span className="ml-auto flex items-center gap-1 text-bodysm font-medium text-star">
+            <Icon name="star" size={14} /> {m.stars ?? 0}
+          </span>
         )}
       </div>
 
       <div className="mt-auto">
         <b className="text-body">{m.name}</b>
 
-        {/* Access — a menu, because it is a decision someone makes. Pets can't
-            hold work, so they don't get a role picker; a dog with permissions
-            is a joke the model shouldn't be able to tell. */}
+        {/* Access — a decision, not a label. Pets can't hold work, so they
+            don't get a role picker; a dog with permissions is a joke the
+            model shouldn't be able to tell. */}
         {m.kind === "pet" ? (
           <div className="text-bodysm font-medium text-sub">Pet</div>
         ) : (
-          <div className="relative">
+          <div className="mt-0.5">
             <button
               onClick={() => setOpen(!open)}
               aria-expanded={open}
-              className="flex items-center gap-1 text-bodysm font-medium text-sub transition-colors hover:text-ink"
+              className={clsx("flex items-center gap-1 rounded-sm text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
             >
               {ROLE_LABEL[m.role]}
-              <Icon name="chevDown" size={14} />
+              <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
+                <Icon name="chevDown" size={14} />
+              </motion.span>
             </button>
-            {open && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-                <div className="absolute bottom-full left-0 z-50 mb-1 w-max overflow-hidden rounded-[18px]
-                                border border-black/[.06] bg-card p-1 shadow-e3">
-                  {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
-                    <button
-                      key={r}
-                      // The last owner can't demote themselves out of the house.
-                      disabled={m.role === "owner" && r !== "owner" && !Object.values(s.members).some((x) => x.id !== m.id && x.role === "owner")}
-                      onClick={() => { s.setRole(m.id, r); setOpen(false); }}
-                      className={clsx(
-                        "flex w-full flex-col items-start gap-0.5 rounded-[14px] px-3 py-2 text-left transition-colors",
-                        "disabled:cursor-not-allowed disabled:opacity-40",
-                        r === m.role ? "bg-ink text-white" : "hover:bg-surface",
-                      )}
-                    >
-                      <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
-                      <span className={clsx("text-caption", r === m.role ? "text-white/60" : "text-sub")}>
-                        {ROLE_HINT[r]}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
+            <AnimatePresence initial={false}>
+              {open && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={smooth}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-2 flex flex-col gap-1.5 rounded-md bg-surface p-1.5">
+                    {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+                      <button
+                        key={r}
+                        // The last owner can't demote themselves out of the house.
+                        disabled={m.role === "owner" && r !== "owner" && !Object.values(s.members).some((x) => x.id !== m.id && x.role === "owner")}
+                        onClick={() => { s.setRole(m.id, r); setOpen(false); }}
+                        aria-pressed={r === m.role}
+                        className={clsx(
+                          "flex flex-col items-start gap-0.5 rounded-sm bg-card px-3 py-2 text-left transition-shadow duration-300",
+                          "disabled:cursor-not-allowed disabled:opacity-40",
+                          FOCUS,
+                          r === m.role ? "shadow-e2 ring-2 ring-inset ring-ink" : "shadow-e1 hover:shadow-e2",
+                        )}
+                      >
+                        <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
+                        <span className="text-caption text-sub">{ROLE_HINT[r]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -565,7 +556,6 @@ function PersonCard({ member: m }: { member: Member }) {
           </div>
         )}
       </div>
-      {!owned && <span className="sr-only">No owner set</span>}
     </Card>
   );
 }
@@ -580,11 +570,11 @@ export function IpadHousehold() {
   const pets = everyone.filter((m) => m.kind === "pet").length;
 
   return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-tile pb-2">
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
       <motion.div variants={listItem} className="col-span-2">
-        <Card tone="lavender" className="flex h-full min-h-[190px] flex-col">
+        <Card tone="lavender" className="flex h-full min-h-[200px] flex-col">
           <div className="flex items-start">
-            <IconTile name="people" tone="onTint" />
+            <IconTile name="people" />
             <span className="ml-auto flex -space-x-2">
               {everyone.slice(0, 5).map((m) => (
                 <span key={m.id} className="ring-2 ring-card">
@@ -593,7 +583,7 @@ export function IpadHousehold() {
               ))}
             </span>
           </div>
-          <Sentence className="mt-auto max-w-[20ch] !text-[28px]">
+          <Sentence className="mt-auto max-w-[20ch]">
             <Em>{people}</Em> {people === 1 ? "person" : "people"}
             {pets ? <> and <Em>{pets}</Em> {pets === 1 ? "pet" : "pets"}</> : null} live here.
           </Sentence>
@@ -601,8 +591,8 @@ export function IpadHousehold() {
       </motion.div>
 
       <motion.div variants={listItem} className="col-span-2">
-        <Card className="flex h-full min-h-[190px] flex-col">
-          <h3 className="text-h2">Rooms</h3>
+        <Card className="flex h-full min-h-[200px] flex-col">
+          <TitleBlock size="card" title="Rooms" />
           <div className="mt-auto flex flex-wrap gap-2">
             {ROOMS.map((r) => (
               <span key={r} className="flex h-touch items-center gap-2 rounded-pill bg-surface px-3.5 text-bodysm font-medium">
@@ -622,7 +612,7 @@ export function IpadHousehold() {
 
       <motion.div variants={listItem} className="col-span-4">
         <Card pad="none">
-          <h3 className="px-card-pad pt-card-pad text-h2">Appliances &amp; warranties</h3>
+          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Appliances & warranties" />
           <List className="pb-2">
             {ASSETS.map(([name, warranty, next]) => (
               <Row key={name} lead={<IconTile name="box" />} title={name} meta={warranty}
@@ -643,13 +633,14 @@ export function IpadInsights() {
   const total = Math.max(1, loads.reduce((sum, l) => sum + l.load, 0));
 
   return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-tile pb-2">
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="lemon" className="flex h-full min-h-[200px] flex-col">
-          <p className="text-bodysm font-medium opacity-55">Last 30 days</p>
+          <Eyebrow>Last 30 days</Eyebrow>
           <div className="mt-auto flex items-end gap-4">
-            <Sentence className="flex-1 max-w-[16ch] !text-[28px]">
-              You&rsquo;re finishing <Em>most</Em> of what the house asks.
+            {/* Household voice — never "you're"; this is everyone's number. */}
+            <Sentence className="flex-1 max-w-[16ch]">
+              The house is finishing <Em>most</Em>{" "}of what it&rsquo;s asked.
             </Sentence>
             <span className="text-[46px] font-medium leading-none tabular-nums tracking-tighter">{pct}%</span>
           </div>
@@ -658,7 +649,7 @@ export function IpadInsights() {
 
       <motion.div variants={listItem}>
         <Card tone="white" className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="spark" tone="onDark" />
+          <IconTile name="spark" />
           <div className="mt-auto">
             <div className="text-display tabular-nums">~5 hrs</div>
             <div className="mt-1 text-bodysm font-medium text-sub">coordinating saved</div>
@@ -668,17 +659,17 @@ export function IpadInsights() {
 
       <motion.div variants={listItem}>
         <Card tone="white" className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="chart" tone="onTint" />
+          <IconTile name="chart" />
           <div className="mt-auto">
             <div className="text-display">Fair</div>
-            <div className="mt-1 text-bodysm font-medium opacity-60">household balance</div>
+            <div className="mt-1 text-bodysm font-medium text-sub">household balance</div>
           </div>
         </Card>
       </motion.div>
 
       <motion.div variants={listItem} className="col-span-2">
         <Card className="h-full">
-          <h3 className="text-h2">Share of the work</h3>
+          <TitleBlock size="card" title="Share of the work" />
           <div className="mt-stack">
             {loads.map(({ m, load }) => {
               const share = Math.round((load / total) * 100);
@@ -697,7 +688,7 @@ export function IpadInsights() {
                       transition={{ duration: 0.7, ease: [0.2, 0.7, 0.2, 1] }}
                     />
                   </div>
-                  <span className="w-11 text-right text-[12px] font-medium tabular-nums text-sub">{share}%</span>
+                  <span className="w-11 text-right text-caption font-medium tabular-nums text-sub">{share}%</span>
                 </div>
               );
             })}
@@ -707,10 +698,10 @@ export function IpadInsights() {
 
       <motion.div variants={listItem} className="col-span-2">
         <Card pad="none" className="h-full">
-          <h3 className="px-card-pad pt-card-pad text-h2">What&rsquo;s coming for the house</h3>
+          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="What’s coming for the house" />
           <List className="pb-2">
             {s.maint.slice(0, 4).map((m) => (
-              <Row key={m.id} lead={<IconTile name="wrench" tone="neutral" />}
+              <Row key={m.id} lead={<IconTile name="wrench" />}
                 title={m.title} meta={`${m.asset} · ${m.cadence}`}
                 actions={<Pill tone={m.status === "over" ? "light" : "tag"}>{relative(m.due)}</Pill>} />
             ))}
