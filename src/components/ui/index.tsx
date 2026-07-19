@@ -565,13 +565,17 @@ export function Em({ children, className }: { children: ReactNode; className?: s
  * activity) still render everything through `children` exactly as before.
  */
 export function Sheet({
-  open, onClose, variant, title, footer, children,
+  open, onClose, variant, title, footer, scrollKey, children,
 }: {
   open: boolean;
   onClose: () => void;
   variant: "phone" | "ipad";
   title?: ReactNode;
   footer?: ReactNode;
+  /** When this changes, the scroll body jumps back to the top — so navigating
+   *  from one sub-screen to another (Settings → Manage household) doesn't inherit
+   *  the previous screen's scroll position. */
+  scrollKey?: string | number;
   children: ReactNode;
 }) {
   useEffect(() => {
@@ -579,6 +583,9 @@ export function Sheet({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }); }, [scrollKey]);
 
   const phone = variant === "phone";
   return (
@@ -614,6 +621,7 @@ export function Sheet({
             )}
 
             <div
+              ref={scrollRef}
               className={clsx(
                 "no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-inner",
                 title ? "pt-4" : phone ? "pt-2" : "pt-inner",

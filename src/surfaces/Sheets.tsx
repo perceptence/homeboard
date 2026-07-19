@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { Avatar, AvatarStack, Button, Card, Check, Choice, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
@@ -27,10 +27,20 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
   const s = useHousehold();
   const sheet = s.sheet;
   const close = s.closeSheet;
+  const type = sheet?.type;
+
+  // Settings ⇄ Manage household is a PUSH within the same sheet: manage is one
+  // level deeper, so it slides in from the right and back slides in from the
+  // left. Tracked so "back" actually reads as back.
+  const depth = (t?: string) => (t === "manage" ? 1 : 0);
+  const prevDepth = useRef(0);
+  const dir = depth(type) >= prevDepth.current ? 1 : -1;
+  useEffect(() => { prevDepth.current = depth(type); }, [type]);
+  const nav = type === "settings" || type === "manage";
 
   return (
     <>
-      <Sheet open={!!sheet && sheet.type !== "newTask"} onClose={close} variant={variant}>
+      <Sheet open={!!sheet && sheet.type !== "newTask"} onClose={close} variant={variant} scrollKey={type}>
         {sheet?.type === "task" && <TaskSheet id={sheet.id as number} />}
         {/* Events and upkeep wear the same card as a task, so they must open like
             one. Until now only tasks had a sheet, and the other two silently
@@ -42,8 +52,17 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
         {sheet?.type === "rebalance" && <RebalanceSheet />}
         {sheet?.type === "shop" && <ShopSheet />}
         {sheet?.type === "activity" && <ActivitySheet />}
-        {sheet?.type === "settings" && <SettingsSheet />}
-        {sheet?.type === "manage" && <ManageHouseholdSheet />}
+        {nav && (
+          <motion.div
+            key={type}
+            initial={{ opacity: 0, x: dir * 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ type: "spring", stiffness: 420, damping: 38 }}
+          >
+            {type === "settings" && <SettingsSheet />}
+            {type === "manage" && <ManageHouseholdSheet />}
+          </motion.div>
+        )}
       </Sheet>
 
       {/* New Task renders its OWN Sheet: its pinned title and footer are part of
@@ -505,51 +524,54 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
   const isPet = m.kind === "pet";
 
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-center gap-3">
-        <Avatar member={m} size={36} />
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => s.renameMember(m.id, name)}
-          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          aria-label={`${m.name}'s name`}
-          className="min-w-0 flex-1 bg-transparent text-bodysm font-medium outline-none"
-        />
-        {canRemove && (
-          <button
-            onClick={() => s.removeMember(m.id)}
-            aria-label={`Remove ${m.name}`}
-            className={clsx("grid h-8 w-8 shrink-0 place-items-center rounded-pill text-sub transition-colors hover:bg-danger/10 hover:text-danger", FOCUS)}
-          >
-            <Icon name="trash" size={15} />
-          </button>
-        )}
-      </div>
+    <div className="flex items-start gap-3 px-4 py-3">
+      <Avatar member={m} size={36} />
+      <div className="min-w-0 flex-1">
+        {/* Name and role sit as ONE tight block beside the avatar — the avatar is
+            top-aligned so it spans both lines instead of centring against a gap. */}
+        <div className="flex items-center gap-2">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => s.renameMember(m.id, name)}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            aria-label={`${m.name}'s name`}
+            className="min-w-0 flex-1 bg-transparent text-bodysm font-medium leading-tight outline-none"
+          />
+          {canRemove && (
+            <button
+              onClick={() => s.removeMember(m.id)}
+              aria-label={`Remove ${m.name}`}
+              className={clsx("-my-1 grid h-7 w-7 shrink-0 place-items-center rounded-pill text-sub transition-colors hover:bg-danger/10 hover:text-danger", FOCUS)}
+            >
+              <Icon name="trash" size={15} />
+            </button>
+          )}
+        </div>
 
-      {/* Access — the one decision the owner makes about a person. Pets hold no
-          work, so they hold no role. */}
-      {!isPet && (
-        <>
-          <button
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            className={clsx("mt-1 flex items-center gap-1 rounded-sm pl-[48px] text-caption font-medium text-sub transition-colors hover:text-ink", FOCUS)}
-          >
-            {ROLE_LABEL[m.role]}
-            <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
-              <Icon name="chevDown" size={12} />
-            </motion.span>
-          </button>
-          <AnimatePresence initial={false}>
-            {open && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={smooth}
-                className="overflow-hidden pl-[48px]"
-              >
+        {/* Access — the one decision the owner makes about a person. Pets hold no
+            work, so they hold no role. */}
+        {!isPet && (
+          <>
+            <button
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              className={clsx("mt-1 flex items-center gap-1 rounded-sm text-caption font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+            >
+              {ROLE_LABEL[m.role]}
+              <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
+                <Icon name="chevDown" size={12} />
+              </motion.span>
+            </button>
+            <AnimatePresence initial={false}>
+              {open && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={smooth}
+                  className="overflow-hidden"
+                >
                 <div className="mt-1.5 flex flex-col gap-1">
                   {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
                     <button
@@ -571,8 +593,9 @@ function MemberManageRow({ member: m, canRemove }: { member: Member; canRemove: 
               </motion.div>
             )}
           </AnimatePresence>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -722,9 +745,16 @@ function ManageHouseholdSheet() {
 
   return (
     <>
+      {/* Back to Settings — this is a sub-screen of it, and needs a way home. */}
+      <button
+        onClick={() => s.openSheet({ type: "settings" })}
+        className={clsx("-ml-1 mb-3 flex items-center gap-0.5 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+      >
+        <Icon name="back" size={18} /> Settings
+      </button>
       <span className="flex items-center gap-3">
         <IconTile name="people" tone="lemon" />
-        <h2 className="min-w-0 font-tight text-h1">Household</h2>
+        <h2 className="min-w-0 font-tight text-h1">Manage household</h2>
       </span>
 
       {/* PEOPLE — add, rename, set roles, remove. */}
