@@ -126,7 +126,7 @@ function DemoPanel() {
   };
 
   // Land on a phone screen (as a member — falls back to the owner from the iPad).
-  const phone = (route: "today" | "ahead" | "house" | "you", sheet?: string): Jump["run"] => () => {
+  const phone = (route: "feed" | "house" | "you", sheet?: string): Jump["run"] => () => {
     const s = home();
     s.setPersona(memberOr());
     s.goPhone(route);
@@ -160,20 +160,19 @@ function DemoPanel() {
           const s = st();
           s.skipOnboarding();
           s.setPersona("maya");
-          s.goPhone("today");
+          s.goPhone("feed");
           s.closeSheet();
           s.notify("Demo reset");
         },
       },
     ] },
     { title: "Phone", items: [
-      { label: "Today", run: phone("today") },
-      { label: "Ahead", run: phone("ahead") },
-      { label: "You", run: phone("you") },
+      { label: "Feed", run: phone("feed") },
       { label: "Household", run: phone("house") },
-      { label: "Shopping", run: phone("today", "shop") },
-      { label: "In the house", run: phone("today", "stock") },
-      { label: "New task", run: phone("today", "newTask") },
+      { label: "You", run: phone("you") },
+      { label: "Shopping", run: phone("feed", "shop") },
+      { label: "In the house", run: phone("feed", "stock") },
+      { label: "New task", run: phone("feed", "newTask") },
       { label: "Activity", run: phone("you", "activity") },
       { label: "Rebalance", run: phone("you", "rebalance") },
     ] },
@@ -185,8 +184,8 @@ function DemoPanel() {
       { label: "New automation", run: owner("addAutomation") },
     ] },
     { title: "Live trip", items: [
-      { label: "On my way · Sam", run: () => { const s = home(); s.setPersona("sam"); s.goPhone("today"); s.closeSheet(); s.onWay(4); } },
-      { label: "Waiting · Leo", run: () => { const s = home(); s.setPersona("leo"); s.goPhone("today"); s.closeSheet(); } },
+      { label: "On my way · Sam", run: () => { const s = home(); s.setPersona("sam"); s.goPhone("feed"); s.closeSheet(); s.onWay(4); } },
+      { label: "Waiting · Leo", run: () => { const s = home(); s.setPersona("leo"); s.goPhone("feed"); s.closeSheet(); } },
     ] },
     { title: "iPad", items: [
       { label: "Home", run: ipad("home") },

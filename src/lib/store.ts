@@ -394,7 +394,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
 
   persona: "ipad",
   ipadRoute: "home",
-  phoneRoute: "today",
+  phoneRoute: "feed",
   sheet: null,
   toast: null,
   toastWho: null,
@@ -1342,6 +1342,10 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     const top = Math.max(999, ...state.tasks.map((t) => t.id),
       ...state.shopping.map((i) => Number(String(i.id).replace(/\D/g, "")) || 0));
     nextId = top;
+    // MIGRATION: "today" and "ahead" merged into "feed". A persisted route
+    // from before the merge names a screen that no longer exists — the shell
+    // would render an empty body.
+    if (!["feed", "house", "you"].includes(state.phoneRoute)) state.phoneRoute = "feed";
   },
 }));
 

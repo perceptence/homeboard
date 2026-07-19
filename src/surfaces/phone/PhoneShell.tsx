@@ -9,8 +9,8 @@ import { EventCard, MaintCard, TaskCard } from "@/components/TaskCard";
 import { ActionButton, Avatar, Button, Card, Choice, Em, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerPanel, Pill, Sentence, TabToggle, TitleBlock } from "@/components/ui";
 import { listItem, listStagger, press, smooth, spring } from "@/lib/motion";
 import {
-  addDays, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
-  periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel, type Period,
+  addDays, greeting, inRange, iso, isToday, monthKey, monthLabel, parse,
+  groupIsPast, periodRange, relative, relativeInline, startOfWeek, timeMinutes, today, todayIso,
 } from "@/lib/dates";
 import { awayOn, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
@@ -18,16 +18,14 @@ import type { HouseEvent, MaintItem, MemberId, PhoneRoute, Presence, Task } from
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 
 /**
- * Four tabs on ONE axis: now -> later -> us -> me. Today is a feed of what’s
- * on; Ahead is the calendar horizon; Household is everyone at once — the
- * shared surface a phone-only home doesn't get from a family iPad; You is
- * the person.
+ * Three tabs on ONE axis: what's happening -> the household -> me.
+ *
+ * Feed absorbed Today AND Ahead: they answered the same question at two zoom
+ * levels, and the seam was arbitrary — tonight's dinner on one tab, tomorrow's
+ * dentist a tab away. One feed opens on now and scrolls into later.
  */
 const NAV: { route: PhoneRoute; icon: IconName; label: string }[] = [
-  { route: "today", icon: "feed", label: "Today" },
-  { route: "ahead", icon: "cal", label: "Ahead" },
-  // "House", not "Household" — four labelled tabs share a 393px glass pill,
-  // and the long word alone pushed "You" clean off the screen.
+  { route: "feed", icon: "feed", label: "Feed" },
   { route: "house", icon: "people", label: "House" },
   { route: "you", icon: "user", label: "You" },
 ];
@@ -38,96 +36,17 @@ export function PhoneShell() {
   const me = s.members[meId];
   const route = s.phoneRoute;
   const [navOpen, setNavOpen] = useState(false);
-  // Owned here, not in PhoneAhead: the header reports the count, the page owns the
-  // toggle. Whoever renders both has to hold it.
-  //
-  // `anchor` is what makes zoom possible: a scope alone says "a month", it can't
-  // say WHICH month. Tapping a month heading sets both.
-  const [scope, setScope] = useState<Scope>("Week");
-  const [anchor, setAnchor] = useState<Date>(() => new Date());
+  // Owned here, not in PhoneLater: the header holds the field, the list filters
+  // by it. Whoever renders both has to hold it.
   const [query, setQuery] = useState("");
-  const [scopeOpen, setScopeOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
-  // The tail spacer's height, measured — see parkAndSize. It exists ONLY so the current
-  // group can reach the top of the viewport when the list is short; sized to exactly
-  // that and no more, so there's no empty scroll past the content.
-  const [tail, setTail] = useState(0);
-  const ahead = aheadFor(s, meId, scope, anchor, query);
+  const later = laterFor(s, meId, query);
 
   // The nav is glass over a moving list — it has to look at what it's sitting on.
   // Re-sampled on scroll inside the hook; these deps catch the changes scroll
   // can't see (a new route's content, the bar blooming to a new width).
   const navRef = useRef<HTMLElement>(null);
   const onLight = useBackdropTone(navRef, [route, navOpen, s.navTick]) === "light";
-
-  // Re-park whenever the lens changes — a new period is a new "where am I".
-  useLayoutEffect(() => {
-    if (route === "ahead") parkAndSize();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route, scope, +anchor, query]);
-
-  /**
-   * Park the view on the CURRENT group, and size the tail spacer to make that possible —
-   * without leaving any dead scroll below.
-   *
-   * The past isn't hidden — it's simply above you, the way it is in a diary. Scroll up
-   * and there it is. That replaces the "Show 1 earlier week" control entirely: no
-   * button, no state, and the gesture you'd already try is the answer.
-   *
-   * THE PHANTOM SCROLL. Parking the current group at the top needs room below it to
-   * scroll INTO — on a short list there isn't any, so a fixed 40vh spacer used to be
-   * pinned to the end. But 40vh is almost always too much: on Week (nothing to park) it
-   * was 336px of scrolling into pure void. The spacer must be exactly `parkTarget +
-   * viewport − whatever content already sits below`, floored at 0. When the content
-   * below the current group is already a viewport tall, that's 0 and natural scrolling
-   * does the job.
-   */
-  const parkAndSize = () => {
-    const sc = scroller.current;
-    if (!sc) return;
-    const head = sc.querySelector<HTMLElement>("[data-header]")?.offsetHeight ?? 0;
-    const el = sc.querySelector<HTMLElement>("[data-current]");
-
-    // offsetTop / offsetHeight, NOT getBoundingClientRect().
-    //
-    // The list plays an entrance animation (listStagger translates each card in), so
-    // for ~300ms every rect is a moving target — measuring one scrolled to wherever
-    // the card happened to be mid-flight. offsetTop is layout geometry: it ignores
-    // transforms entirely, so it's right on the first frame and needs no rAF.
-    //
-    // The header sits in normal flow above the groups, so a group's offsetTop already
-    // includes it; subtracting the header's height lands the group just below it.
-    const parkTarget = el ? Math.max(0, el.offsetTop - head) : 0;
-
-    // Size the spacer from the CURRENT layout: its own offsetTop is where real content
-    // ends (it's the last child), and anything below it (the list's bottom padding, to
-    // clear the floating nav) is trailing. Both are independent of the spacer's own
-    // height, so measuring while it's the old size is safe.
-    const spacer = sc.querySelector<HTMLElement>("[data-tail]");
-    const realBottom = spacer ? spacer.offsetTop : sc.scrollHeight;
-    const trailingPad = spacer ? sc.scrollHeight - spacer.offsetTop - spacer.offsetHeight : 0;
-    setTail(Math.max(0, parkTarget + sc.clientHeight - realBottom - trailingPad));
-
-    // Scroll before the resize settles: parkTarget ≤ the current (larger) max, so it's
-    // valid now, and once the spacer shrinks to make max === parkTarget the browser
-    // keeps us exactly here.
-    sc.scrollTo({ top: parkTarget });
-  };
-
-  const setScopeAt = (next: Scope) => {
-    // Changing scope always re-centres on today; you meant "this month", not "the
-    // month around whatever you happened to be reading".
-    setScope(next);
-    setAnchor(new Date());
-  };
-  /** Zoom a group: same data, tighter lens. A week group needs Week scope. */
-  const zoomTo = (key: string) => {
-    setAnchor(parse(key.length === 7 ? `${key}-01` : key));
-    setScope(ahead.zoomScope);
-  };
-  /** Previous / next period. */
-  const step = (dir: -1 | 1) => setAnchor((a) => shiftPeriod(scope, a, dir));
 
   return (
     <div className="absolute inset-0 flex min-h-0 flex-col bg-ink text-white">
@@ -144,9 +63,8 @@ export function PhoneShell() {
       <motion.div
         ref={scroller}
         layoutScroll
-        onScroll={(e) => {
+        onScroll={() => {
           if (navOpen) setNavOpen(false);
-          setScrolled(e.currentTarget.scrollTop);
         }}
         onPointerDown={() => navOpen && setNavOpen(false)}
         // `relative` so the groups' offsetTop is measured from THIS box.
@@ -172,14 +90,7 @@ export function PhoneShell() {
         <header
           data-header
           style={{ paddingTop: SAFE_TOP + 16 }}
-          className={clsx(
-            "relative sticky top-0 z-20 bg-ink px-5",
-            // On Ahead the cue band carries the bottom rhythm itself: 24px under the
-            // search bar, 12px over the list, so proximity reads it as the LIST's
-            // marker rather than the search bar's tail. Other routes keep the
-            // standard 16px between the title block and the first card.
-            route === "ahead" ? "pb-2" : "pb-4",
-          )}
+          className="relative sticky top-0 z-20 bg-ink px-5 pb-4"
         >
           <div className="flex items-start justify-between">
           {/* Eyebrow + Title — the same pair every card uses, and it says something
@@ -187,48 +98,17 @@ export function PhoneShell() {
               was a warm line that told you nothing about where you were. */}
           {/* ONE component, page size, dark tone — the same trio the cards use. */}
           <div suppressHydrationWarning className="min-w-0">
-            {route === "today" && (
-              <TitleBlock size="page" tone="onDark" eyebrow={today()} title={`${greeting()}, ${me.name}`} />
-            )}
-            {route === "ahead" && (
+            {/* The Feed greets — it opens on NOW. While a search is live the
+                subtext reports the matches; the greeting stays, because you
+                haven't gone anywhere. */}
+            {route === "feed" && (
               <TitleBlock
                 size="page" tone="onDark"
-                eyebrow={
-                  // The period label IS the scope control — "July 2026" already names
-                  // the scope AND the period, so a separate row of tabs was saying half
-                  // of it twice. Prev/next flank it because it's what they change.
-                  // While searching there IS no period, so it all goes away.
-                  ahead.searching ? (
-                    `Searching “${query.trim()}”`
-                  ) : (
-                    // -ml-1 cancels the 4px the icon sits inside its 24px tap target,
-                    // so the CARET aligns with the W of the title — the box it lives in
-                    // is invisible and shouldn't be what lines up.
-                    <span className="-ml-1 flex items-center gap-0.5">
-                      <Step dir={-1} onClick={() => step(-1)} />
-                      <ScopePicker
-                        scope={scope} anchor={anchor}
-                        open={scopeOpen} setOpen={setScopeOpen}
-                        onPick={setScopeAt}
-                      />
-                      <Step dir={1} onClick={() => step(1)} />
-                      {!isCurrentPeriod(scope, anchor) && (
-                        <button
-                          onClick={() => setAnchor(new Date())}
-                          className="ml-1 rounded-pill bg-white/10 px-2 py-0.5 text-caption normal-case tracking-normal text-white/70 transition-colors hover:bg-white/20 hover:text-white"
-                        >
-                          Today
-                        </button>
-                      )}
-                    </span>
-                  )
-                }
-                title="What’s ahead"
-                subtext={
-                  ahead.searching
-                    ? `${ahead.count} ${ahead.count === 1 ? "match" : "matches"} · all time`
-                    : `${ahead.count} ${ahead.count === 1 ? "thing" : "things"} this ${scope.toLowerCase()}`
-                }
+                eyebrow={today()}
+                title={`${greeting()}, ${me.name}`}
+                subtext={later.searching
+                  ? `${later.count} ${later.count === 1 ? "match" : "matches"} · all time`
+                  : undefined}
               />
             )}
             {/* The Household header is the house speaking as itself: its name,
@@ -295,7 +175,7 @@ export function PhoneShell() {
               one row, and hiding it behind a tap only made you ask "where's search?".
               It lives here rather than in the list because the list scrolls past the
               current group on open — it would have opened out of sight. */}
-          {route === "ahead" && (
+          {route === "feed" && (
             <label className="mt-3 flex h-touch items-center gap-2 rounded-pill border border-white/10 bg-white/[.06] px-3.5 text-white/45 focus-within:border-white/25">
               <Icon name="search" size={16} className="shrink-0" />
               <input
@@ -312,70 +192,6 @@ export function PhoneShell() {
             </label>
           )}
 
-          {/* "There's more above."
-              A whisper, not a control — but a legible and HONEST one. Two states,
-              and one of them is ALWAYS showing:
-
-                scrolled past something ->  "^^ EARLIER"      (tap walks up)
-                at the top              ->  "NOTHING EARLIER" (terminal, dimmer)
-
-              It shows from the moment the lens PARKS — parking sets scrollTop, so a
-              lens that opens mid-list announces its past immediately, before any
-              user scroll.
-
-              There used to be a third state — empty, when the lens couldn't scroll
-              at all (Week, which fits whole) — on the theory that "nothing earlier"
-              is noise where there's no elsewhere. Wrong twice over: it's TRUE on
-              Week (the week starts there), and hiding it left the reserved row
-              saying nothing, which reads as a rendering fault rather than restraint.
-              A reserved row must always be earning its space.
-
-              TWO things here are load-bearing:
-
-              1. The row is ALWAYS reserved (fixed mt-6 h-4) and only its CONTENT
-                 swaps, absolutely positioned. parkAndSize() measures
-                 head.offsetHeight, so the header must never change size in response
-                 to scroll state — that would shift the content, change the scroll,
-                 and re-decide the cue. A feedback loop. The fixed row also IS the
-                 spacing consistency: the search-bar-to-content gap is identical in
-                 all three states.
-              2. It lives INSIDE the header's ink, not below it: faded white on a
-                 white card vanishes outright.
-
-              The 24px above / 12px below is the GROUPING, and it is deliberate: the
-              cue belongs to the LIST it describes, not to the search bar it happens
-              to sit beneath. Proximity is the only thing saying so. */}
-          {/* Both states are ALWAYS mounted and only their opacity moves. Mount/unmount
-              (AnimatePresence) wedged here: scroll events interrupt exits mid-flight
-              and the leaving label stuck around — two cues at once. Opacity on a
-              permanent pair cannot wedge, and the hidden one is inert
-              (pointer-events: none + aria-hidden). */}
-          {route === "ahead" && (
-            <div className="relative mt-6 h-4">
-              <motion.button
-                animate={{ opacity: scrolled > 4 ? 1 : 0 }}
-                transition={smooth}
-                aria-hidden={scrolled <= 4}
-                tabIndex={scrolled > 4 ? 0 : -1}
-                style={{ pointerEvents: scrolled > 4 ? "auto" : "none" }}
-                onClick={() => scroller.current?.scrollBy({ top: -260, behavior: "smooth" })}
-                className="absolute inset-x-0 top-0 mx-auto flex h-4 w-max items-center gap-1
-                           text-white/40 transition-colors hover:text-white/75"
-              >
-                <Icon name="chevsUp" size={12} />
-                <span className="text-micro uppercase leading-none tracking-[.14em]">Earlier</span>
-              </motion.button>
-              <motion.div
-                animate={{ opacity: scrolled > 4 ? 0 : 1 }}
-                transition={smooth}
-                aria-hidden={scrolled > 4}
-                className="pointer-events-none absolute inset-x-0 top-0 mx-auto flex h-4 w-max
-                           items-center text-white/25"
-              >
-                <span className="text-micro uppercase leading-none tracking-[.14em]">Nothing earlier</span>
-              </motion.div>
-            </div>
-          )}
         </header>
 
         <motion.div
@@ -385,14 +201,11 @@ export function PhoneShell() {
           animate="show"
           className="flex flex-col gap-tile px-screen pb-[140px] pt-1"
         >
-          {route === "today" && <PhoneToday />}
-          {route === "ahead" && (
-            <PhoneAhead
-              scope={scope} setScope={setScopeAt} zoom={zoomTo} step={step}
-              query={query} setQuery={setQuery} tail={tail}
-              {...ahead}
-            />
-          )}
+          {/* NOW, then LATER — one scroll. A live search replaces the whole
+              body with its matches: results are the answer, not an appendix
+              under today's cards. */}
+          {route === "feed" && !later.searching && <PhoneToday />}
+          {route === "feed" && <PhoneLater groups={later.groups} count={later.count} searching={later.searching} query={query} />}
           {route === "house" && <PhoneHouse />}
           {route === "you" && <PhoneYou />}
         </motion.div>
@@ -1022,85 +835,6 @@ const DAY_PAGE = {
   exit: (d: number) => ({ x: d >= 0 ? "-104%" : "104%" }),
 };
 
-/**
- * The period label, doubling as the scope control.
- *
- * Each option carries its OWN period ("Month · July 2026"), which the old tab row
- * couldn't show — you had to switch to find out what you'd be looking at.
- */
-function ScopePicker({
-  scope, anchor, open, setOpen, onPick,
-}: {
-  scope: Scope; anchor: Date; open: boolean; setOpen: (v: boolean) => void;
-  onPick: (s: Scope) => void;
-}) {
-  return (
-    <span className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        aria-expanded={open}
-        aria-label="Change period"
-        className="flex items-center gap-1 rounded-pill px-1.5 py-1 text-white/45 transition-colors hover:text-white"
-      >
-        <span className="tabular-nums">{periodLabel(scope, anchor)}</span>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
-          {/* Same size as the ‹ › steppers — they're all period controls. */}
-          <Icon name="chevDown" size={16} />
-        </motion.span>
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <>
-            {/* Tap-away. Only mounted while open, so it never eats a stray tap. */}
-            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <motion.div
-              initial={{ opacity: 0, y: -6, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.96 }}
-              transition={smooth}
-              className="absolute left-0 top-full z-50 mt-1 w-max origin-top-left overflow-hidden
-                         rounded-[18px] border border-white/15 bg-ink/95 p-1 shadow-e3 backdrop-blur-xl"
-            >
-              {SCOPE.map((sc) => (
-                <button
-                  key={sc}
-                  onClick={() => { onPick(sc); setOpen(false); }}
-                  className={clsx(
-                    "flex w-full items-center gap-3 rounded-[14px] px-3 py-2 text-left normal-case tracking-normal transition-colors",
-                    sc === scope ? "bg-white text-ink" : "text-white/70 hover:bg-white/10 hover:text-white",
-                  )}
-                >
-                  <span className="text-bodysm font-medium">{sc}</span>
-                  <span className={clsx("ml-auto text-caption tabular-nums", sc === scope ? "text-ink/50" : "text-white/35")}>
-                    {periodLabel(sc, new Date())}
-                  </span>
-                </button>
-              ))}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </span>
-  );
-}
-
-/** A period stepper — 44px tap target, hairline chevron. */
-function Step({ dir, onClick }: { dir: -1 | 1; onClick: () => void }) {
-  return (
-    <motion.button
-      whileTap={press}
-      onClick={onClick}
-      aria-label={dir < 0 ? "Previous" : "Next"}
-      className="grid h-touch w-6 shrink-0 place-items-center text-white/40 transition-colors hover:text-white"
-    >
-      <Icon name={dir < 0 ? "back" : "fwd"} size={16} />
-    </motion.button>
-  );
-}
-
-const SCOPE = ["Week", "Month", "Quarter", "Year"] as const;
-type Scope = Period;
 
 /**
  * THE DAY RULER — on Today, right under the greeting. Scroll it through the
@@ -1187,181 +921,115 @@ type Item =
   | { kind: "maint"; due: string; item: MaintItem };
 
 /**
- * What's on the horizon, at a given scope and anchor.
+ * LATER — everything past today, merged and grouped: the Feed's lower half.
  *
- * Everything is merged into ONE dated list and sorted by `due`, because that's the
- * question the screen answers: what's coming, in order. Tasks/events/upkeep are
- * different kinds of thing but they share a timeline.
+ * Everything is merged into ONE dated list and sorted by `due`, because that's
+ * the question this half answers: what's coming, in order. The bands read like
+ * a planner — anything still open from earlier, then Tomorrow, This week, Next
+ * week, then months. No period stepper: the scroll IS the navigation, and a
+ * search (which spans ALL time — it's a question about the household, not the
+ * horizon you're scrolled to) is the jump-to-anywhere.
  *
- * Pulled out of the component: the shell's header reports the count and the page
- * renders the rows — two copies of this maths would drift.
+ * Pulled out of the component: the shell's header reports the match count and
+ * the page renders the rows — two copies of this maths would drift.
  */
-function aheadFor(
+function laterFor(
   s: ReturnType<typeof useHousehold.getState>,
   meId: string,
-  scope: Scope,
-  anchor: Date,
   query: string,
 ) {
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;
-  const range = periodRange(scope, anchor);
+  const todayStr = todayIso();
+  const tomorrow = iso(addDays(new Date(), 1));
+  const thisWeekEnd = iso(addDays(startOfWeek(new Date()), 6));
+  const nextWeekEnd = iso(addDays(startOfWeek(new Date()), 13));
 
-  // SEARCH IGNORES THE PERIOD. Looking for "boiler" inside the week you happen to be
-  // on would find nothing and teach the user the search is broken. A search is a
-  // question about the whole household, not about the lens you're holding.
-  const keep = (due: string) => searching || inRange(due, range);
+  // Browsing shows what's AHEAD (today itself lives in the cards above) plus
+  // anything undone that slipped past — overdue work must not vanish into a
+  // tab that no longer exists.
+  const keep = (due: string, done?: boolean) =>
+    searching || due >= tomorrow || (!done && due < todayStr);
   const hit = (text: string) => !searching || text.toLowerCase().includes(q);
 
   const items: Item[] = [
     ...s.tasks
-      .filter((t) => holder(t) === meId && keep(t.due) && hit(`${t.title} ${t.source ?? ""} ${t.recurring ?? ""}`))
+      .filter((t) => holder(t) === meId && keep(t.due, t.done) && hit(`${t.title} ${t.source ?? ""} ${t.recurring ?? ""}`))
       .map((task): Item => ({ kind: "task", due: task.due, task })),
     ...s.events
-      .filter((e) => e.who === meId && keep(e.due) && hit(`${e.title} ${e.recurring ?? ""}`))
+      .filter((e) => e.who === meId && keep(e.due, true) && hit(`${e.title} ${e.recurring ?? ""}`))
       .map((event): Item => ({ kind: "event", due: event.due, event })),
-    // Upkeep is the whole household's, not one person's — it only shows up once
-    // you're looking past the current week (or searching for it by name).
-    ...(scope === "Week" && !searching
-      ? []
-      : s.maint
-          .filter((m) => keep(m.due) && hit(`${m.title} ${m.asset} ${m.cadence}`))
-          .map((item): Item => ({ kind: "maint", due: item.due, item }))),
+    ...s.maint
+      .filter((m) => keep(m.due, m.status !== "over") && hit(`${m.title} ${m.asset} ${m.cadence}`))
+      .map((item): Item => ({ kind: "maint", due: item.due, item })),
   ].sort((a, b) => a.due.localeCompare(b.due) || Number(isDone(a)) - Number(isDone(b)));
 
-  /**
-   * Group at the rung BELOW the scope — grouping a month by month is one group,
-   * which is no grouping at all.
-   *   Week    -> flat (7 days reads fine as a list)
-   *   Month   -> by WEEK
-   *   Quarter -> by MONTH
-   *   Year    -> by MONTH
-   */
-  // Search results span all time, so they always group by month regardless of scope.
-  const by = searching ? "month" : scope === "Week" ? null : scope === "Month" ? "week" : "month";
-  const keyOf = (due: string) => (by === "week" ? weekKey(due) : monthKey(due));
-
-  const all = !by
-    ? [{ key: "", label: "", items, past: false }]
-    : [...new Set(items.map((i) => keyOf(i.due)))].sort().map((key) => ({
-        key,
-        label: by === "week" ? weekLabel(key) : monthLabel(key),
-        items: items.filter((i) => keyOf(i.due) === key),
-        past: groupIsPast(key),
-      }));
-
-  return {
-    groups: all,
-    searching,
-    /** Zooming a group means "show me that period" — a week key needs Week scope. */
-    zoomScope: (by === "week" ? "Week" : "Month") as Scope,
-    count: items.filter((i) => !isDone(i)).length,
+  // Search results span all time, so they group by month; browsing gets the
+  // planner bands.
+  const bandOf = (i: Item): { key: string; label: string } => {
+    if (searching) return { key: monthKey(i.due), label: monthLabel(monthKey(i.due)) };
+    if (i.due < todayStr) return { key: "over", label: "Still open from earlier" };
+    if (i.due === tomorrow) return { key: "tomorrow", label: "Tomorrow" };
+    if (i.due <= thisWeekEnd) return { key: "week", label: "This week" };
+    if (i.due <= nextWeekEnd) return { key: "next", label: "Next week" };
+    return { key: monthKey(i.due), label: monthLabel(monthKey(i.due)) };
   };
+
+  const groups = [...new Map(items.map((i) => [bandOf(i).key, bandOf(i)])).values()]
+    .map((band) => ({
+      ...band,
+      items: items.filter((i) => bandOf(i).key === band.key),
+      past: searching && groupIsPast(band.key),
+    }))
+    // By each band's earliest item, not by key — month keys and band names
+    // don't share an alphabet.
+    .sort((a, b) => a.items[0].due.localeCompare(b.items[0].due));
+
+  return { groups, searching, count: items.filter((i) => !isDone(i)).length };
 }
 
 const isDone = (i: Item) => i.kind === "task" && i.task.done;
 
-type AheadProps = ReturnType<typeof aheadFor> & {
-  scope: Scope;
-  setScope: (s: Scope) => void;
-  zoom: (key: string) => void;
-  step: (dir: -1 | 1) => void;
+function PhoneLater({ groups, count, searching, query }: {
+  groups: ReturnType<typeof laterFor>["groups"];
+  count: number;
+  searching: boolean;
   query: string;
-  setQuery: (q: string) => void;
-  /** Tail spacer height, measured by the shell so the current group can reach the top. */
-  tail: number;
-};
-
-function PhoneAhead({ groups, count, zoom, step, query, searching, tail, zoomScope }: AheadProps) {
-  // The first group that isn't behind us — the shell scrolls this to the top, so the
-  // past sits above the fold instead of behind a button.
-  const currentKey = groups.find((g) => !g.past)?.key ?? null;
-
+}) {
   return (
     <>
-      {/* Swipe left/right to step a period. `dragSnapToOrigin` puts the sheet back;
-          we only read the gesture's DIRECTION, we never actually move the list.
-          Disabled while searching — results aren't a period, so there's nowhere to go. */}
-      <motion.div
-        drag={searching ? false : "x"}
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.12}
-        dragSnapToOrigin
-        onDragEnd={(_, info) => {
-          if (Math.abs(info.offset.x) > 60) step(info.offset.x < 0 ? 1 : -1);
-        }}
-        className="flex flex-col gap-tile"
-      >
-        {groups.map((g, gi) => (
-          <div
-            key={g.key}
-            // The shell scrolls THIS one to the top on any lens change.
-            data-current={g.key === currentKey ? "" : undefined}
-            className="flex flex-col gap-tile"
-          >
-            {/* A group heading is a DOOR, not a label: tap it to narrow the whole
-                screen onto that period. The affordance NAMES that — "Open week" /
-                "Open month", from the scope it actually lands on. It used to be a
-                bare `focus` glyph (corner brackets), which said something is
-                tappable but never what it does; a door you can't read is a wall. */}
-            {g.key && (
-              <motion.button
-                variants={listItem}
-                onClick={() => zoom(g.key)}
-                // px-4 + the list's 4px gutter = 20px, the same left edge as the page
-                // title and every card's text. px-1 left it hanging 12px out.
-                //
-                // pt-3 pushes a heading clear of the PREVIOUS group's last card. The
-                // first heading has no card above it — only the header, which already
-                // sets the gap — so the padding there just doubled the distance to the
-                // cue and made it read as the search bar's.
-                className={clsx(
-                  "group flex items-center gap-2 px-4 pb-1 text-left",
-                  gi === 0 ? "pt-0" : "pt-3",
-                )}
-              >
-                <Eyebrow tone="onDark" className={clsx(g.past && "text-white/25")}>{g.label}</Eyebrow>
-                <span className="text-caption text-white/30">{g.items.length}</span>
-                {/* Pushed right, so the label+count stay one unit and the action
-                    reads as the row's verb rather than a third piece of metadata. */}
-                <span className="ml-auto flex items-center gap-0.5 whitespace-nowrap text-micro
-                                 uppercase tracking-[.14em] text-white/30 transition-colors
-                                 group-hover:text-white/70">
-                  Open {zoomScope.toLowerCase()}
-                  <Icon name="fwd" size={12} />
-                </span>
-              </motion.button>
-            )}
-            {g.items.map((i) => (
-              <motion.div
-                key={`${i.kind}-${i.kind === "task" ? i.task.id : i.kind === "event" ? i.event.id : i.item.id}`}
-                variants={listItem}
-                // What's behind you is still there, just quieter.
-                className={clsx(g.past && "opacity-60")}
-              >
-                {i.kind === "task" && <TaskCard task={i.task} />}
-                {i.kind === "event" && <EventCard event={i.event} />}
-                {i.kind === "maint" && <MaintCard item={i.item} />}
-              </motion.div>
-            ))}
-          </div>
-        ))}
-
-        {count === 0 && (
-          <motion.div variants={listItem}>
-            <Card>
-              <p className="py-10 text-center text-body text-sub">
-                {searching ? `Nothing matches “${query.trim()}”` : "Nothing on — enjoy!"}
-              </p>
-            </Card>
+      {groups.map((g) => (
+        <div key={g.key} className="flex flex-col gap-tile">
+          {/* A heading is a LABEL here, not a door — with the period lens gone
+              there's no second screen to open; the band under it is the thing. */}
+          <motion.div variants={listItem} className="flex items-center gap-2 px-4 pb-1 pt-3">
+            <Eyebrow tone="onDark" className={clsx(g.past && "text-white/25")}>{g.label}</Eyebrow>
+            <span className="text-caption text-white/30">{g.items.length}</span>
           </motion.div>
-        )}
+          {g.items.map((i) => (
+            <motion.div
+              key={`${i.kind}-${i.kind === "task" ? i.task.id : i.kind === "event" ? i.event.id : i.item.id}`}
+              variants={listItem}
+              // What's behind you is still there, just quieter.
+              className={clsx(g.past && "opacity-60")}
+            >
+              {i.kind === "task" && <TaskCard task={i.task} />}
+              {i.kind === "event" && <EventCard event={i.event} />}
+              {i.kind === "maint" && <MaintCard item={i.item} />}
+            </motion.div>
+          ))}
+        </div>
+      ))}
 
-        {/* Room for the current group to reach the top — measured by the shell, not a
-            fixed 40vh. Zero when the content below already fills a viewport, so the list
-            never scrolls past its last card into empty space. */}
-        <div aria-hidden data-tail className="shrink-0" style={{ height: tail }} />
-      </motion.div>
+      {count === 0 && (
+        <motion.div variants={listItem}>
+          <Card>
+            <p className="py-10 text-center text-body text-sub">
+              {searching ? `Nothing matches “${query.trim()}”` : "Nothing on the horizon — enjoy!"}
+            </p>
+          </Card>
+        </motion.div>
+      )}
     </>
   );
 }
