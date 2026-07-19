@@ -6,7 +6,7 @@ import { Icon, type IconName } from "@/components/Icons";
 import { ActionButton, Button } from "@/components/ui";
 import { isToday } from "@/lib/dates";
 import { press, smooth, spring } from "@/lib/motion";
-import { shoppingList, useHousehold } from "@/lib/store";
+import { doers, shoppingList, useHousehold } from "@/lib/store";
 import type { IpadRoute } from "@/lib/types";
 import { IpadCalendar, IpadHome, IpadHousehold, IpadInsights, IpadShopping, IpadTasks } from "./screens";
 import { IpadAutomations, IpadBills, IpadInventory, IpadMaint, IpadMore, IpadSettings } from "./more";
@@ -54,6 +54,9 @@ export function IpadShell() {
 
   const todayCount = s.tasks.filter((t) => !t.done && isToday(t.due)).length;
   const shopCount = shoppingList(s).filter((i) => !i.done).length;
+  // Whoever runs the home — never a hardcoded id, which broke for any
+  // onboarded household without a member literally named Maya.
+  const owner = doers(s).find((m) => m.role === "owner") ?? doers(s)[0];
 
   return (
     <div className="absolute inset-0 grid min-h-0 grid-cols-[264px_1fr] overflow-hidden bg-ink text-white">
@@ -114,15 +117,18 @@ export function IpadShell() {
 
       {/* Main */}
       <div className="flex min-h-0 min-w-0 flex-col">
-        <header className="flex shrink-0 items-center gap-4 border-b border-white/[.06] px-screen py-4">
+        <header className="flex shrink-0 items-center gap-4 border-b border-white/[.06] px-inner py-5">
           <span className="font-tight text-h1 text-white">{s.query ? "Search" : TITLES[route] ?? "Home"}</span>
-          <label className="ml-2 flex max-w-[320px] flex-1 items-center gap-2 rounded-xl bg-white/[.06] px-3 py-2.5 text-white/45 focus-within:bg-white/[.10]">
+          {/* Pill, h-touch — the same shape and floor as the Feed's search bar
+              and every other control in the app. Was rounded-xl at ~40px, an
+              outlier shape under the 44px touch minimum. */}
+          <label className="ml-2 flex h-touch max-w-[320px] flex-1 items-center gap-2 rounded-pill bg-white/[.06] px-3.5 text-white/45 focus-within:bg-white/[.10]">
             <Icon name="search" size={16} />
             <input
               value={s.query}
               onChange={(e) => s.setQuery(e.target.value)}
               placeholder="Search tasks, items, bills…"
-              className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/30"
+              className="w-full bg-transparent text-bodysm text-white outline-none placeholder:text-white/30"
             />
             {s.query && (
               <button onClick={() => s.setQuery("")} aria-label="Clear search">
@@ -131,9 +137,13 @@ export function IpadShell() {
             )}
           </label>
           <div className="ml-auto flex items-center gap-2.5">
+            {/* tone="light" — the on-dark default everywhere else in the app.
+                The bare default (tone="dark") painted bg-ink ON bg-ink: an
+                invisible well, just a floating glyph. */}
             <ActionButton
               name="bell"
               label="Activity"
+              tone="light"
               dot={s.unread > 0}
               // Open ONLY — markRead moved into the sheet itself. Calling it here
               // burned the evidence before the sheet could render: `unread` is
@@ -141,16 +151,23 @@ export function IpadShell() {
               // frame before anything could read it.
               onClick={() => s.openSheet({ type: "activity" })}
             />
+            {/* tone="lemon" — the app's one primary-action color, and what
+                "Add" already means on the phone. Same invisible-button bug as
+                the bell: default tone="dark" was bg-ink on bg-ink. */}
             <Button
-              onClick={() => s.openSheet({ type: "newTask", draft: { title: "", owner: "maya", when: "Today", priority: "med" } })}
+              tone="lemon"
+              onClick={() => s.openSheet({ type: "newTask", draft: { title: "", owner: owner?.id ?? null, when: "Today", priority: "med" } })}
             >
               <Icon name="plus" size={16} /> Add
             </Button>
           </div>
         </header>
 
-        {/* Entrance motion is keyed to navTick — mutations never re-trigger it. */}
-        <motion.div key={s.query ? "search" : s.navTick} className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-screen">
+        {/* Entrance motion is keyed to navTick — mutations never re-trigger it.
+            p-inner (24px) — "inner padding of larger containers," not the
+            page-gutter token (p-screen, 4px) this was borrowing, which left a
+            900px-wide pane tighter than the phone's own 350px card. */}
+        <motion.div key={s.query ? "search" : s.navTick} className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-inner">
           {s.query ? <SearchResults /> : <RouteView route={route} />}
         </motion.div>
       </div>
