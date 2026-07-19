@@ -332,8 +332,8 @@ export function PhoneShell() {
   );
 }
 
-/** Where someone is, said the way a fridge note would — for the Household
- *  tab's member rows. `away` names its horizon when it knows one. */
+/** Where someone is, said the way a fridge note would. `away` names its
+ *  horizon when it knows one. */
 const WHERE: Record<Presence, (to?: string) => string> = {
   here: () => "Around",
   wfh: () => "Home today",
@@ -341,13 +341,20 @@ const WHERE: Record<Presence, (to?: string) => string> = {
   away: (to) => (to ? `Away until ${relativeInline(to)}` : "Away"),
 };
 
+/** Focus ring for raw controls on the ink backdrop — outline-ink vanishes out
+ *  here, so the ring borrows the app's one accent. */
+const FOCUS_DARK = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lemon";
+
 /**
- * THE HOUSEHOLD TAB — the family iPad, for homes that don't have one.
+ * THE HOUSEHOLD TAB — a PEOPLE-FIRST living board: the family iPad, for homes
+ * that don't have one.
  *
- * This was a sheet behind a small icon; a shared surface everyone is meant to
- * live in deserved a tab. Everything here ANSWERS A TAP: the Balance tile
- * opens the rebalance, a member expands to their real named items, an item
- * opens its own sheet, the shared doors open the shopping list and the stock.
+ * The house speaks first (one composed sentence — its pulse), then its people:
+ * a card per person wearing where they are, what they're carrying, their
+ * colour. Tap a person and their actual day opens beneath the grid — the
+ * PhoneYou lens pattern, scaled to the whole cast. A live school run surfaces
+ * as it happens. The balance is drawn, not scored: one bar, everyone's share
+ * in their own colour, with the fix one tap away. Everything answers a tap.
  */
 function PhoneHouse() {
   const s = useHousehold();
@@ -355,7 +362,6 @@ function PhoneHouse() {
   const board = people
     .map((m) => ({ m, items: s.tasks.filter((t) => t.owner === m.id && !t.done) }))
     .sort((a, b) => b.items.length - a.items.length);
-  const maxN = Math.max(1, ...board.map((b) => b.items.length));
   const totalOpen = board.reduce((n, b) => n + b.items.length, 0);
   const weekAgo = Date.now() - 7 * 86_400_000;
   const doneWeek = s.tasks.filter((t) => t.done && t.completedAt && t.completedAt >= weekAgo).length;
@@ -363,143 +369,174 @@ function PhoneHouse() {
   const shopOpen = shoppingList(s).filter((i) => !i.done).length;
   const low = s.inventory.filter((i) => i.status === "low").length;
 
-  // One member's card open at a time — a wall of everyone's tasks at once is
-  // the iPad's job, not a phone's.
-  const [openId, setOpenId] = useState<MemberId | null>(null);
+  /** One person's day at a time, under the grid — the lens pattern. */
+  const [selId, setSelId] = useState<MemberId | null>(null);
+  const sel = selId ? board.find((b) => b.m.id === selId) : null;
+  const selEvents = selId
+    ? s.events.filter((e) => e.who === selId && isToday(e.due) && !e.done)
+    : [];
 
-  // Tasks and events in one shape, so the list sorts and renders them without
-  // caring which they are. Each keeps what it needs to reopen its own sheet.
-  const upNext = [
-    ...s.tasks.filter((t) => !t.done).map((t) => ({
-      key: `t${t.id}`, title: t.title, when: t.when, who: t.owner,
-      open: () => s.openSheet({ type: "task" as const, id: t.id }),
-    })),
-    ...s.events.filter((e) => !e.done).map((e) => ({
-      key: `e${e.id}`, title: e.title, when: e.time, who: e.who,
-      open: () => s.openSheet({ type: "event" as const, id: e.id }),
-    })),
-  ]
-    .sort((a, b) => (a.when || "").localeCompare(b.when || ""))
-    .slice(0, 5);
+  /* THE PULSE — the house saying how it is, composed from what it knows.
+     The count is EVERYTHING open, not just what's on someone — unclaimed work
+     is still the house's, and the clause names it when nothing juicier (a
+     person being away) has the slot. */
+  const allOpen = s.tasks.filter((t) => !t.done).length;
+  const unclaimed = s.tasks.filter((t) => !t.done && !t.owner).length;
+  const awayBit = (() => {
+    const x = people
+      .map((m) => ({ m, p: m.availability?.presence ?? ("here" as Presence) }))
+      .find((v) => v.p !== "here");
+    if (x) return x.p === "wfh" ? `${x.m.name} is home` : x.p === "out" ? `${x.m.name} is out` : `${x.m.name} is away`;
+    if (unclaimed) return unclaimed === 1 ? "one needs an owner" : `${unclaimed} need an owner`;
+    return null;
+  })();
+
+  /* A live journey, front and centre while it runs. */
+  const trip = s.island?.phase === "journey" ? s.island : null;
+  const tripTask = trip?.taskId != null ? s.tasks.find((t) => t.id === trip.taskId) : null;
+  const traveler = tripTask?.owner ? s.members[tripTask.owner] : null;
 
   return (
     <>
-      {/* The glance: three stats in one anatomy — 24px value over caption.
-          Balance is the button when it needs one; lemon + the action caption
-          say "tap me", not a different type size. */}
-      {/* text-ink on every light container — this body sits inside the shell's
-          text-white, and inherited white on a white card is invisible. */}
-      <motion.div variants={listItem} className="grid grid-cols-3 gap-tile">
-        <div className="rounded-card bg-card p-3.5 text-ink shadow-e2">
-          <div className="font-tight text-[24px] leading-none tabular-nums">{totalOpen}</div>
-          <div className="mt-1.5 text-caption text-sub">On the go</div>
-        </div>
-        <div className="rounded-card bg-card p-3.5 text-ink shadow-e2">
-          <div className="font-tight text-[24px] leading-none tabular-nums">{doneWeek}</div>
-          <div className="mt-1.5 text-caption text-sub">Done · 7 days</div>
-        </div>
-        {move ? (
-          <button
-            onClick={() => s.openSheet({ type: "rebalance" })}
-            className="rounded-card bg-lemon p-3.5 text-left text-ink shadow-e2 transition-shadow hover:shadow-e3"
-          >
-            <div className="font-tight text-[24px] leading-none">Uneven</div>
-            <div className="mt-1.5 text-caption font-medium text-ink/70">Even it out</div>
-          </button>
-        ) : (
-          <div className="rounded-card bg-card p-3.5 text-ink shadow-e2">
-            <div className="font-tight text-[24px] leading-none">Fair</div>
-            <div className="mt-1.5 text-caption text-sub">Balance</div>
-          </div>
-        )}
+      {/* The pulse: one sentence, page voice, straight on the ink. */}
+      <motion.div variants={listItem} className="px-1.5 pb-2 pt-1">
+        <Sentence className="max-w-[17ch] text-balance text-white">
+          {allOpen
+            ? <>The house is carrying <Em>{allOpen} things</Em>{awayBit && <> — {awayBit}</>}.</>
+            : <>All caught up{awayBit && <> — {awayBit}</>}.</>}
+        </Sentence>
       </motion.div>
 
-      {/* THE PEOPLE — what everyone is up to: where they are, what they're
-          carrying, and the actual items one tap deep. */}
-      <motion.div variants={listItem}>
-        <Eyebrow tone="onDark" className="mb-2 mt-4 px-1.5">Who&rsquo;s on what</Eyebrow>
-        <div className="divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card text-ink shadow-e2">
-          {board.map(({ m, items }) => {
-            const open = openId === m.id;
-            const av = m.availability;
-            return (
-              <div key={m.id}>
-                <button
-                  onClick={() => setOpenId(open ? null : m.id)}
-                  aria-expanded={open}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface"
-                >
-                  <Avatar member={m} size={38} />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-bodysm font-medium">{m.name}</div>
-                    <div className="text-caption text-sub">{WHERE[av?.presence ?? "here"](av?.to)}</div>
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-pill bg-ink/[.06]">
-                      <div
-                        className="h-full rounded-pill transition-all"
-                        style={{ width: `${Math.round((items.length / maxN) * 100)}%`, background: m.color }}
-                      />
-                    </div>
-                  </div>
-                  <span className="shrink-0 font-tight text-[18px] tabular-nums">{items.length}</span>
-                  <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex shrink-0 text-sub">
-                    <Icon name="chevDown" size={14} />
-                  </motion.span>
-                </button>
-                <AnimatePresence initial={false}>
-                  {open && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={smooth}
-                      className="overflow-hidden"
-                    >
-                      <div className="pb-2 pl-[62px] pr-3">
-                        {items.length ? items.map((t) => (
-                          <button
-                            key={t.id}
-                            onClick={() => s.openSheet({ type: "task", id: t.id })}
-                            className="flex w-full items-center justify-between gap-3 rounded-sm py-1.5 text-left text-sub transition-colors hover:text-ink"
-                          >
-                            <span className="min-w-0 truncate text-bodysm">{t.title}</span>
-                            <span className="shrink-0 text-caption text-sub/70">{t.when || "Any time"}</span>
-                          </button>
-                        )) : (
-                          <p className="py-1.5 text-bodysm text-sub">Nothing on {m.name} right now.</p>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
-        </div>
-      </motion.div>
-
-      {/* THE DAY — the house's next few things, whoever they belong to. */}
-      {upNext.length > 0 && (
+      {/* A run in motion — mint, the household's OURS colour. */}
+      {trip && traveler && (
         <motion.div variants={listItem}>
-          <Eyebrow tone="onDark" className="mb-2 mt-4 px-1.5">Up next, across the house</Eyebrow>
-          <div className="divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card text-ink shadow-e2">
-            {upNext.map((item) => (
-              <button
-                key={item.key}
-                onClick={item.open}
-                className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface"
-              >
-                <Avatar member={item.who ? s.members[item.who] : undefined} size={26} />
-                <span className="min-w-0 flex-1 truncate text-bodysm font-medium">{item.title}</span>
-                <span className="shrink-0 text-caption text-sub">{item.when || "Any time"}</span>
-              </button>
-            ))}
+          <div className="flex items-center gap-3 rounded-card bg-mint p-card-pad text-ink shadow-e2">
+            <Avatar member={traveler} size={38} />
+            <div className="min-w-0 flex-1">
+              <div className="text-bodysm font-medium">{traveler.name} is on the way</div>
+              <div suppressHydrationWarning className="text-caption text-sub">
+                {trip.where ?? "Out"}{trip.etaAt ? ` · arriving ${new Date(trip.etaAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}
+              </div>
+            </div>
+            {/* Alive, quietly. */}
+            <span aria-hidden className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-pill bg-ink" />
           </div>
         </motion.div>
       )}
 
+      {/* THE PEOPLE — a card each: where they are, what they carry, their
+          colour. Tap = their day opens below. */}
+      <motion.div variants={listItem} className="grid grid-cols-2 gap-tile">
+        {board.map(({ m, items }) => {
+          const av = m.availability;
+          const on = selId === m.id;
+          return (
+            <button
+              key={m.id}
+              onClick={() => setSelId(on ? null : m.id)}
+              aria-pressed={on}
+              className={clsx(
+                "rounded-card bg-card p-card-pad text-left text-ink shadow-e2 transition-shadow hover:shadow-e3",
+                FOCUS_DARK,
+                on && "ring-2 ring-inset ring-ink",
+              )}
+            >
+              <div className="flex items-start justify-between">
+                <Avatar member={m} size={44} />
+                <span className="font-tight text-[24px] leading-none tabular-nums">{items.length}</span>
+              </div>
+              <div className="mt-3 text-h2">{m.name}</div>
+              <div className="text-caption text-sub">{WHERE[av?.presence ?? "here"](av?.to)}</div>
+              <div className="mt-2.5 h-1.5 overflow-hidden rounded-pill bg-ink/[.06]">
+                <div
+                  className="h-full rounded-pill transition-all"
+                  style={{ width: `${totalOpen ? Math.round((items.length / Math.max(1, board[0].items.length)) * 100) : 0}%`, background: m.color }}
+                />
+              </div>
+            </button>
+          );
+        })}
+      </motion.div>
+
+      {/* The selected person's day — one at a time, the lens's reading area. */}
+      <AnimatePresence initial={false}>
+        {sel && (
+          <motion.div
+            key={sel.m.id}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={smooth}
+            className="overflow-hidden"
+          >
+            <div className="rounded-card bg-card p-card-pad text-ink shadow-e2">
+              <Eyebrow>{sel.m.name}&rsquo;s day</Eyebrow>
+              <div className="mt-1 flex flex-col">
+                {[...sel.items.map((t) => ({
+                  key: `t${t.id}`, title: t.title, when: t.when || "Any time",
+                  amount: t.amount, open: () => s.openSheet({ type: "task" as const, id: t.id }),
+                })), ...selEvents.map((e) => ({
+                  key: `e${e.id}`, title: e.title, when: e.time,
+                  amount: undefined as number | undefined, open: () => s.openSheet({ type: "event" as const, id: e.id }),
+                }))].map((r) => (
+                  <button
+                    key={r.key}
+                    onClick={r.open}
+                    className="-mx-2 flex items-center justify-between gap-3 rounded-sm px-2 py-2 text-left transition-colors hover:bg-surface"
+                  >
+                    <span className="min-w-0 truncate text-bodysm font-medium">
+                      {r.title}{typeof r.amount === "number" && <span className="text-sub"> · ${r.amount}</span>}
+                    </span>
+                    <span className="shrink-0 text-caption text-sub">{r.when}</span>
+                  </button>
+                ))}
+                {sel.items.length === 0 && selEvents.length === 0 && (
+                  <p className="py-2 text-bodysm text-sub">Nothing on {sel.m.name} right now — lucky them.</p>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* THE BALANCE — drawn, not scored: everyone's share of the load in
+          their own colour, and the fix right there when it's lopsided. */}
+      <motion.div variants={listItem}>
+        <div className="rounded-card bg-card p-card-pad text-ink shadow-e2">
+          <div className="flex items-baseline justify-between">
+            <Eyebrow>The balance</Eyebrow>
+            <span className="text-caption text-sub">{doneWeek} done this week</span>
+          </div>
+          <div className="mt-3 flex h-3 gap-hair overflow-hidden rounded-pill">
+            {totalOpen === 0 ? (
+              <div className="h-full w-full rounded-pill bg-ink/[.06]" />
+            ) : (
+              board.filter((b) => b.items.length > 0).map((b) => (
+                <div
+                  key={b.m.id}
+                  className="h-full rounded-pill"
+                  style={{ flexGrow: b.items.length, background: b.m.color }}
+                />
+              ))
+            )}
+          </div>
+          <div className="mt-2 truncate text-caption text-sub">
+            {board.filter((b) => b.items.length > 0).map((b) => `${b.m.name} ${b.items.length}`).join(" · ") || "Nobody's carrying anything"}
+          </div>
+          {move && (
+            <Button tone="dark" className="mt-3.5 w-full" onClick={() => s.openSheet({ type: "rebalance" })}>
+              <Icon name="scale" size={15} /> Even it out
+            </Button>
+          )}
+        </div>
+      </motion.div>
+
+      {/* THE DAY — the house's next few things, whoever they belong to. */}
+      <UpNextAcrossHouse />
+
       {/* THE SHARED THINGS — doors to what the whole house owns together. */}
       <motion.div variants={listItem}>
-        <Eyebrow tone="onDark" className="mb-2 mt-4 px-1.5">Shared</Eyebrow>
+        <Eyebrow tone="onDark" className="mb-2 mt-2 px-1.5">Shared</Eyebrow>
         <div className="grid grid-cols-2 gap-tile">
           <Card tone="mint" onClick={() => s.openSheet({ type: "shop" })}>
             <IconTile name="cart" />
@@ -516,6 +553,45 @@ function PhoneHouse() {
     </>
   );
 }
+
+/** The house's next few things, whoever they belong to — tasks and events in
+ *  one shape, each able to reopen its own sheet. */
+function UpNextAcrossHouse() {
+  const s = useHousehold();
+  const upNext = [
+    ...s.tasks.filter((t) => !t.done).map((t) => ({
+      key: `t${t.id}`, title: t.title, when: t.when, who: t.owner,
+      open: () => s.openSheet({ type: "task" as const, id: t.id }),
+    })),
+    ...s.events.filter((e) => !e.done).map((e) => ({
+      key: `e${e.id}`, title: e.title, when: e.time, who: e.who,
+      open: () => s.openSheet({ type: "event" as const, id: e.id }),
+    })),
+  ]
+    .sort((a, b) => (a.when || "").localeCompare(b.when || ""))
+    .slice(0, 5);
+
+  if (upNext.length === 0) return null;
+  return (
+    <motion.div variants={listItem}>
+      <Eyebrow tone="onDark" className="mb-2 mt-2 px-1.5">Up next, across the house</Eyebrow>
+      <div className="divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card text-ink shadow-e2">
+        {upNext.map((item) => (
+          <button
+            key={item.key}
+            onClick={item.open}
+            className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface"
+          >
+            <Avatar member={item.who ? s.members[item.who] : undefined} size={26} />
+            <span className="min-w-0 flex-1 truncate text-bodysm font-medium">{item.title}</span>
+            <span className="shrink-0 text-caption text-sub">{item.when || "Any time"}</span>
+          </button>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 
 const SPAN = ["Weekly", "Monthly"] as const;
 
