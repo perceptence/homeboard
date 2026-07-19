@@ -785,7 +785,7 @@ function ManageHouseholdSheet() {
       </div>
       <button
         onClick={() => s.openSheet({ type: "addPerson" })}
-        className={clsx("mt-2 flex items-center gap-1.5 rounded-sm px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+        className={clsx("mt-3.5 flex items-center gap-1.5 rounded-sm px-1 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
       >
         <Icon name="plus" size={16} /> Add person
       </button>
@@ -894,19 +894,19 @@ function AddPersonSheet() {
           </p>
 
           <Eyebrow className="mt-6">Access</Eyebrow>
-          <div className="mt-2 flex flex-col gap-0.5 rounded-card bg-card p-1.5 shadow-e1">
+          <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
             {(Object.keys(ROLE_LABEL) as Role[]).filter((r) => r !== "owner").map((r) => (
               <button
                 key={r}
                 onClick={() => setRole(r)}
-                className={clsx(
-                  "flex flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left transition-colors",
-                  FOCUS,
-                  r === role ? "bg-ink text-white" : "hover:bg-surface",
-                )}
+                aria-pressed={r === role}
+                className={clsx("flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface", FOCUS)}
               >
-                <span className="text-bodysm font-medium">{ROLE_LABEL[r]}</span>
-                <span className={clsx("text-caption", r === role ? "text-white/60" : "text-sub")}>{ROLE_HINT[r]}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-bodysm font-medium">{ROLE_LABEL[r]}</div>
+                  <div className="mt-hair text-caption text-sub">{ROLE_HINT[r]}</div>
+                </div>
+                {r === role && <Icon name="check" size={18} className="shrink-0 text-ink" />}
               </button>
             ))}
           </div>
