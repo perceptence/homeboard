@@ -8,7 +8,7 @@ import { Avatar, AvatarStack, Button, Card, Check, Choice, Eyebrow, IconTile, Mi
 import { smooth } from "@/lib/motion";
 import { addDays, ago, badge, clockLabel, dayLabel, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
 import { taskGlyph } from "@/lib/glyphs";
-import { parseTask } from "@/lib/parse";
+import { parseAutomation, parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { autoThenTitle, autoWhenPhrase, doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
 import type { AutoThen, AutoWhen, Member, MemberId, MemberKind, Priority, Role, ShopCategory, ShopItem, StockStatus, Task } from "@/lib/types";
@@ -536,7 +536,10 @@ function Switch({ on, onToggle, label }: { on: boolean; onToggle: () => void; la
         layout
         transition={{ type: "spring", stiffness: 500, damping: 34 }}
         // Track is 48×28, knob 22 → 3px inset centres it both ways (was 4/2, off).
-        className={clsx("absolute top-[3px] block h-[22px] w-[22px] rounded-pill shadow-sm", on ? "left-[23px] bg-lemon" : "left-[3px] bg-white")}
+        // White knob both ways — the ink track already says ON. A lemon knob made
+        // every resting switch shout in the accent our other binary controls
+        // (Choice, Check) reserve for the active moment.
+        className={clsx("absolute top-[3px] block h-[22px] w-[22px] rounded-pill bg-white shadow-sm", on ? "left-[23px]" : "left-[3px]")}
       />
     </button>
   );
@@ -1022,8 +1025,18 @@ function AutomationSheet({ id }: { id?: string }) {
   const s = useHousehold();
   const existing = id ? s.automations.find((a) => a.id === id) : undefined;
 
-  const [when, setWhen] = useState<AutoWhen | null>(existing?.when ?? null);
-  const [then, setThen] = useState<AutoThen | null>(existing?.then ?? null);
+  // SAY IT, we build it — the New-task bargain, for rules. The sentence is
+  // parsed live; what it understood pre-selects the builder below, and a
+  // manual tap on any part wins over the parse from then on.
+  const [raw, setRaw] = useState("");
+  const dictation = useDictation((text) => setRaw(text));
+  const parsed = parseAutomation(raw, doers(s));
+  const [whenPick, setWhenPick] = useState<AutoWhen | null>(existing?.when ?? null);
+  const [thenPick, setThenPick] = useState<AutoThen | null>(existing?.then ?? null);
+  const when = whenPick ?? parsed.when ?? null;
+  const then = thenPick ?? parsed.then ?? null;
+  const setWhen = setWhenPick;
+  const setThen = setThenPick;
 
   const pickWhen = (kind: AutoWhen["kind"]) =>
     setWhen(kind === "weekday" ? { kind, day: "Tuesday", time: "6:00 PM" } : { kind } as AutoWhen);
@@ -1035,12 +1048,78 @@ function AutomationSheet({ id }: { id?: string }) {
     );
 
   const [timeOpen, setTimeOpen] = useState(false);
-  const ready = !!when && !!then && (then.kind !== "task" || then.title.trim().length > 0);
+  const ready = !!when && !!then
+    && (then.kind !== "task" || then.title.trim().length > 0)
+    && (then.kind !== "nudge" || !!s.members[then.who]);
   const done = () => (s.persona === "ipad" ? s.closeSheet() : s.openSheet({ type: "manage" }));
 
   return (
     <>
       <FormHead icon="bolt" title={existing ? "Edit automation" : "New automation"} />
+
+      {/* The composer — only for a NEW rule (an existing one is already
+          structured; its parts open lit below). Same two rooms as New task:
+          the mic explains itself, the field trails on. */}
+      {!existing && (
+        <>
+          <div className={clsx(
+            "mt-5 overflow-hidden rounded-card border transition-colors",
+            dictation.listening ? "border-ink" : "border-ink/[.08]",
+          )}>
+            {dictation.supported && (
+              <button
+                onClick={() => (dictation.listening ? dictation.stop() : dictation.start())}
+                className={clsx(
+                  "flex w-full items-center gap-3 p-card-pad text-left transition-colors",
+                  dictation.listening ? "bg-ink text-white" : "bg-card hover:bg-surface",
+                )}
+              >
+                <motion.span
+                  animate={dictation.listening ? { scale: [1, 1.12, 1] } : { scale: 1 }}
+                  transition={dictation.listening ? { duration: 1.4, repeat: Infinity } : smooth}
+                  className={clsx(
+                    "grid h-11 w-11 shrink-0 place-items-center rounded-pill",
+                    dictation.listening ? "bg-danger text-white" : "bg-lemon text-ink",
+                  )}
+                >
+                  <Icon name="mic" size={20} />
+                </motion.span>
+                <span className="min-w-0 flex-1">
+                  <b className="block text-bodysm">{dictation.listening ? "Listening…" : "Say what to automate"}</b>
+                  <span className={clsx("block truncate text-caption", dictation.listening ? "text-white/70" : "text-sub")}>
+                    {dictation.listening
+                      ? dictation.heard || "“Nudge Sam every Tuesday at 8pm”"
+                      : "Tap and talk — we'll build the rule"}
+                  </span>
+                </span>
+              </button>
+            )}
+            <label className={clsx(
+              "flex items-center bg-card px-card-pad",
+              dictation.supported && "border-t border-ink/[.06]",
+            )}>
+              <span className="sr-only">What should the house do by itself?</span>
+              <input
+                value={raw}
+                onChange={(e) => setRaw(e.target.value)}
+                placeholder="…or write it"
+                className="h-touch w-full bg-transparent text-bodysm font-medium outline-none placeholder:text-sub/70"
+              />
+            </label>
+          </div>
+          {/* What we made of it — and the ONE thing we still need, if any.
+              The heavy lifting is ours; the ask is a tap, not a form. */}
+          {raw.trim().length > 0 && (
+            <p className="mt-2 px-1 text-caption text-sub">
+              {!when ? "When should this run? Pick below."
+                : !then ? "…and then what? Pick below."
+                : then.kind === "nudge" && !s.members[then.who] ? "Got it — who should get the nudge? Tap them below."
+                : parsed.assumedTime && !whenPick && when.kind === "weekday" ? `Got it — assumed ${when.time}; tap the time to change.`
+                : "Got it — check the parts below, then save."}
+            </p>
+          )}
+        </>
+      )}
 
       <Eyebrow className="mt-5">When</Eyebrow>
       <AutoOptionList options={AUTO_WHEN} value={when?.kind ?? null} onPick={pickWhen} />

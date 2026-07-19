@@ -14,7 +14,7 @@
  *   3. It reads DANGER as well as convenience. See NEEDS_FULL.
  */
 import { addDays, iso } from "./dates";
-import type { Priority, Role } from "./types";
+import type { AutoThen, AutoWhen, Priority, Role } from "./types";
 
 export interface ParsedTask {
   /**
@@ -271,4 +271,86 @@ function tidy(s: string): string {
   while (w.length && DANGLING.test(w[0])) w.shift();
   const t = w.join(" ");
   return t ? t[0].toUpperCase() + t.slice(1) : "";
+}
+
+/* ─────────────────────── automations ─────────────────────── */
+
+/** What we understood of "what should the house do by itself". */
+export interface ParsedAutomation {
+  when?: AutoWhen;
+  then?: AutoThen;
+  /** A weekly rule with no spoken time — we assumed 6:00 PM; the sheet says so. */
+  assumedTime?: boolean;
+  /** A nudge with nobody named — the one blank we refuse to guess. */
+  needsWho?: boolean;
+}
+
+const AUTO_DAYS: [RegExp, string][] = [
+  [/\bmon(?:day)?s?\b/, "Monday"], [/\btues?(?:day)?s?\b/, "Tuesday"], [/\bwed(?:nesday)?s?\b/, "Wednesday"],
+  [/\bthu(?:rs?(?:day)?)?s?\b/, "Thursday"], [/\bfri(?:day)?s?\b/, "Friday"],
+  [/\bsat(?:urday)?s?\b/, "Saturday"], [/\bsun(?:day)?s?\b/, "Sunday"],
+];
+
+/**
+ * Read a rule out of a sentence — the automation counterpart of parseTask,
+ * and the same bargain: the person says what they want in their own words,
+ * the app does the sorting. "Nudge Sam every Tuesday at 8pm" arrives fully
+ * built; "water the plants every friday" becomes a create-a-task rule with
+ * the leftover words as the title.
+ */
+export function parseAutomation(
+  input: string,
+  people: { id: string; name: string }[] = [],
+): ParsedAutomation {
+  const text = ` ${input.toLowerCase()} `;
+  const out: ParsedAutomation = {};
+  if (!input.trim()) return out;
+
+  /* WHEN — most specific first. "billing email" must win before "bill due". */
+  const timeM = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+  const time = timeM ? `${Number(timeM[1])}:${timeM[2] ?? "00"} ${timeM[3].toUpperCase()}` : null;
+  const dayHit = AUTO_DAYS.find(([re]) => re.test(text));
+  if (/\brun(?:s|ning)?\s+(?:low|out)\b|\blow\s+on\b|\bout\s+of\b/.test(text)) {
+    out.when = { kind: "low" };
+  } else if (/\b(?:email|inbox|mail)\b/.test(text) && /\b(?:bill|invoice)/.test(text)) {
+    out.when = { kind: "email" };
+  } else if (/\bunclaimed\b|\bno\s*(?:body|one)\s+(?:takes|claims|picks)\b|\bunassigned\b/.test(text)) {
+    out.when = { kind: "unclaimed" };
+  } else if (/\bbills?\b/.test(text) && /\bdue\b|\bdays?\s+(?:out|before|late)\b/.test(text)) {
+    out.when = { kind: "dueSoon" };
+  } else if (dayHit) {
+    out.when = { kind: "weekday", day: dayHit[1], time: time ?? "6:00 PM" };
+    out.assumedTime = !time;
+  }
+
+  /* THEN — a named person + a nudge word beats everything else. */
+  const person = people.find((p) => new RegExp(`\\b${p.name.toLowerCase()}\\b`).test(text));
+  if (/\bnudge\b|\bremind\b|\bping\b/.test(text)) {
+    out.then = { kind: "nudge", who: person?.id ?? "" };
+    out.needsWho = !person;
+  } else if (/\bshopping\b|\bshop\s+list\b/.test(text)) {
+    out.then = { kind: "shop" };
+  } else if (/\brebalance\b|\beven\s+(?:it|things)\s+out\b|\bbalance\s+the\b/.test(text)) {
+    out.then = { kind: "rebalance" };
+  } else if (/\b(?:file|log|track)\b[^.]*\bbill/.test(text) || (/\bbill/.test(text) && /\bfeed\b/.test(text))) {
+    out.then = { kind: "bill" };
+  } else {
+    // The words that are LEFT are the task. Strip everything we understood —
+    // the schedule phrase, the time, connectors — and if a title survives,
+    // that's what the rule creates.
+    const explicit = input.match(/\b(?:create|add|make)\s+a\s+task\s+(?:to\s+)?(.+)$/i);
+    let rest = explicit ? explicit[1] : input;
+    rest = rest
+      .replace(/\b(?:every|each|on)\s+\w+days?\b/gi, " ")
+      .replace(/\b(?:mon|tues?|wednes|thurs?|fri|satur|sun)days?\b/gi, " ")
+      .replace(/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/gi, " ")
+      .replace(/\b(?:when|if|then|at|automatically|auto)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (rest && rest.split(" ").length >= 2) {
+      out.then = { kind: "task", title: rest[0].toUpperCase() + rest.slice(1) };
+    }
+  }
+
+  return out;
 }

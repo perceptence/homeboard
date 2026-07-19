@@ -266,9 +266,11 @@ export function IpadAutomations() {
                     <motion.span
                       layout
                       transition={{ type: "spring", stiffness: 500, damping: 34 }}
+                      // White knob both ways — the ink track says ON; lemon is
+                      // for the active moment, not resting furniture.
                       className={clsx(
-                        "absolute top-[4px] block h-[22px] w-[22px] rounded-pill shadow-sm",
-                        a.on ? "left-[24px] bg-lemon" : "left-[4px] bg-white",
+                        "absolute top-[4px] block h-[22px] w-[22px] rounded-pill bg-white shadow-sm",
+                        a.on ? "left-[24px]" : "left-[4px]",
                       )}
                     />
                   </button>
