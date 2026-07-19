@@ -33,6 +33,8 @@ export function Onboarding() {
   // The device frame is scaled, so CSS breakpoints can't see its width — read
   // the surface from the persona and adapt the few tablet-only layouts by hand.
   const phone = s.persona !== "ipad";
+  // Which drafts have had their invite "sent" — the button flips to confirmed.
+  const [sent, setSent] = useState<Set<string>>(() => new Set());
 
   const named = d.people.filter((p) => p.name.trim());
   const canContinue =
@@ -86,7 +88,7 @@ export function Onboarding() {
               <div className="pt-6">
                 <Icon name="house" size={44} />
                 <h1 className="mt-5 max-w-[16ch] text-4xl font-medium leading-[1.05]">
-                  Let&rsquo;s take running your home <span className="bg-lemon px-1">off your plate.</span>
+                  Let&rsquo;s take running your home <span className="bg-lemon px-1 text-ink">off your plate.</span>
                 </h1>
                 <p className="mt-4 max-w-[38ch] text-lg font-medium text-sub">
                   Two minutes now, and the house starts carrying itself. No spreadsheets, no chore chart —
@@ -107,7 +109,7 @@ export function Onboarding() {
                   value={d.householdName}
                   onChange={(e) => s.setHouseholdName(e.target.value)}
                   placeholder="e.g. The Rivera Home"
-                  className="mt-5 w-full rounded-2xl border border-black/[.08] bg-card px-4 py-4 text-xl font-medium outline-none focus:border-ink"
+                  className="mt-5 w-full rounded-2xl border border-black/[.08] bg-card px-4 py-4 text-xl font-medium text-ink outline-none placeholder:text-sub focus:border-ink"
                 />
                 <h2 className="mt-8 text-lg font-medium">Who shares it?</h2>
                 <div className={clsx("mt-3 grid gap-3", phone ? "grid-cols-2" : "grid-cols-4")}>
@@ -273,7 +275,21 @@ export function Onboarding() {
                               {p.role === "owner" ? "That's you — runs the home" : ROLE_HINT[p.role]}
                             </div>
                           </div>
-                          {p.role === "owner" ? <Pill tone="tag">You</Pill> : <Button tone="outline">Send invite</Button>}
+                          {p.role === "owner" ? (
+                            <Pill tone="tag">You</Pill>
+                          ) : sent.has(p.id) ? (
+                            <Pill tone="tag"><Icon name="check" size={12} /> Sent</Pill>
+                          ) : (
+                            <Button
+                              tone="outline"
+                              onClick={() => {
+                                setSent((prev) => new Set(prev).add(p.id));
+                                s.notify(`Invite sent to ${p.name.trim()}`);
+                              }}
+                            >
+                              Send invite
+                            </Button>
+                          )}
                         </div>
                       </Card>
                     ))}
@@ -324,7 +340,7 @@ export function Onboarding() {
       {/* footer CTA */}
       <div className="flex items-center gap-3 border-t border-white/[.06] bg-ink px-7 py-4">
         {step === 0 && (
-          <button onClick={s.completeOnboarding} className="font-medium text-sub hover:text-ink">
+          <button onClick={s.skipOnboarding} className="font-medium text-sub hover:text-white">
             Skip — use the demo home
           </button>
         )}

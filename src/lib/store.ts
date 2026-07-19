@@ -351,6 +351,9 @@ interface HouseholdState {
   removePerson: (id: string) => void;
   toggleDomain: (d: string) => void;
   completeOnboarding: () => void;
+  /** Bail out of setup and land in the seeded demo home, intact — NOT
+   *  completeOnboarding (that builds from the draft, which is empty here). */
+  skipOnboarding: () => void;
 }
 
 let nextId = 1000;
@@ -1276,6 +1279,23 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         navTick: s.navTick + 1,
       };
     }),
+
+  skipOnboarding: () =>
+    set((s) => ({
+      setupComplete: true,
+      onboarding: emptyDraft(),
+      householdName: "Rivera Home",
+      members: seedMembers,
+      tasks: seedTasks,
+      shopping: seedShopping,
+      bills: seedBills,
+      inventory: seedInventory,
+      maint: seedMaint,
+      events: seedEvents,
+      automations: seedAutomations,
+      sheet: null,
+      navTick: s.navTick + 1,
+    })),
 }), {
   name: "homeboard",
   // 2: seed event times gained explicit AM/PM. Persisted state predating this
