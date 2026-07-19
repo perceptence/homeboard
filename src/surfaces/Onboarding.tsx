@@ -5,7 +5,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { SAFE_TOP } from "@/components/DeviceFrame";
-import { Button, Card, Pill } from "@/components/ui";
+import { Button, Card, Eyebrow, IconTile, Pill, TitleBlock } from "@/components/ui";
 import { spring } from "@/lib/motion";
 import { PALETTE, PRESETS, useHousehold } from "@/lib/store";
 import type { HouseholdPreset, Role } from "@/lib/types";
@@ -26,6 +26,16 @@ const DOMAINS: { id: string; icon: IconName }[] = [
   { id: "Calendar", icon: "cal" }, { id: "Inventory", icon: "box" },
 ];
 
+/** Pill, translated for the near-black backdrop — `tag`'s ink-on-ink wash
+ *  disappears out here, and `text-sub` is a light-surface gray. */
+function DarkPill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-pill bg-white/10 px-2.5 text-caption font-medium text-white/70">
+      {children}
+    </span>
+  );
+}
+
 export function Onboarding() {
   const s = useHousehold();
   const d = s.onboarding;
@@ -37,6 +47,7 @@ export function Onboarding() {
   const [sent, setSent] = useState<Set<string>>(() => new Set());
 
   const named = d.people.filter((p) => p.name.trim());
+  const people = named.filter((p) => p.kind !== "pet").length || 1;
   const canContinue =
     step === 1 ? d.householdName.trim().length > 0 :
     step === 2 ? named.length > 0 :
@@ -53,9 +64,9 @@ export function Onboarding() {
           <button
             onClick={() => s.setStep(step - 1)}
             aria-label="Back"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-card shadow-e2"
+            className="grid h-touch w-touch shrink-0 place-items-center rounded-pill bg-white/10 text-white transition-colors hover:bg-white/[.16]"
           >
-            <Icon name="x" size={16} />
+            <Icon name="back" size={16} />
           </button>
         )}
         <div className="flex flex-1 gap-1.5">
@@ -70,7 +81,7 @@ export function Onboarding() {
             </div>
           ))}
         </div>
-        <span className="shrink-0 text-caption font-medium uppercase tracking-widest text-sub">
+        <span className="shrink-0 text-caption uppercase tracking-[0.08em] text-white/45">
           {step + 1}/{STEPS.length}
         </span>
       </div>
@@ -86,39 +97,50 @@ export function Onboarding() {
           >
             {step === 0 && (
               <div className="pt-6">
-                <Icon name="house" size={44} />
-                <h1 className="mt-5 max-w-[16ch] text-4xl font-medium leading-[1.05]">
+                <motion.span
+                  className="inline-block"
+                  initial={{ rotate: -12, scale: 0.6, opacity: 0 }}
+                  animate={{ rotate: 0, scale: 1, opacity: 1 }}
+                  transition={spring}
+                >
+                  <Icon name="house" size={44} />
+                </motion.span>
+                <h1 className="mt-5 max-w-[16ch] text-balance font-tight text-display">
                   Let&rsquo;s take running your home <span className="bg-lemon px-1 text-ink">off your plate.</span>
                 </h1>
-                <p className="mt-4 max-w-[38ch] text-lg font-medium text-sub">
-                  Two minutes now, and the house starts carrying itself. No spreadsheets, no chore chart —
-                  it just runs.
+                <p className="mt-4 max-w-[38ch] text-body text-white/55">
+                  Two minutes now, and the house starts carrying itself. No spreadsheets,
+                  no chore chart, no nagging — it just runs.
                 </p>
                 <div className="mt-6 flex gap-2">
-                  <Pill tone="tag"><Icon name="bolt" size={12} /> Takes ~2 min</Pill>
-                  <Pill tone="tag"><Icon name="lock" size={12} /> Private by default</Pill>
+                  <DarkPill><Icon name="bolt" size={12} /> Takes ~2 min</DarkPill>
+                  <DarkPill><Icon name="lock" size={12} /> Private by default</DarkPill>
                 </div>
               </div>
             )}
 
             {step === 1 && (
               <div>
-                <h1 className="font-tight text-h1">What should we call your home?</h1>
+                <TitleBlock
+                  size="page" tone="onDark" wrap
+                  eyebrow="The basics"
+                  title="What do we call this place?"
+                />
                 <input
                   autoFocus
                   value={d.householdName}
                   onChange={(e) => s.setHouseholdName(e.target.value)}
-                  placeholder="e.g. The Rivera Home"
-                  className="mt-5 w-full rounded-2xl border border-black/[.08] bg-card px-4 py-4 text-xl font-medium text-ink outline-none placeholder:text-sub focus:border-ink"
+                  placeholder="The Rivera Home, Basecamp, The Nest…"
+                  className="mt-5 w-full rounded-md border border-black/[.08] bg-card px-4 py-4 text-h2 text-ink outline-none placeholder:text-sub/60 focus:border-ink"
                 />
-                <h2 className="mt-8 text-lg font-medium">Who shares it?</h2>
+                <Eyebrow tone="onDark" className="mt-8">Who shares it?</Eyebrow>
                 <div className={clsx("mt-3 grid gap-3", phone ? "grid-cols-2" : "grid-cols-4")}>
                   {(Object.keys(PRESETS) as HouseholdPreset[]).map((id) => (
                     <button key={id} onClick={() => s.setPreset(id)} className="text-left">
                       <Card tone={d.preset === id ? "lemon" : "white"} pad="md">
                         <Icon name={PRESET_ICON[id]} size={24} />
-                        <b className="mt-2 block">{PRESETS[id].label}</b>
-                        <div className="text-xs opacity-70">{PRESETS[id].blurb}</div>
+                        <div className="mt-2 text-body font-medium">{PRESETS[id].label}</div>
+                        <div className="text-caption text-sub">{PRESETS[id].blurb}</div>
                       </Card>
                     </button>
                   ))}
@@ -128,7 +150,8 @@ export function Onboarding() {
                     category you get filed under — so the two things it actually
                     sets are editable right here, and a home that matches no
                     preset is a first-class household rather than a wrong answer. */}
-                <div className="mt-5 flex flex-col gap-2">
+                <Eyebrow tone="onDark" className="mt-8">How it runs</Eyebrow>
+                <div className="mt-3 flex flex-col gap-2">
                   <AxisRow
                     label="Money"
                     hint={d.axes.money === "pooled" ? "One pot — a bill is just a bill" : "Separate — expenses get split into shares"}
@@ -149,17 +172,19 @@ export function Onboarding() {
 
             {step === 2 && (
               <div>
-                <h1 className="font-tight text-h1">Who lives here?</h1>
-                <p className="mt-2 font-medium text-sub">
-                  Add everyone — the work gets shared fairly between them.
-                </p>
+                <TitleBlock
+                  size="page" tone="onDark" wrap
+                  eyebrow="The cast"
+                  title="Who's home?"
+                  subtext="Everyone in — the work gets split fairly. Pets welcome; they mostly supervise."
+                />
 
                 <div className="mt-5 flex flex-col gap-2.5">
                   {d.people.map((p, i) => (
                     <motion.div key={p.id} layout>
                       <Card pad="md">
                         <div className="flex items-center gap-3">
-                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-lg font-medium text-white"
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill text-body font-medium text-white"
                             style={{ background: PALETTE[i % PALETTE.length] }}>
                             {p.name.trim() ? p.name.trim()[0].toUpperCase() : "?"}
                           </span>
@@ -167,7 +192,7 @@ export function Onboarding() {
                             value={p.name}
                             onChange={(e) => s.updatePerson(p.id, { name: e.target.value })}
                             placeholder={p.kind === "pet" ? "Pet's name" : "Name"}
-                            className="min-w-0 flex-1 bg-transparent text-lg font-medium outline-none placeholder:text-sub"
+                            className="min-w-0 flex-1 bg-transparent text-h2 outline-none placeholder:text-sub/60"
                           />
                           {/* Age is a CAPABILITY datum — it gates tasks with a
                               minimum age (sharp, hot, heavy), nothing else. It
@@ -181,7 +206,7 @@ export function Onboarding() {
                               value={p.age ?? ""}
                               onChange={(e) => s.updatePerson(p.id, { age: e.target.value ? Number(e.target.value) : undefined })}
                               placeholder="Age"
-                              className="w-16 rounded-md bg-surface px-2 py-1.5 text-center font-medium outline-none placeholder:text-sub/60"
+                              className="w-16 rounded-sm bg-surface px-2 py-1.5 text-center text-bodysm font-medium outline-none placeholder:text-sub/60"
                               aria-label={`Age (optional) — used only to check task suitability`}
                             />
                           )}
@@ -194,7 +219,7 @@ export function Onboarding() {
                             <button
                               onClick={() => s.removePerson(p.id)}
                               aria-label={`Remove ${p.name || "person"}`}
-                              className="grid h-7 w-7 place-items-center rounded-full text-sub hover:bg-surface hover:text-ink"
+                              className="grid h-7 w-7 place-items-center rounded-pill text-sub hover:bg-surface hover:text-ink"
                             >
                               <Icon name="x" size={14} />
                             </button>
@@ -225,8 +250,12 @@ export function Onboarding() {
 
             {step === 3 && (
               <div>
-                <h1 className="font-tight text-h1">What should it run for you?</h1>
-                <p className="mt-2 font-medium text-sub">Pick what matters. You can change this any time.</p>
+                <TitleBlock
+                  size="page" tone="onDark" wrap
+                  eyebrow="The workload"
+                  title="What can we carry for you?"
+                  subtext="Tap everything you never want to think about again. Change it whenever."
+                />
                 <div className="mt-5 flex flex-wrap gap-2.5">
                   {DOMAINS.map((dom) => {
                     const on = d.domains.includes(dom.id);
@@ -236,8 +265,10 @@ export function Onboarding() {
                         onClick={() => s.toggleDomain(dom.id)}
                         aria-pressed={on}
                         className={clsx(
-                          "flex items-center gap-2 rounded-pill border px-4 py-3 text-base font-medium transition-colors",
-                          on ? "border-ink bg-lemon text-ink" : "border-black/[.08] bg-card text-sub",
+                          "flex h-touch items-center gap-2 rounded-pill border px-4 text-bodysm font-medium transition-colors duration-300 ease-out",
+                          on
+                            ? "border-lemon bg-lemon text-ink"
+                            : "border-white/[.14] bg-transparent text-white/70 hover:border-white/30 hover:text-white",
                         )}
                       >
                         <Icon name={dom.icon} size={18} />
@@ -251,28 +282,30 @@ export function Onboarding() {
 
             {step === 4 && (
               <div>
-                <h1 className="font-tight text-h1">Invite the household</h1>
-                <p className="mt-2 font-medium text-sub">
-                  Everyone gets their own app — they only see what&rsquo;s theirs.
-                </p>
+                <TitleBlock
+                  size="page" tone="onDark" wrap
+                  eyebrow="The invites"
+                  title="Bring everyone in."
+                  subtext="Each person gets their own app, with just their slice of home."
+                />
                 <div className="mt-5 flex flex-col gap-2.5">
                   {named
                     .filter((p) => p.kind !== "pet")
                     .map((p, i) => (
                       <Card key={p.id} pad="md">
                         <div className="flex items-center gap-3">
-                          <span className="grid h-10 w-10 place-items-center rounded-full font-medium text-white"
+                          <span className="grid h-10 w-10 place-items-center rounded-pill text-body font-medium text-white"
                             style={{ background: PALETTE[i % PALETTE.length] }}>
                             {p.name.trim()[0].toUpperCase()}
                           </span>
                           <div className="flex-1">
-                            <b>{p.name}</b>
+                            <div className="text-body font-medium">{p.name}</div>
                             {/* Reads back the role they were GIVEN. It used to
                                 say "Child · limited access" off the back of a
                                 life stage — the app inventing a permission from
                                 a relationship, in writing. */}
-                            <div className="text-sm text-sub">
-                              {p.role === "owner" ? "That's you — runs the home" : ROLE_HINT[p.role]}
+                            <div className="text-caption text-sub">
+                              {p.role === "owner" ? "That's you — you run the place" : ROLE_HINT[p.role]}
                             </div>
                           </div>
                           {p.role === "owner" ? (
@@ -298,7 +331,7 @@ export function Onboarding() {
                   <Card tone="lavender" className="mt-4">
                     <div className="flex gap-3">
                       <Icon name="lock" size={20} className="mt-0.5 shrink-0" />
-                      <div className="text-sm font-medium">
+                      <div className="text-caption font-medium">
                         Guided access is a simpler app — just their own things and their stars,
                         nothing about money or documents. You can change anyone&rsquo;s access later.
                       </div>
@@ -310,26 +343,48 @@ export function Onboarding() {
 
             {step === 5 && (
               <div>
-                <Icon name="spark" size={36} />
-                <h1 className="mt-4 font-tight text-h1">Here&rsquo;s what I&rsquo;ll start running</h1>
-                <p className="mt-2 font-medium text-sub">
-                  Based on your home, I&rsquo;ve set these up and shared them out. Nothing to configure.
+                <motion.span
+                  className="inline-block"
+                  initial={{ rotate: -20, scale: 0.5, opacity: 0 }}
+                  animate={{ rotate: 0, scale: 1, opacity: 1 }}
+                  transition={spring}
+                >
+                  <Icon name="spark" size={36} />
+                </motion.span>
+                <h1 className="mt-4 max-w-[20ch] text-balance font-tight text-h1">
+                  <span className="bg-lemon px-1 text-ink">{d.householdName.trim() || "Your home"}</span>{" "}
+                  is up and running.
+                </h1>
+                <p className="mt-2 text-body text-white/55">
+                  I&rsquo;ve set these up and shared them out. Nothing to configure — just live here.
                 </p>
-                <Card tone="lemon" className="mt-5">
-                  <div className="text-caption font-medium uppercase tracking-wide opacity-60">Starter routines</div>
-                  <div className="mt-2.5 flex flex-col gap-2">
-                    {d.domains.slice(0, 5).map((dom) => (
-                      <div key={dom} className="flex items-center gap-2 font-medium">
-                        <Icon name={DOMAINS.find((x) => x.id === dom)?.icon ?? "tasks"} size={16} />
-                        {dom} — shared between {named.filter((p) => p.kind !== "pet").length || 1} people
-                      </div>
+                {/* A white card of rows, like every list in the app — this was one
+                    unbroken lemon slab, a colour the system reserves for THE
+                    primary card, not for furniture. */}
+                <Card className="mt-5" pad="md">
+                  <Eyebrow>Starter routines</Eyebrow>
+                  <div className="mt-2 flex flex-col">
+                    {d.domains.map((dom, i) => (
+                      <motion.div
+                        key={dom}
+                        initial={{ opacity: 0, x: -12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ ...spring, delay: 0.15 + i * 0.06 }}
+                        className="flex min-h-touch items-center gap-3 border-t border-ink/[.06] py-1.5 first:border-t-0"
+                      >
+                        <IconTile size="sm" name={DOMAINS.find((x) => x.id === dom)?.icon ?? "tasks"} />
+                        <span className="text-bodysm font-medium">{dom}</span>
+                        <span className="ml-auto text-caption text-sub">
+                          {people > 1 ? `split between ${people}` : "all yours"}
+                        </span>
+                      </motion.div>
                     ))}
                   </div>
                 </Card>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Pill tone="tag"><Icon name="repeat" size={12} /> Recurring work set up</Pill>
-                  <Pill tone="tag"><Icon name="scale" size={12} /> Balanced automatically</Pill>
-                  <Pill tone="tag"><Icon name="bell" size={12} /> Quiet by default</Pill>
+                  <DarkPill><Icon name="repeat" size={12} /> Recurring work set up</DarkPill>
+                  <DarkPill><Icon name="scale" size={12} /> Balanced automatically</DarkPill>
+                  <DarkPill><Icon name="bell" size={12} /> Quiet by default</DarkPill>
                 </div>
               </div>
             )}
@@ -340,16 +395,18 @@ export function Onboarding() {
       {/* footer CTA */}
       <div className="flex items-center gap-3 border-t border-white/[.06] bg-ink px-7 py-4">
         {step === 0 && (
-          <button onClick={s.skipOnboarding} className="font-medium text-sub hover:text-white">
+          <button onClick={s.skipOnboarding} className="text-bodysm font-medium text-white/55 transition-colors hover:text-white">
             Skip — use the demo home
           </button>
         )}
         <Button
-          tone={canContinue ? "lemon" : "light"}
-          onClick={() => canContinue && next()}
-          className={clsx("ml-auto !px-7 !py-3.5 text-base", !canContinue && "opacity-50")}
+          tone="lemon"
+          size="lg"
+          disabled={!canContinue}
+          onClick={next}
+          className="ml-auto"
         >
-          {step === 0 ? "Get started" : step === STEPS.length - 1 ? "Enter my home" : "Continue"}
+          {step === 0 ? "Let's go" : step === STEPS.length - 1 ? "Step inside" : "Continue"}
         </Button>
       </div>
     </div>
@@ -377,7 +434,7 @@ function AxisRow({
     <Card pad="md">
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
-          <b className="text-bodysm">{label}</b>
+          <b className="text-bodysm font-medium">{label}</b>
           <div className="text-caption text-sub">{hint}</div>
         </div>
         <div className="flex shrink-0 gap-1 rounded-pill bg-surface p-1">
@@ -426,14 +483,14 @@ function RolePicker({ value, onPick }: { value: Role; onPick: (r: Role) => void 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-1 w-max overflow-hidden rounded-[18px]
+          <div className="absolute right-0 top-full z-50 mt-1 w-max overflow-hidden rounded-md
                           border border-black/[.06] bg-card p-1 shadow-e3">
             {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
               <button
                 key={r}
                 onClick={() => { onPick(r); setOpen(false); }}
                 className={clsx(
-                  "flex w-full max-w-[280px] flex-col items-start gap-0.5 rounded-[14px] px-3 py-2 text-left transition-colors",
+                  "flex w-full max-w-[280px] flex-col items-start gap-0.5 rounded-sm px-3 py-2 text-left transition-colors",
                   r === value ? "bg-ink text-white" : "hover:bg-surface",
                 )}
               >
