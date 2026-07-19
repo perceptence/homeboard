@@ -117,7 +117,7 @@ export const ROLE_HINT: Record<Role, string> = {
   owner: "Settings, people, and who can do what",
   full: "Everything except the household's own settings",
   limited: "No money, no settings, no changing anyone else's jobs",
-  guided: "One thing at a time, with stars",
+  guided: "One task at a time — a star for finishing",
 };
 
 /** A verb phrase for "Sam now ___". The label is a noun and won't fit here:

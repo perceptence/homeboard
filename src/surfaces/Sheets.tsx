@@ -1108,21 +1108,44 @@ function InventorySheet() {
 
 /** THE HOUSEHOLD — the shared overview a phone-only home has no iPad for: how
  *  the day is split, what everyone's carrying, and the house at a glance. */
+/**
+ * The shared household view — a dashboard you could only READ used to be the
+ * whole complaint: bars and counts with nothing behind them. Every row here
+ * opens onto the actual work — a member expands to their real, named items;
+ * an item opens its own sheet, where you can reassign or hand it off. The
+ * numbers are still here for the glance, but the glance is no longer a
+ * dead end.
+ */
 function HouseholdViewSheet() {
   const s = useHousehold();
   const people = doers(s);
-  const board = people.map((m) => ({ m, n: pendingFor(s, m.id) })).sort((a, b) => b.n - a.n);
-  const maxN = Math.max(1, ...board.map((b) => b.n));
-  const totalOpen = board.reduce((sum, b) => sum + b.n, 0);
+  const board = people
+    .map((m) => ({ m, items: s.tasks.filter((t) => t.owner === m.id && !t.done) }))
+    .sort((a, b) => b.items.length - a.items.length);
+  const maxN = Math.max(1, ...board.map((b) => b.items.length));
+  const totalOpen = board.reduce((sum, b) => sum + b.items.length, 0);
   const weekAgo = Date.now() - 7 * 86_400_000;
   const doneWeek = s.tasks.filter((t) => t.done && t.completedAt && t.completedAt >= weekAgo).length;
   const move = previewRebalance(s);
+  // Tasks and events, in one shape — so the list can sort and render them
+  // without caring which they are. Each keeps what it needs to reopen its
+  // own sheet.
+  const upNext = [
+    ...s.tasks.filter((t) => !t.done).map((t) => ({
+      key: `t${t.id}`, title: t.title, when: t.when, who: t.owner,
+      open: () => s.openSheet({ type: "task" as const, id: t.id }),
+    })),
+    ...s.events.filter((e) => !e.done).map((e) => ({
+      key: `e${e.id}`, title: e.title, when: e.time, who: e.who,
+      open: () => s.openSheet({ type: "event" as const, id: e.id }),
+    })),
+  ]
+    .sort((a, b) => (a.when || "").localeCompare(b.when || ""))
+    .slice(0, 4);
 
-  const stats = [
-    { v: String(totalOpen), l: "On the go" },
-    { v: String(doneWeek), l: "Done · 7 days" },
-    { v: move ? "Uneven" : "Fair", l: "Balance" },
-  ];
+  // Which member's card is open — one at a time, so the sheet doesn't turn
+  // into a wall of everyone's tasks at once.
+  const [openId, setOpenId] = useState<MemberId | null>(board[0]?.items.length ? board[0].m.id : null);
 
   return (
     <>
@@ -1130,38 +1153,111 @@ function HouseholdViewSheet() {
         <IconTile name="people" tone="lemon" />
         <h2 className="min-w-0 font-tight text-h1">{s.householdName}</h2>
       </span>
-      <p className="mt-1.5 text-bodysm text-sub">{people.length} people · everyone’s day at a glance</p>
+      <p className="mt-1.5 text-bodysm text-sub">
+        {people.length} people · {totalOpen ? `${totalOpen} things between them` : "all caught up"}
+      </p>
 
       <div className="mt-5 grid grid-cols-3 gap-2">
-        {stats.map((st) => (
-          <div key={st.l} className="rounded-card bg-card p-3.5 shadow-e1">
-            <div className="font-tight text-[24px] leading-none">{st.v}</div>
-            <div className="mt-1.5 text-caption text-sub">{st.l}</div>
+        <div className="rounded-card bg-card p-3.5 shadow-e1">
+          <div className="font-tight text-[24px] leading-none">{totalOpen}</div>
+          <div className="mt-1.5 text-caption text-sub">On the go</div>
+        </div>
+        <div className="rounded-card bg-card p-3.5 shadow-e1">
+          <div className="font-tight text-[24px] leading-none">{doneWeek}</div>
+          <div className="mt-1.5 text-caption text-sub">Done · 7 days</div>
+        </div>
+        {/* Balance IS the button when it needs one — a stat you can only look
+            at was exactly the dead end this screen used to be. */}
+        {move ? (
+          <button
+            onClick={() => s.openSheet({ type: "rebalance" })}
+            className="flex flex-col items-start rounded-card bg-lemon p-3.5 text-left shadow-e1 transition-shadow hover:shadow-e2"
+          >
+            <span className="flex items-center gap-1 font-tight text-[18px] leading-none">
+              <Icon name="scale" size={15} /> Fix it
+            </span>
+            <span className="mt-1.5 text-caption text-ink/70">Balance's uneven</span>
+          </button>
+        ) : (
+          <div className="rounded-card bg-card p-3.5 shadow-e1">
+            <div className="font-tight text-[24px] leading-none">Fair</div>
+            <div className="mt-1.5 text-caption text-sub">Balance</div>
           </div>
-        ))}
+        )}
       </div>
+
+      {upNext.length > 0 && (
+        <>
+          <Eyebrow className="mt-6">Up next, across the house</Eyebrow>
+          <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
+            {upNext.map((item) => (
+              <button
+                key={item.key}
+                onClick={item.open}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface"
+              >
+                <Avatar member={item.who ? s.members[item.who] : undefined} size={26} />
+                <span className="min-w-0 flex-1 truncate text-bodysm font-medium">{item.title}</span>
+                <span className="shrink-0 text-caption text-sub">{item.when || "Any time"}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       <Eyebrow className="mt-6">Who’s carrying what</Eyebrow>
       <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
-        {board.map(({ m, n }) => (
-          <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-            <Avatar member={m} size={34} />
-            <div className="min-w-0 flex-1">
-              <div className="text-bodysm font-medium">{m.name}</div>
-              <div className="mt-1.5 h-1.5 overflow-hidden rounded-pill bg-ink/[.06]">
-                <div className="h-full rounded-pill bg-ink transition-all" style={{ width: `${Math.round((n / maxN) * 100)}%` }} />
-              </div>
+        {board.map(({ m, items }) => {
+          const open = openId === m.id;
+          return (
+            <div key={m.id}>
+              <button
+                onClick={() => setOpenId(open ? null : m.id)}
+                aria-expanded={open}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface"
+              >
+                <Avatar member={m} size={34} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-bodysm font-medium">{m.name}</div>
+                  <div className="mt-1.5 h-1.5 overflow-hidden rounded-pill bg-ink/[.06]">
+                    <div className="h-full rounded-pill bg-ink transition-all" style={{ width: `${Math.round((items.length / maxN) * 100)}%` }} />
+                  </div>
+                </div>
+                <span className="shrink-0 font-tight text-[18px] tabular-nums">{items.length}</span>
+                <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex shrink-0 text-sub">
+                  <Icon name="chevDown" size={14} />
+                </motion.span>
+              </button>
+              <AnimatePresence initial={false}>
+                {open && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={smooth}
+                    className="overflow-hidden"
+                  >
+                    <div className="pb-2 pl-[58px] pr-2">
+                      {items.length ? items.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => s.openSheet({ type: "task", id: t.id })}
+                          className="flex w-full items-center justify-between gap-3 rounded-sm py-1.5 text-left transition-colors hover:text-ink"
+                        >
+                          <span className="min-w-0 truncate text-bodysm text-sub">{t.title}</span>
+                          <span className="shrink-0 text-caption text-sub/70">{t.when || "Any time"}</span>
+                        </button>
+                      )) : (
+                        <p className="py-1.5 text-bodysm text-sub">Nothing on {m.name} right now.</p>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <span className="shrink-0 font-tight text-[18px] tabular-nums">{n}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
-
-      {move && (
-        <Button tone="dark" size="lg" className="mt-4 w-full" onClick={() => s.openSheet({ type: "rebalance" })}>
-          <Icon name="scale" size={16} /> Even things out
-        </Button>
-      )}
     </>
   );
 }

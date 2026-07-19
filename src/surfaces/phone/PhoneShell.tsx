@@ -253,14 +253,18 @@ export function PhoneShell() {
               </button>
             )}
             {/* The shared household view — the "family iPad" a phone-only home
-                doesn't have. Everyone's day and load at a glance. */}
-            <button
-              onClick={() => s.openSheet({ type: "houseView" })}
-              aria-label="The household"
-              className="grid h-touch w-touch place-items-center rounded-pill text-white/70 transition-colors hover:text-white"
-            >
-              <Icon name="people" size={24} />
-            </button>
+                doesn't have. Everyone's day and load at a glance. Off Today:
+                that screen is already yours; this door belongs where you go
+                looking for the wider house, not stacked on your own list. */}
+            {route !== "today" && (
+              <button
+                onClick={() => s.openSheet({ type: "houseView" })}
+                aria-label="The household"
+                className="grid h-touch w-touch place-items-center rounded-pill text-white/70 transition-colors hover:text-white"
+              >
+                <Icon name="people" size={24} />
+              </button>
+            )}
             {/* Just the bell. The shopping cart used to sit here and it was
                 crowding the greeting off the edge — a shared-list door doesn't
                 belong in a row of personal chrome anyway. It's a card on Today

@@ -26,6 +26,11 @@ const DOMAINS: { id: string; icon: IconName }[] = [
   { id: "Calendar", icon: "cal" }, { id: "Inventory", icon: "box" },
 ];
 
+/** Kills the browser's default rectangular outline (the "blue box") on raw
+ *  buttons; an ink ring on keyboard focus instead, matching the pill/rounded
+ *  shape it's drawn around. */
+const FOCUS = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink";
+
 /** Pill, translated for the near-black backdrop — `tag`'s ink-on-ink wash
  *  disappears out here, and `text-sub` is a light-surface gray. */
 function DarkPill({ children }: { children: React.ReactNode }) {
@@ -478,10 +483,16 @@ function RolePicker({ value, onPick }: { value: Role; onPick: (r: Role) => void 
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-label={`Access: ${ROLE_LABEL[value]}`}
-        className="flex items-center gap-1"
+        className={clsx("flex shrink-0 items-center gap-1 rounded-pill", FOCUS)}
       >
         <Pill tone={value === "owner" ? "lavender" : "tag"}>
-          {ROLE_LABEL[value]}
+          {/* Fixed width, not a min-width on the row: the pill's own label is
+              what varies ("A simpler view" vs "Shares the running"), so it's
+              the one that should truncate — capping it here keeps every row's
+              pill the SAME width without taking space from the name input,
+              which needs room a lot more than "Shares the ru…" needs to
+              spell itself out in full (the dropdown says the rest). */}
+          <span className="w-[102px] truncate">{ROLE_LABEL[value]}</span>
           <Icon name="chevDown" size={12} />
         </Pill>
       </button>
@@ -496,6 +507,7 @@ function RolePicker({ value, onPick }: { value: Role; onPick: (r: Role) => void 
                 onClick={() => { onPick(r); setOpen(false); }}
                 className={clsx(
                   "flex w-full max-w-[280px] flex-col items-start gap-0.5 rounded-sm px-3 py-2 text-left transition-colors",
+                  FOCUS,
                   r === value ? "bg-ink text-white" : "hover:bg-surface",
                 )}
               >

@@ -139,7 +139,20 @@ function DemoPanel() {
     { title: "Setup", items: [
       { label: "Onboarding · phone", run: () => { const s = st(); s.setPersona("maya"); s.startOnboarding(); s.setStep(0); } },
       { label: "Onboarding · iPad", run: () => { const s = st(); s.setPersona("ipad"); s.startOnboarding(); s.setStep(0); } },
-      { label: "Reset to demo", run: () => st().skipOnboarding() },
+      {
+        label: "Reset to demo",
+        // Always lands somewhere visibly different — persona, route, and any
+        // open sheet/dropdown all reset together — so clicking this never
+        // looks like a no-op just because you were already mid-demo.
+        run: () => {
+          const s = st();
+          s.skipOnboarding();
+          s.setPersona("maya");
+          s.goPhone("today");
+          s.closeSheet();
+          s.notify("Demo reset");
+        },
+      },
     ] },
     { title: "Phone", items: [
       { label: "Today", run: phone("today") },
