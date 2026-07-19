@@ -10,9 +10,9 @@ import { ActionButton, Avatar, Button, Card, Choice, Em, Eyebrow, IconTile, Mini
 import { listItem, listStagger, press, smooth, spring } from "@/lib/motion";
 import {
   addDays, greeting, inRange, iso, isToday, monthKey, monthLabel, parse,
-  groupIsPast, periodRange, relative, relativeInline, startOfWeek, timeMinutes, today, todayIso,
+  groupIsPast, periodRange, relative, relativeInline, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel,
 } from "@/lib/dates";
-import { awayOn, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
+import { awayOn, billTasks, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
 import type { HouseEvent, MaintItem, MemberId, PhoneRoute, Presence, Task } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
@@ -39,8 +39,14 @@ export function PhoneShell() {
   // Owned here, not in PhoneLater: the header holds the field, the list filters
   // by it. Whoever renders both has to hold it.
   const [query, setQuery] = useState("");
+  // The day the Feed's ruler is pointed at, and the horizon lens on its Later
+  // half — both lifted here because they decide what the BODY renders: a
+  // specific day hides Later entirely (you asked about THAT day), and the
+  // scope re-bands the horizon.
+  const [feedDay, setFeedDay] = useState<string>(() => todayIso());
+  const [scope, setScope] = useState<Scope>("Week");
   const scroller = useRef<HTMLDivElement>(null);
-  const later = laterFor(s, meId, query);
+  const later = laterFor(s, meId, query, scope);
 
   // The nav is glass over a moving list — it has to look at what it's sitting on.
   // Re-sampled on scroll inside the hook; these deps catch the changes scroll
@@ -203,9 +209,16 @@ export function PhoneShell() {
         >
           {/* NOW, then LATER — one scroll. A live search replaces the whole
               body with its matches: results are the answer, not an appendix
-              under today's cards. */}
-          {route === "feed" && !later.searching && <PhoneToday />}
-          {route === "feed" && <PhoneLater groups={later.groups} count={later.count} searching={later.searching} query={query} />}
+              under today's cards. And while the ruler points at a SPECIFIC
+              day, Later hides too — you asked about that day, not the whole
+              horizon underneath it. */}
+          {route === "feed" && !later.searching && <PhoneToday day={feedDay} onDay={setFeedDay} />}
+          {route === "feed" && (later.searching || feedDay === todayIso()) && (
+            <PhoneLater
+              groups={later.groups} count={later.count} searching={later.searching} query={query}
+              scope={scope} setScope={setScope}
+            />
+          )}
           {route === "house" && <PhoneHouse />}
           {route === "you" && <PhoneYou />}
         </motion.div>
@@ -346,15 +359,14 @@ const WHERE: Record<Presence, (to?: string) => string> = {
 const FOCUS_DARK = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lemon";
 
 /**
- * THE HOUSEHOLD TAB — a PEOPLE-FIRST living board: the family iPad, for homes
- * that don't have one.
+ * THE HOUSEHOLD TAB — insight- and action-driven, in plain words.
  *
- * The house speaks first (one composed sentence — its pulse), then its people:
- * a card per person wearing where they are, what they're carrying, their
- * colour. Tap a person and their actual day opens beneath the grid — the
- * PhoneYou lens pattern, scaled to the whole cast. A live school run surfaces
- * as it happens. The balance is drawn, not scored: one bar, everyone's share
- * in their own colour, with the fix one tap away. Everything answers a tap.
+ * No graphs. A non-technical person opens this and the house TELLS them what
+ * is going on and what, if anything, wants doing: the pulse sentence, a live
+ * run while it happens, ONE lemon "worth doing now" card with the verb on it,
+ * and a person card each that says where they are and how loaded they are —
+ * in words. Tap a person, read their day. The palette leans on the ink and
+ * the app's tints; white is rationed to the one list that needs it.
  */
 function PhoneHouse() {
   const s = useHousehold();
@@ -362,7 +374,6 @@ function PhoneHouse() {
   const board = people
     .map((m) => ({ m, items: s.tasks.filter((t) => t.owner === m.id && !t.done) }))
     .sort((a, b) => b.items.length - a.items.length);
-  const totalOpen = board.reduce((n, b) => n + b.items.length, 0);
   const weekAgo = Date.now() - 7 * 86_400_000;
   const doneWeek = s.tasks.filter((t) => t.done && t.completedAt && t.completedAt >= weekAgo).length;
   const move = previewRebalance(s);
@@ -378,23 +389,56 @@ function PhoneHouse() {
 
   /* THE PULSE — the house saying how it is, composed from what it knows.
      The count is EVERYTHING open, not just what's on someone — unclaimed work
-     is still the house's, and the clause names it when nothing juicier (a
-     person being away) has the slot. */
+     is still the house's, and the clause names whoever's away when there is
+     someone to name. */
   const allOpen = s.tasks.filter((t) => !t.done).length;
-  const unclaimed = s.tasks.filter((t) => !t.done && !t.owner).length;
   const awayBit = (() => {
     const x = people
       .map((m) => ({ m, p: m.availability?.presence ?? ("here" as Presence) }))
       .find((v) => v.p !== "here");
-    if (x) return x.p === "wfh" ? `${x.m.name} is home` : x.p === "out" ? `${x.m.name} is out` : `${x.m.name} is away`;
-    if (unclaimed) return unclaimed === 1 ? "one needs an owner" : `${unclaimed} need an owner`;
-    return null;
+    if (!x) return null;
+    return x.p === "wfh" ? `${x.m.name} is home` : x.p === "out" ? `${x.m.name} is out` : `${x.m.name} is away`;
   })();
 
   /* A live journey, front and centre while it runs. */
   const trip = s.island?.phase === "journey" ? s.island : null;
   const tripTask = trip?.taskId != null ? s.tasks.find((t) => t.id === trip.taskId) : null;
   const traveler = tripTask?.owner ? s.members[tripTask.owner] : null;
+
+  /* WORTH DOING NOW — the one thing the house would hand you, with its verb.
+     Priorities: work nobody owns, then money running late, then a lopsided
+     week. When none apply, it says so — a quiet win is still information. */
+  const unowned = s.tasks.find((t) => !t.done && !t.owner);
+  const nominee = unowned?.suggest ? s.members[unowned.suggest] : null;
+  const lateBill = billTasks(s)
+    .filter((t) => !t.done && t.due < todayIso())
+    .sort((a, b) => a.due.localeCompare(b.due))[0];
+  const insight = unowned
+    ? {
+        line: <>&ldquo;{unowned.title}&rdquo; has no owner{nominee && <> — {nominee.name} is the right hands</>}.</>,
+        verb: nominee ? `Give it to ${nominee.name}` : "Pick someone",
+        act: () => (nominee ? s.acceptSuggestion(unowned.id) : s.openSheet({ type: "assign", id: unowned.id })),
+      }
+    : lateBill
+    ? {
+        line: <>&ldquo;{lateBill.title}&rdquo; (${lateBill.amount}) slipped past its due date.</>,
+        verb: `Pay $${lateBill.amount}`,
+        act: () => {
+          if (lateBill.payUrl) window.open(lateBill.payUrl, "_blank", "noopener");
+          s.settleBill(lateBill.id);
+        },
+      }
+    : move
+    ? {
+        line: <>{move.from.name} is carrying the most — &ldquo;{move.task.title}&rdquo; could go to {move.to.name}.</>,
+        verb: "Even it out",
+        act: () => s.openSheet({ type: "rebalance" }),
+      }
+    : {
+        line: <>Nothing needs a decision — {doneWeek} {doneWeek === 1 ? "thing" : "things"} finished this week.</>,
+        verb: null as string | null,
+        act: () => {},
+      };
 
   return (
     <>
@@ -424,41 +468,65 @@ function PhoneHouse() {
         </motion.div>
       )}
 
-      {/* THE PEOPLE — a card each: where they are, what they carry, their
-          colour. Tap = their day opens below. */}
-      <motion.div variants={listItem} className="grid grid-cols-2 gap-tile">
-        {board.map(({ m, items }) => {
-          const av = m.availability;
-          const on = selId === m.id;
-          return (
-            <button
-              key={m.id}
-              onClick={() => setSelId(on ? null : m.id)}
-              aria-pressed={on}
-              className={clsx(
-                "rounded-card bg-card p-card-pad text-left text-ink shadow-e2 transition-shadow hover:shadow-e3",
-                FOCUS_DARK,
-                on && "ring-2 ring-inset ring-ink",
-              )}
-            >
-              <div className="flex items-start justify-between">
-                <Avatar member={m} size={44} />
-                <span className="font-tight text-[24px] leading-none tabular-nums">{items.length}</span>
-              </div>
-              <div className="mt-3 text-h2">{m.name}</div>
-              <div className="text-caption text-sub">{WHERE[av?.presence ?? "here"](av?.to)}</div>
-              <div className="mt-2.5 h-1.5 overflow-hidden rounded-pill bg-ink/[.06]">
-                <div
-                  className="h-full rounded-pill transition-all"
-                  style={{ width: `${totalOpen ? Math.round((items.length / Math.max(1, board[0].items.length)) * 100) : 0}%`, background: m.color }}
-                />
-              </div>
-            </button>
-          );
-        })}
+      {/* WORTH DOING NOW — the screen's one lemon: an insight in plain words
+          and the verb that answers it. */}
+      <motion.div variants={listItem}>
+        <div className="rounded-card bg-lemon p-card-pad text-ink shadow-e2">
+          <div className="flex items-start gap-3">
+            <IconTile name="spark" />
+            <div className="min-w-0 flex-1">
+              <Eyebrow className="!text-ink/50">Worth doing now</Eyebrow>
+              <p className="mt-1 text-h2">{insight.line}</p>
+            </div>
+          </div>
+          {insight.verb && (
+            <Button tone="dark" className="mt-4 w-full" onClick={insight.act}>
+              {insight.verb}
+            </Button>
+          )}
+        </div>
       </motion.div>
 
-      {/* The selected person's day — one at a time, the lens's reading area. */}
+      {/* THE PEOPLE — a card each, in the DARK idiom (the one lemon above
+          stays the only shout). Everything said in words: where they are,
+          what's on their plate. Tap = their day opens below. */}
+      <motion.div variants={listItem}>
+        <Eyebrow tone="onDark" className="mb-2 mt-2 px-1.5">The people</Eyebrow>
+        <div className="grid grid-cols-2 gap-tile">
+          {board.map(({ m, items }) => {
+            const av = m.availability;
+            const on = selId === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setSelId(on ? null : m.id)}
+                aria-pressed={on}
+                className={clsx(
+                  "rounded-card border p-card-pad text-left transition-colors",
+                  FOCUS_DARK,
+                  on
+                    ? "border-white/30 bg-white/[.12]"
+                    : "border-white/10 bg-white/[.06] hover:bg-white/[.09]",
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <Avatar member={m} size={40} />
+                  <motion.span animate={{ rotate: on ? 180 : 0 }} transition={smooth} className="flex text-white/40">
+                    <Icon name="chevDown" size={14} />
+                  </motion.span>
+                </div>
+                <div className="mt-3 text-h2 text-white">{m.name}</div>
+                <div className="text-caption text-white/50">{WHERE[av?.presence ?? "here"](av?.to)}</div>
+                <div className="mt-1 text-caption font-medium text-white/85">
+                  {items.length === 0 ? "Nothing on their plate" : items.length === 1 ? "1 thing on their plate" : `${items.length} things on their plate`}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </motion.div>
+
+      {/* The selected person's day — one at a time, in the same dark voice. */}
       <AnimatePresence initial={false}>
         {sel && (
           <motion.div
@@ -469,8 +537,8 @@ function PhoneHouse() {
             transition={smooth}
             className="overflow-hidden"
           >
-            <div className="rounded-card bg-card p-card-pad text-ink shadow-e2">
-              <Eyebrow>{sel.m.name}&rsquo;s day</Eyebrow>
+            <div className="rounded-card border border-white/10 bg-white/[.06] p-card-pad">
+              <Eyebrow tone="onDark">{sel.m.name}&rsquo;s day</Eyebrow>
               <div className="mt-1 flex flex-col">
                 {[...sel.items.map((t) => ({
                   key: `t${t.id}`, title: t.title, when: t.when || "Any time",
@@ -482,16 +550,16 @@ function PhoneHouse() {
                   <button
                     key={r.key}
                     onClick={r.open}
-                    className="-mx-2 flex items-center justify-between gap-3 rounded-sm px-2 py-2 text-left transition-colors hover:bg-surface"
+                    className={clsx("-mx-2 flex items-center justify-between gap-3 rounded-sm px-2 py-2 text-left transition-colors hover:bg-white/[.06]", FOCUS_DARK)}
                   >
-                    <span className="min-w-0 truncate text-bodysm font-medium">
-                      {r.title}{typeof r.amount === "number" && <span className="text-sub"> · ${r.amount}</span>}
+                    <span className="min-w-0 truncate text-bodysm font-medium text-white/85">
+                      {r.title}{typeof r.amount === "number" && <span className="text-white/45"> · ${r.amount}</span>}
                     </span>
-                    <span className="shrink-0 text-caption text-sub">{r.when}</span>
+                    <span className="shrink-0 text-caption text-white/45">{r.when}</span>
                   </button>
                 ))}
                 {sel.items.length === 0 && selEvents.length === 0 && (
-                  <p className="py-2 text-bodysm text-sub">Nothing on {sel.m.name} right now — lucky them.</p>
+                  <p className="py-2 text-bodysm text-white/50">Nothing on {sel.m.name} right now — lucky them.</p>
                 )}
               </div>
             </div>
@@ -499,54 +567,24 @@ function PhoneHouse() {
         )}
       </AnimatePresence>
 
-      {/* THE BALANCE — drawn, not scored: everyone's share of the load in
-          their own colour, and the fix right there when it's lopsided. */}
-      <motion.div variants={listItem}>
-        <div className="rounded-card bg-card p-card-pad text-ink shadow-e2">
-          <div className="flex items-baseline justify-between">
-            <Eyebrow>The balance</Eyebrow>
-            <span className="text-caption text-sub">{doneWeek} done this week</span>
-          </div>
-          <div className="mt-3 flex h-3 gap-hair overflow-hidden rounded-pill">
-            {totalOpen === 0 ? (
-              <div className="h-full w-full rounded-pill bg-ink/[.06]" />
-            ) : (
-              board.filter((b) => b.items.length > 0).map((b) => (
-                <div
-                  key={b.m.id}
-                  className="h-full rounded-pill"
-                  style={{ flexGrow: b.items.length, background: b.m.color }}
-                />
-              ))
-            )}
-          </div>
-          <div className="mt-2 truncate text-caption text-sub">
-            {board.filter((b) => b.items.length > 0).map((b) => `${b.m.name} ${b.items.length}`).join(" · ") || "Nobody's carrying anything"}
-          </div>
-          {move && (
-            <Button tone="dark" className="mt-3.5 w-full" onClick={() => s.openSheet({ type: "rebalance" })}>
-              <Icon name="scale" size={15} /> Even it out
-            </Button>
-          )}
-        </div>
-      </motion.div>
-
-      {/* THE DAY — the house's next few things, whoever they belong to. */}
+      {/* THE DAY — the house's next few things, whoever they belong to. The
+          tab's ONE white surface: a list reads best on paper. */}
       <UpNextAcrossHouse />
 
-      {/* THE SHARED THINGS — doors to what the whole house owns together. */}
+      {/* THE SHARED THINGS — doors to what the whole house owns together,
+          each saying what's behind it and why you'd open it. */}
       <motion.div variants={listItem}>
         <Eyebrow tone="onDark" className="mb-2 mt-2 px-1.5">Shared</Eyebrow>
         <div className="grid grid-cols-2 gap-tile">
           <Card tone="mint" onClick={() => s.openSheet({ type: "shop" })}>
             <IconTile name="cart" />
-            <div className="mt-5 font-tight text-[24px] leading-none tabular-nums">{shopOpen}</div>
-            <div className="mt-1 text-caption text-sub">to get · Shopping</div>
+            <div className="mt-4 text-h2">{shopOpen ? `${shopOpen} to get` : "All bought"}</div>
+            <div className="text-caption text-sub">Open the shopping list</div>
           </Card>
           <Card tone="lavender" onClick={() => s.openSheet({ type: "stock" })}>
             <IconTile name="box" />
-            <div className="mt-5 font-tight text-[24px] leading-none tabular-nums">{low}</div>
-            <div className="mt-1 text-caption text-sub">running low · In the house</div>
+            <div className="mt-4 text-h2">{low ? `${low} running low` : "Stocked up"}</div>
+            <div className="text-caption text-sub">See what&rsquo;s in the house</div>
           </Card>
         </div>
       </motion.div>
@@ -554,8 +592,7 @@ function PhoneHouse() {
   );
 }
 
-/** The house's next few things, whoever they belong to — tasks and events in
- *  one shape, each able to reopen its own sheet. */
+
 function UpNextAcrossHouse() {
   const s = useHousehold();
   const upNext = [
@@ -603,11 +640,14 @@ function readProgress(pct: number): { text: React.ReactNode } {
   return { text: <>You&rsquo;re <Em>all done</Em></> };
 }
 
-function PhoneToday() {
+function PhoneToday({ day, onDay }: {
+  /** The day the strip is pointed at — LIFTED to the shell, because the Feed
+   *  hides its Later half while you're reading a specific day. */
+  day: string;
+  onDay: (d: string) => void;
+}) {
   const [span, setSpan] = useState<(typeof SPAN)[number]>("Weekly");
-  /** The day the strip is pointed at — drives everything below the greeting.
-   *  Starts on today; tapping the ruler moves it. */
-  const [sel, setSel] = useState<string>(() => todayIso());
+  const sel = day;
   /**
    * Which way the page TRAVELS when the day changes: +1 forward in time (new
    * day slides in from the right), -1 backward. ISO strings compare in date
@@ -619,7 +659,7 @@ function PhoneToday() {
   const goDay = (next: string) => {
     if (next === sel) return;
     setDir(next > sel ? 1 : -1);
-    setSel(next);
+    onDay(next);
   };
   const s = useHousehold();
   const meId = currentMember(s);
@@ -996,15 +1036,23 @@ type Item =
   | { kind: "event"; due: string; event: HouseEvent }
   | { kind: "maint"; due: string; item: MaintItem };
 
+/** The Feed's horizon lens — how far Later reaches, and how it bands. */
+type Scope = "Week" | "Month" | "Quarter" | "Year";
+const SCOPES: Scope[] = ["Week", "Month", "Quarter", "Year"];
+/** Rolling windows from today — no anchor, no stepper; the lens just reaches
+ *  further. */
+const SCOPE_DAYS: Record<Scope, number> = { Week: 13, Month: 31, Quarter: 92, Year: 366 };
+
 /**
  * LATER — everything past today, merged and grouped: the Feed's lower half.
  *
  * Everything is merged into ONE dated list and sorted by `due`, because that's
- * the question this half answers: what's coming, in order. The bands read like
- * a planner — anything still open from earlier, then Tomorrow, This week, Next
- * week, then months. No period stepper: the scroll IS the navigation, and a
- * search (which spans ALL time — it's a question about the household, not the
- * horizon you're scrolled to) is the jump-to-anywhere.
+ * the question this half answers: what's coming, in order. The SCOPE says how
+ * far to look and how to band it: Week reads like a planner (Tomorrow / This
+ * week / Next week), Month bands by week, Quarter and Year by month — always
+ * rolling from today, so there's no stepper to work. A search spans ALL time
+ * (it's a question about the household, not the horizon you're holding) and
+ * groups by month.
  *
  * Pulled out of the component: the shell's header reports the match count and
  * the page renders the rows — two copies of this maths would drift.
@@ -1013,6 +1061,7 @@ function laterFor(
   s: ReturnType<typeof useHousehold.getState>,
   meId: string,
   query: string,
+  scope: Scope,
 ) {
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;
@@ -1020,12 +1069,13 @@ function laterFor(
   const tomorrow = iso(addDays(new Date(), 1));
   const thisWeekEnd = iso(addDays(startOfWeek(new Date()), 6));
   const nextWeekEnd = iso(addDays(startOfWeek(new Date()), 13));
+  const horizon = scope === "Week" ? nextWeekEnd : iso(addDays(new Date(), SCOPE_DAYS[scope]));
 
-  // Browsing shows what's AHEAD (today itself lives in the cards above) plus
-  // anything undone that slipped past — overdue work must not vanish into a
-  // tab that no longer exists.
+  // Browsing shows what's AHEAD (today itself lives in the cards above), up to
+  // the lens's horizon, plus anything undone that slipped past — overdue work
+  // must not vanish into a tab that no longer exists.
   const keep = (due: string, done?: boolean) =>
-    searching || due >= tomorrow || (!done && due < todayStr);
+    searching || (due >= tomorrow && due <= horizon) || (!done && due < todayStr);
   const hit = (text: string) => !searching || text.toLowerCase().includes(q);
 
   const items: Item[] = [
@@ -1040,14 +1090,16 @@ function laterFor(
       .map((item): Item => ({ kind: "maint", due: item.due, item })),
   ].sort((a, b) => a.due.localeCompare(b.due) || Number(isDone(a)) - Number(isDone(b)));
 
-  // Search results span all time, so they group by month; browsing gets the
-  // planner bands.
+  // Search groups by month across all time; browsing bands by the scope.
   const bandOf = (i: Item): { key: string; label: string } => {
     if (searching) return { key: monthKey(i.due), label: monthLabel(monthKey(i.due)) };
     if (i.due < todayStr) return { key: "over", label: "Still open from earlier" };
     if (i.due === tomorrow) return { key: "tomorrow", label: "Tomorrow" };
-    if (i.due <= thisWeekEnd) return { key: "week", label: "This week" };
-    if (i.due <= nextWeekEnd) return { key: "next", label: "Next week" };
+    if (scope === "Week") {
+      if (i.due <= thisWeekEnd) return { key: "week", label: "This week" };
+      return { key: "next", label: "Next week" };
+    }
+    if (scope === "Month") return { key: weekKey(i.due), label: weekLabel(weekKey(i.due)) };
     return { key: monthKey(i.due), label: monthLabel(monthKey(i.due)) };
   };
 
@@ -1066,14 +1118,37 @@ function laterFor(
 
 const isDone = (i: Item) => i.kind === "task" && i.task.done;
 
-function PhoneLater({ groups, count, searching, query }: {
+function PhoneLater({ groups, count, searching, query, scope, setScope }: {
   groups: ReturnType<typeof laterFor>["groups"];
   count: number;
   searching: boolean;
   query: string;
+  scope: Scope;
+  setScope: (s: Scope) => void;
 }) {
   return (
     <>
+      {/* THE LENS — how far Later looks. Four rolling windows, no stepper:
+          pick the reach, the bands re-cut themselves. Hidden while searching
+          (results span all time; there's no horizon to hold). */}
+      {!searching && (
+        <motion.div variants={listItem} className="flex items-center gap-1.5 px-1.5 pt-2">
+          {SCOPES.map((sc) => (
+            <button
+              key={sc}
+              onClick={() => setScope(sc)}
+              aria-pressed={scope === sc}
+              className={clsx(
+                "h-8 rounded-pill px-3.5 text-caption font-medium transition-colors",
+                scope === sc ? "bg-lemon text-ink" : "bg-white/[.07] text-white/70 hover:bg-white/[.12] hover:text-white",
+              )}
+            >
+              {sc}
+            </button>
+          ))}
+        </motion.div>
+      )}
+
       {groups.map((g) => (
         <div key={g.key} className="flex flex-col gap-tile">
           {/* A heading is a LABEL here, not a door — with the period lens gone
