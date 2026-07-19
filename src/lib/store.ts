@@ -1348,7 +1348,11 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
 /* ---------------- selectors ---------------- */
 
 export const currentMember = (s: HouseholdState): MemberId => {
-  if (s.persona !== "ipad") return s.persona;
+  // A persisted persona can outlive the member it names: rebuild the household
+  // (onboarding mints name-derived ids) and yesterday's "maya" points at
+  // nobody. Never hand back an id that isn't in members — every consumer
+  // immediately dereferences it (me.name), and the shell dies on load.
+  if (s.persona !== "ipad" && s.members[s.persona]) return s.persona;
   const owner = Object.values(s.members).find((m) => m.role === "owner") ?? Object.values(s.members)[0];
   return owner?.id ?? "";
 };

@@ -108,12 +108,16 @@ type Jump = { label: string; run: () => void };
 function DemoPanel() {
   const [open, setOpen] = useState(true);
   const st = () => useHousehold.getState();
-  // Every jump must land IN THE APP. If a setup run is in progress the app
-  // renders Onboarding regardless of routes — so navigating without clearing
-  // it changes screens underneath a flow that never shows them, and every
-  // link in this panel reads as dead. Restore the demo home first.
+  // Every jump must land IN THE SEED DEMO. Two ways the current state can be
+  // somewhere else: a setup run is in progress (the app renders Onboarding
+  // regardless of routes, so navigation happens underneath a flow that never
+  // shows it), or a real onboarding run built a household of its own — whose
+  // name-derived member ids don't include the maya/sam/leo these journeys
+  // reference, so pointing the persona at them crashes the shell. Either way,
+  // restore the seed home first.
   const home = () => {
-    if (!st().setupComplete) st().skipOnboarding();
+    const s = st();
+    if (!s.setupComplete || !s.members.maya) s.skipOnboarding();
     return st();
   };
   const memberOr = (fallback = "maya") => {
