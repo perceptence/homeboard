@@ -1167,16 +1167,20 @@ function HouseholdViewSheet() {
           <div className="mt-1.5 text-caption text-sub">Done · 7 days</div>
         </div>
         {/* Balance IS the button when it needs one — a stat you can only look
-            at was exactly the dead end this screen used to be. */}
+            at was exactly the dead end this screen used to be. Same anatomy as
+            its two siblings (24px value over caption) so the row reads as one
+            grid: the lemon fill and the action caption are what say "tap me",
+            not a different type size. */}
         {move ? (
           <button
             onClick={() => s.openSheet({ type: "rebalance" })}
-            className="flex flex-col items-start rounded-card bg-lemon p-3.5 text-left shadow-e1 transition-shadow hover:shadow-e2"
+            className="rounded-card bg-lemon p-3.5 text-left shadow-e1 transition-shadow hover:shadow-e2"
           >
-            <span className="flex items-center gap-1 font-tight text-[18px] leading-none">
-              <Icon name="scale" size={15} /> Fix it
-            </span>
-            <span className="mt-1.5 text-caption text-ink/70">Balance's uneven</span>
+            <div className="font-tight text-[24px] leading-none">Uneven</div>
+            {/* No icon: the tile is ~80px inside and the glyph pushed the
+                caption onto a ragged second line. The lemon fill is the
+                affordance; the caption just names the verb. */}
+            <div className="mt-1.5 text-caption font-medium text-ink/70">Even it out</div>
           </button>
         ) : (
           <div className="rounded-card bg-card p-3.5 shadow-e1">
