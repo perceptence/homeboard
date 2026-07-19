@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icons";
 import { DeviceFrame } from "@/components/DeviceFrame";
 import { Splash } from "@/components/Splash";
@@ -92,7 +92,116 @@ export default function Page() {
         )}
         <Toast message={s.toast} who={s.toastWho ? s.members[s.toastWho] : undefined} onDone={clearToast} onUndo={s.toastUndo ?? undefined} />
       </DeviceFrame>
+
+      <DemoPanel />
     </main>
+  );
+}
+
+/**
+ * DEMO PANEL — a driver's map for the preview. Every button jumps straight to a
+ * journey by setting the persona, surface, route, and sheet in one go, so a
+ * walkthrough never has to hunt for a screen. Preview-only chrome; it drives the
+ * same store the app does.
+ */
+type Jump = { label: string; run: () => void };
+function DemoPanel() {
+  const [open, setOpen] = useState(true);
+  const st = () => useHousehold.getState();
+  const memberOr = (fallback = "maya") => {
+    const p = st().persona;
+    return p === "ipad" ? fallback : p;
+  };
+
+  // Land on a phone screen (as a member — falls back to the owner from the iPad).
+  const phone = (route: "today" | "ahead" | "you", sheet?: string): Jump["run"] => () => {
+    const s = st();
+    s.setPersona(memberOr());
+    s.goPhone(route);
+    if (sheet) s.openSheet({ type: sheet } as never);
+    else s.closeSheet();
+  };
+  // Owner-only journeys always view as Maya so every control is live.
+  const owner = (sheet: string): Jump["run"] => () => {
+    const s = st();
+    s.setPersona("maya");
+    s.goPhone("you");
+    s.openSheet({ type: sheet } as never);
+  };
+  const ipad = (route: string): Jump["run"] => () => {
+    const s = st();
+    s.setPersona("ipad");
+    s.goIpad(route as never);
+    s.closeSheet();
+  };
+
+  const groups: { title: string; items: Jump[] }[] = [
+    { title: "Setup", items: [
+      { label: "Onboarding · phone", run: () => { const s = st(); s.setPersona("maya"); s.startOnboarding(); s.setStep(0); } },
+      { label: "Onboarding · iPad", run: () => { const s = st(); s.setPersona("ipad"); s.startOnboarding(); s.setStep(0); } },
+      { label: "Reset to demo", run: () => st().skipOnboarding() },
+    ] },
+    { title: "Phone", items: [
+      { label: "Today", run: phone("today") },
+      { label: "Ahead", run: phone("ahead") },
+      { label: "You", run: phone("you") },
+      { label: "Household overview", run: phone("today", "houseView") },
+      { label: "Shopping", run: phone("today", "shop") },
+      { label: "In the house", run: phone("today", "stock") },
+      { label: "New task", run: phone("today", "newTask") },
+      { label: "Activity", run: phone("you", "activity") },
+      { label: "Rebalance", run: phone("you", "rebalance") },
+    ] },
+    { title: "Owner admin", items: [
+      { label: "Settings", run: owner("settings") },
+      { label: "Manage household", run: owner("manage") },
+      { label: "Add person", run: owner("addPerson") },
+      { label: "New bill", run: owner("addBill") },
+      { label: "New automation", run: owner("addAutomation") },
+    ] },
+    { title: "Live trip", items: [
+      { label: "On my way · Sam", run: () => { const s = st(); s.setPersona("sam"); s.goPhone("today"); s.closeSheet(); s.onWay(4); } },
+      { label: "Waiting · Leo", run: () => { const s = st(); s.setPersona("leo"); s.goPhone("today"); s.closeSheet(); } },
+    ] },
+    { title: "iPad", items: [
+      { label: "Home", run: ipad("home") },
+      { label: "Household", run: ipad("household") },
+      { label: "Insights", run: ipad("insights") },
+      { label: "Bills", run: ipad("bills") },
+      { label: "Automations", run: ipad("autos") },
+    ] },
+  ];
+
+  return (
+    <div className="fixed left-3 top-3 z-[100] w-[168px] overflow-hidden rounded-2xl bg-ink/95 text-white shadow-e3 backdrop-blur">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-2.5 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-white/80"
+      >
+        Demo
+        <span className="text-white/40">{open ? "–" : "+"}</span>
+      </button>
+      {open && (
+        <div className="no-scrollbar max-h-[calc(100vh-64px)] overflow-y-auto px-2 pb-2">
+          {groups.map((g) => (
+            <div key={g.title} className="mt-1">
+              <div className="px-1 pb-1 pt-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/30">{g.title}</div>
+              <div className="flex flex-col gap-0.5">
+                {g.items.map((it) => (
+                  <button
+                    key={it.label}
+                    onClick={it.run}
+                    className="rounded-lg px-2 py-1.5 text-left text-[12px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+                  >
+                    {it.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
