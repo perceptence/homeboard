@@ -3,7 +3,7 @@
 import {
   ArrowRight, BarChart3, BatteryFull, Bell, CalendarDays, Check, ChevronLeft, ChevronRight,
   Baby, CreditCard, ExternalLink, House, LayoutGrid, ListChecks, Mail, Package, PawPrint, Repeat,
-  ArrowLeftRight, ArrowUpRight, ChevronDown, ChevronUp, ChevronsUp, Plus, Search, Settings, ShoppingCart, Signal, Sparkles, TrendingUp, User, Users, Wifi, Wrench, X, Zap,
+  ArrowLeftRight, ArrowUpRight, ChevronDown, ChevronUp, ChevronsUp, Plus, Search, Settings, ShoppingCart, Signal, Sparkles, Star, TrendingUp, User, Users, Wifi, Wrench, X, Zap,
   Clock, Heart, KeyRound, Lock, MapPin, Mic, Moon, Scale, Sun, LayoutList,
   Trash2, Sprout, Music2, GraduationCap, Gift, Car, Navigation, PartyPopper, Utensils, RotateCcw, Carrot, Flower2, Camera,
 } from "lucide-react";
@@ -67,6 +67,7 @@ const MAP = {
   high: ArrowUpRight,     // the "High ↗" label only
   out: ExternalLink,      // leaves the app — a provider's pay page
   mail: Mail,             // came from email — the bills automation's badge
+  star: Star,             // a guided member's reward count — never the ★ glyph
   chevDown: ChevronDown,
   chevUp: ChevronUp,
   chevsUp: ChevronsUp,    // "more above" — stacked to read as depth, not a stepper
