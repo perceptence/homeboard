@@ -19,8 +19,13 @@ import { useHousehold } from "@/lib/store";
  * DESIGN.md, "the hairline"). One pattern, one place, no drift.
  */
 export const DEVICES = {
-  /** iPhone 17 Pro */
-  phone: { w: 402, h: 874, bezel: 9, radius: 55, screenRadius: 46 },
+  /** iPhone 17 Pro.
+   *  `lip` grows the bezel INWARD: the outer footprint (w + bezel*2) must not
+   *  move, so the extra 0.2 is taken from the screen opening on every side —
+   *  the opening shrinks and clips the app's edge pixels under the bezel,
+   *  exactly like real cover glass. The app still lays out at the true
+   *  402×874; nothing about the viewport or the scale math changes. */
+  phone: { w: 402, h: 874, bezel: 9, lip: 0.2, radius: 55, screenRadius: 46 },
   /** iPad Pro 11" (M5), landscape */
   tablet: { w: 1194, h: 834, bezel: 16, radius: 38, screenRadius: 22 },
 } as const;
@@ -177,13 +182,27 @@ function PhoneChrome({ children, chromeGap }: { children: ReactNode; chromeGap: 
           />
         ))}
 
+        {/* THE OPENING — the screen hole in the bezel, shrunk by `lip` on every
+            side so the bezel reads 0.2 thicker WITHOUT the outer footprint
+            moving (the caps-lock requirement: the addition goes INSIDE). The
+            app canvas below keeps its true 402×874 and is nudged -lip so it
+            stays centred; the opening clips its outermost 0.2px under the
+            bezel, the way real cover glass overhangs a panel. Radius shrinks
+            by the same lip to stay concentric. */}
         <div
-          style={{ width: d.w, height: d.h, borderRadius: d.screenRadius }}
+          style={{
+            width: d.w - d.lip * 2,
+            height: d.h - d.lip * 2,
+            margin: d.lip,
+            borderRadius: d.screenRadius - d.lip,
+          }}
           className="relative overflow-hidden bg-ink"
         >
-          {children}
-          <PhoneStatus />
-          <DynamicIsland />
+          <div style={{ width: d.w, height: d.h, marginLeft: -d.lip, marginTop: -d.lip }} className="relative">
+            {children}
+            <PhoneStatus />
+            <DynamicIsland />
+          </div>
         </div>
       </div>
     </div>
