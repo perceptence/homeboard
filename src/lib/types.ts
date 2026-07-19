@@ -476,11 +476,34 @@ export interface HouseEvent {
   icon?: IconName;
 }
 
+/**
+ * A rule is WHEN + THEN, from a vocabulary the app can actually execute —
+ * not a wish typed into a text box. Params live on the arm that needs them.
+ */
+export type AutoWhen =
+  | { kind: "low" }                                    // something runs low
+  | { kind: "weekday"; day: string; time: string }     // a weekly moment
+  | { kind: "email" }                                  // a billing email arrives
+  | { kind: "unclaimed" }                              // work sits unclaimed
+  | { kind: "dueSoon" };                               // a bill is three days out
+export type AutoThen =
+  | { kind: "shop" }                                   // add it to shopping
+  | { kind: "task"; title: string }                    // create a task (routed fairly)
+  | { kind: "nudge"; who: MemberId }                   // nudge one person
+  | { kind: "rebalance" }                              // even out the week
+  | { kind: "bill" };                                  // file the bill in the feed
+
 export interface Automation {
   id: string;
+  /** Display copy. COMPOSED from when/then for structured rules; verbatim on
+   *  the one legacy free-text rule (Guest mode) until it's edited. */
   title: string;
   description: string;
   on: boolean;
+  /** The structured rule. Absent only on legacy free-text automations — the
+   *  builder converts those on first edit. */
+  when?: AutoWhen;
+  then?: AutoThen;
 }
 
 /**

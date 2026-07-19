@@ -228,7 +228,7 @@ export function IpadMaint() {
 /* ---------------- Automations ---------------- */
 
 export function IpadAutomations() {
-  const { automations, toggleAutomation } = useHousehold();
+  const { automations, toggleAutomation, openSheet } = useHousehold();
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <Back title="Automations" />
@@ -249,6 +249,9 @@ export function IpadAutomations() {
                 lead={<IconTile name="bolt" tone={a.on ? "onTint" : "neutral"} />}
                 title={a.title}
                 meta={a.description}
+                // The row opens the BUILDER; the switch (in actions, which
+                // stops propagation) stays its own target.
+                onClick={() => openSheet({ type: "addAutomation", id: a.id })}
                 actions={
                   <button
                     role="switch"

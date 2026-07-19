@@ -157,14 +157,17 @@ export const seedEvents: HouseEvent[] = [
   { id: "e8", due: d(61), title: "School term starts", time: "8:30 AM", who: "leo", icon: "grad" },
 ];
 
+/* Every seed rule carries its STRUCTURED form (when/then) — open one in the
+   builder and its real parts light up. Guest mode is the deliberate exception:
+   a legacy free-text rule, converted the first time someone edits it. */
 export const seedAutomations: Automation[] = [
   // The rule behind the bills' "Email · …" badges — the monthly entries write
-  // themselves. UI-ready: the story is told here and worn by the bills; the
-  // real inbox connection is future work.
-  { id: "a6", title: "Bills from email", description: "Reads billing emails — adds the bill, its due date, and where to pay", on: true },
-  { id: "a1", title: "Auto-add low items", description: "When something runs low, add it to shopping", on: true },
-  { id: "a2", title: "Trash reminder", description: "Nudge Sam every Tuesday at 8pm", on: true },
-  { id: "a3", title: "Weekly rebalance", description: "Even out the workload each Sunday", on: true },
-  { id: "a4", title: "Bill alerts", description: "Warn 3 days before a non-autopay bill", on: true },
+  // themselves. UI-ready: the story is told here and worn by the bill-tasks;
+  // the real inbox connection is future work.
+  { id: "a6", title: "Bills from email", description: "Reads billing emails — files the bill with its due date and pay link", on: true, when: { kind: "email" }, then: { kind: "bill" } },
+  { id: "a1", title: "Auto-add low items", description: "When something runs low, add it to shopping", on: true, when: { kind: "low" }, then: { kind: "shop" } },
+  { id: "a2", title: "Trash reminder", description: "Nudge Sam every Tuesday at 8:00 PM", on: true, when: { kind: "weekday", day: "Tuesday", time: "8:00 PM" }, then: { kind: "nudge", who: "sam" } },
+  { id: "a3", title: "Weekly rebalance", description: "Even out the week every Sunday at 9:00 AM", on: true, when: { kind: "weekday", day: "Sunday", time: "9:00 AM" }, then: { kind: "rebalance" } },
+  { id: "a4", title: "Bill alerts", description: "When a bill is three days out, nudge Maya", on: true, when: { kind: "dueSoon" }, then: { kind: "nudge", who: "maya" } },
   { id: "a5", title: "Guest mode", description: "Prep when an event is tagged guests", on: false },
 ];

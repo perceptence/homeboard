@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
-  ActivityEntry, Automation, DraftPerson, HouseEvent, HouseholdAxes, HouseholdPreset,
+  ActivityEntry, Automation, AutoThen, AutoWhen, DraftPerson, HouseEvent, HouseholdAxes, HouseholdPreset,
   InventoryItem, IpadRoute, MaintItem, Member, MemberId, MemberKind, OnboardingDraft, Persona, PhoneRoute,
   Availability, IslandNote, Presence, Priority, Reminder, Role, ShopItem, Task,
 } from "./types";
@@ -293,7 +293,10 @@ interface HouseholdState {
   addTask: (t: { title: string; owner: MemberId | null; when: string; due: string; priority: Priority; requires?: Role; minAge?: number; source?: string; said?: string; recurring?: string; amount?: number }) => void;
 
   /* --- creating the things the phone could only view (owner/permitted) --- */
-  addAutomation: (a: { title: string; description: string }) => void;
+  addAutomation: (a: { when: AutoWhen; then: AutoThen }) => void;
+  /** Recompose an existing rule from new parts — the builder's Save-on-edit. */
+  updateAutomation: (id: string, a: { when: AutoWhen; then: AutoThen }) => void;
+  removeAutomation: (id: string) => void;
   setOwner: (id: number, owner: MemberId | null) => void;
   /** A hand-off from the hand-off sheet: reassigns, LOGS it (the house should
    *  know work moved), keeps the sheet open — people hand off several in a row. */
@@ -739,11 +742,27 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       };
     }),
 
-  addAutomation: ({ title, description }) =>
+  addAutomation: ({ when, then }) =>
     set((s) => ({
-      automations: [...s.automations, { id: `a${Date.now()}`, title: title.trim() || "New rule", description: description.trim(), on: true }],
-      toast: "Automation added",
+      automations: [...s.automations, { id: `a${Date.now()}`, ...autoCopy(when, then, s.members), on: true, when, then }],
+      toast: "Automation added — switched on",
     })),
+
+  updateAutomation: (id, { when, then }) =>
+    set((s) => ({
+      automations: s.automations.map((a) =>
+        a.id === id ? { ...a, ...autoCopy(when, then, s.members), when, then } : a),
+      toast: "Automation updated",
+    })),
+
+  removeAutomation: (id) =>
+    set((s) => {
+      const a = s.automations.find((x) => x.id === id);
+      return {
+        automations: s.automations.filter((x) => x.id !== id),
+        toast: a ? `Removed "${a.title}"` : null,
+      };
+    }),
 
   setOwner: (id, owner) =>
     set((s) => ({
@@ -1428,6 +1447,36 @@ export const doers = (s: HouseholdState) =>
 export const billTasks = (s: HouseholdState) =>
   s.tasks.filter((t) => typeof t.amount === "number");
 
+/* ─────────────── automations: the rule, said out loud ─────────────── */
+
+/** The trigger, mid-sentence — reads after "When …". */
+export const autoWhenPhrase = (w: AutoWhen): string => {
+  switch (w.kind) {
+    case "low": return "something runs low";
+    case "weekday": return `every ${w.day} at ${w.time}`;
+    case "email": return "a billing email arrives";
+    case "unclaimed": return "a task sits unclaimed for a day";
+    case "dueSoon": return "a bill is three days out";
+  }
+};
+
+/** The action as a short NAME — it becomes the rule's title. */
+export const autoThenTitle = (t: AutoThen, members: Record<MemberId, Member>): string => {
+  switch (t.kind) {
+    case "shop": return "Add it to shopping";
+    case "task": return `Create “${t.title.trim() || "a task"}”`;
+    case "nudge": return `Nudge ${members[t.who]?.name ?? "someone"}`;
+    case "rebalance": return "Even out the week";
+    case "bill": return "File the bill in the feed";
+  }
+};
+
+/** Compose a structured rule's display copy — one voice for every rule. */
+const autoCopy = (when: AutoWhen, then: AutoThen, members: Record<MemberId, Member>) => ({
+  title: autoThenTitle(then, members),
+  description: `When ${autoWhenPhrase(when)}`,
+});
+
 /** Who money lands on: whoever claimed the "Bills" domain in their
  *  responsibilities; the owner failing that. Never a pet, never nobody. */
 export const billOwner = (s: HouseholdState): MemberId | null =>
@@ -1674,7 +1723,10 @@ export function suggestTaker(s: HouseholdState, task: Task): Suggestion | null {
 }
 
 export const shoppingList = (s: HouseholdState): ShopItem[] => {
-  const autoOn = s.automations.find((a) => a.id === "a1")?.on;
+  // ANY switched-on "runs low -> shopping" rule qualifies — the user can
+  // delete the seed and build their own and the behaviour follows the RULE,
+  // not a magic id.
+  const autoOn = s.automations.some((a) => a.on && a.when?.kind === "low" && a.then?.kind === "shop");
   const list = [...s.shopping];
   if (!autoOn) return list;
   for (const inv of s.inventory) {

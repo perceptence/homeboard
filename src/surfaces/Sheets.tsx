@@ -10,8 +10,8 @@ import { addDays, ago, badge, clockLabel, dayLabel, iso, relative, startOfWeek, 
 import { taskGlyph } from "@/lib/glyphs";
 import { parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
-import { doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
-import type { Member, MemberId, MemberKind, Priority, Role, ShopCategory, ShopItem, StockStatus, Task } from "@/lib/types";
+import { autoThenTitle, autoWhenPhrase, doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
+import type { AutoThen, AutoWhen, Member, MemberId, MemberKind, Priority, Role, ShopCategory, ShopItem, StockStatus, Task } from "@/lib/types";
 import { ROLE_CAN, ROLE_HINT, ROLE_LABEL, ROLE_NEEDS } from "@/lib/types";
 
 /** Where a typed shopping item files itself — read from the words, shown live
@@ -64,7 +64,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
             {type === "settings" && <SettingsSheet />}
             {type === "manage" && <ManageHouseholdSheet />}
             {type === "addPerson" && <AddPersonSheet />}
-            {type === "addAutomation" && <NewAutomationSheet />}
+            {type === "addAutomation" && <AutomationSheet id={sheet?.id as string | undefined} />}
           </motion.div>
         )}
       </Sheet>
@@ -822,10 +822,15 @@ function ManageHouseholdSheet() {
       <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
         {s.automations.map((a) => (
           <div key={a.id} className="flex items-center gap-3 px-4 py-3">
-            <div className="min-w-0 flex-1">
+            {/* The words are the DOOR to the builder; the switch stays its own
+                target so toggling never accidentally opens an editor. */}
+            <button
+              onClick={() => s.openSheet({ type: "addAutomation", id: a.id })}
+              className={clsx("min-w-0 flex-1 rounded-sm text-left", FOCUS)}
+            >
               <div className="text-bodysm font-medium">{a.title}</div>
               <div className="text-caption text-sub">{a.description}</div>
-            </div>
+            </button>
             <Switch on={a.on} onToggle={() => s.toggleAutomation(a.id)} label={a.title} />
           </div>
         ))}
@@ -958,30 +963,161 @@ function FormHead({ icon, title }: { icon: IconName; title: string }) {
 
 const FIELD_INPUT = "w-full bg-transparent text-bodysm font-medium outline-none placeholder:text-sub/70";
 
-/** NEW AUTOMATION — a described rule the house runs on its own. */
-function NewAutomationSheet() {
+/* ─────────────── the automation builder ─────────────── */
+
+/** The vocabulary — every option is something the app can actually DO, so a
+ *  saved rule is a working rule, not a wish in a text box. */
+const AUTO_WHEN: { kind: AutoWhen["kind"]; label: string; hint: string }[] = [
+  { kind: "low", label: "Something runs low", hint: "The pantry or supplies dip" },
+  { kind: "weekday", label: "A weekly moment", hint: "A day and time you pick" },
+  { kind: "email", label: "A billing email arrives", hint: "The inbox reader spots a bill" },
+  { kind: "unclaimed", label: "Work sits unclaimed", hint: "A task waits a day with no taker" },
+  { kind: "dueSoon", label: "A bill is 3 days out", hint: "Money due, nobody has moved" },
+];
+const AUTO_THEN: { kind: AutoThen["kind"]; label: string; hint: string }[] = [
+  { kind: "shop", label: "Add it to shopping", hint: "Straight onto the shared list" },
+  { kind: "task", label: "Create a task", hint: "Titled by you, routed fairly" },
+  { kind: "nudge", label: "Nudge someone", hint: "A quiet reminder, one person" },
+  { kind: "rebalance", label: "Even out the week", hint: "Run the balancer" },
+  { kind: "bill", label: "File the bill", hint: "Amount, due date and pay link" },
+];
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+/** One arm of the rule — the selection language the whole app speaks: white
+ *  cards on a recessed panel, the chosen one wearing an ink ring. */
+function AutoOptionList<T extends string>({ options, value, onPick }: {
+  options: { kind: T; label: string; hint: string }[];
+  value: T | null;
+  onPick: (k: T) => void;
+}) {
+  return (
+    <div className="mt-2 flex flex-col gap-1.5 rounded-md bg-ink/[.04] p-1">
+      {options.map((o) => (
+        <button
+          key={o.kind}
+          onClick={() => onPick(o.kind)}
+          aria-pressed={value === o.kind}
+          className={clsx(
+            "flex items-baseline gap-2 rounded-sm bg-card px-3 py-2.5 text-left transition-shadow duration-300",
+            FOCUS,
+            value === o.kind ? "shadow-e2 ring-2 ring-inset ring-ink" : "shadow-e1 hover:shadow-e2",
+          )}
+        >
+          <span className="shrink-0 text-bodysm font-medium">{o.label}</span>
+          <span className="min-w-0 truncate text-caption text-sub">{o.hint}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * THE AUTOMATION BUILDER — create, edit, delete. A rule is WHEN + THEN picked
+ * from a vocabulary the app executes (the runs-low rule literally gates
+ * shoppingList), so what you save is what runs. Editing a rule opens the same
+ * builder with its parts lit; the one legacy free-text rule (Guest mode)
+ * opens blank and converts on save.
+ */
+function AutomationSheet({ id }: { id?: string }) {
   const s = useHousehold();
-  const [title, setTitle] = useState("");
-  const [desc, setDesc] = useState("");
-  const canSave = title.trim().length > 0;
+  const existing = id ? s.automations.find((a) => a.id === id) : undefined;
+
+  const [when, setWhen] = useState<AutoWhen | null>(existing?.when ?? null);
+  const [then, setThen] = useState<AutoThen | null>(existing?.then ?? null);
+
+  const pickWhen = (kind: AutoWhen["kind"]) =>
+    setWhen(kind === "weekday" ? { kind, day: "Tuesday", time: "6:00 PM" } : { kind } as AutoWhen);
+  const pickThen = (kind: AutoThen["kind"]) =>
+    setThen(
+      kind === "task" ? { kind, title: "" }
+      : kind === "nudge" ? { kind, who: doers(s)[0]?.id ?? "" }
+      : { kind } as AutoThen,
+    );
+
+  const [timeOpen, setTimeOpen] = useState(false);
+  const ready = !!when && !!then && (then.kind !== "task" || then.title.trim().length > 0);
+  const done = () => (s.persona === "ipad" ? s.closeSheet() : s.openSheet({ type: "manage" }));
+
   return (
     <>
-      <FormHead icon="bolt" title="New automation" />
-      <Eyebrow className="mt-5">Name</Eyebrow>
-      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
-        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Water-the-plants nudge" aria-label="Name" className={FIELD_INPUT} />
-      </div>
-      <Eyebrow className="mt-6">What it does</Eyebrow>
-      <div className="mt-2 rounded-card bg-card p-4 shadow-e1">
-        <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Describe the rule in a line" aria-label="Description" className={FIELD_INPUT} />
-      </div>
-      <p className="mt-1.5 px-1 text-caption text-sub">It starts switched on. Yours records the intent — the built-in rules are the ones the app actually runs.</p>
+      <FormHead icon="bolt" title={existing ? "Edit automation" : "New automation"} />
+
+      <Eyebrow className="mt-5">When</Eyebrow>
+      <AutoOptionList options={AUTO_WHEN} value={when?.kind ?? null} onPick={pickWhen} />
+      {when?.kind === "weekday" && (
+        <div className="mt-3 rounded-card bg-card p-3 shadow-e1">
+          <div className="flex flex-wrap gap-1.5">
+            {DAYS.map((d) => (
+              <Choice key={d} selected={when.day === d} onClick={() => setWhen({ ...when, day: d })} className="!h-8 !px-2.5 !text-caption">
+                {d.slice(0, 3)}
+              </Choice>
+            ))}
+          </div>
+          <div className="mt-3 border-t border-ink/[.06] pt-3">
+            <PickerChip kind="time" open={timeOpen} onToggle={() => setTimeOpen((v) => !v)} active>
+              {when.time}
+            </PickerChip>
+            <PickerPanel open={timeOpen}>
+              <MiniClock value={when.time} onPick={(t) => setWhen({ ...when, time: t })} />
+            </PickerPanel>
+          </div>
+        </div>
+      )}
+
+      <Eyebrow className="mt-6">Then</Eyebrow>
+      <AutoOptionList options={AUTO_THEN} value={then?.kind ?? null} onPick={pickThen} />
+      {then?.kind === "task" && (
+        <div className="mt-3 rounded-card bg-card p-4 shadow-e1">
+          <input
+            value={then.title}
+            onChange={(e) => setThen({ ...then, title: e.target.value })}
+            placeholder="What should the task say?"
+            aria-label="Task title"
+            autoFocus
+            className={FIELD_INPUT}
+          />
+        </div>
+      )}
+      {then?.kind === "nudge" && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {doers(s).map((m) => (
+            <Choice key={m.id} selected={then.who === m.id} onClick={() => setThen({ ...then, who: m.id })}>
+              <Avatar member={m} size={22} /> {m.name}
+            </Choice>
+          ))}
+        </div>
+      )}
+
+      {/* The rule, read back as the sentence it will wear in the list. Only the
+          verb's first letter drops case — names keep theirs. */}
+      {ready && when && then && (
+        <p className="mt-4 px-1 text-bodysm text-sub">
+          When <b className="font-medium text-ink">{autoWhenPhrase(when)}</b> →{" "}
+          <b className="font-medium text-ink">
+            {(() => { const t = autoThenTitle(then, s.members); return t.charAt(0).toLowerCase() + t.slice(1); })()}
+          </b>.
+        </p>
+      )}
+
       <Button
-        tone="dark" size="lg" className="mt-6 w-full" disabled={!canSave}
-        onClick={() => { s.addAutomation({ title, description: desc }); s.openSheet({ type: "manage" }); }}
+        tone="dark" size="lg" className="mt-6 w-full" disabled={!ready}
+        onClick={() => {
+          if (!when || !then) return;
+          if (existing) s.updateAutomation(existing.id, { when, then });
+          else s.addAutomation({ when, then });
+          done();
+        }}
       >
-        Add automation
+        {existing ? "Save changes" : "Add automation"}
       </Button>
+      {existing && (
+        <Button
+          tone="ghost" size="lg" className="mt-2 w-full !text-danger"
+          onClick={() => { s.removeAutomation(existing.id); done(); }}
+        >
+          Remove this automation
+        </Button>
+      )}
     </>
   );
 }
