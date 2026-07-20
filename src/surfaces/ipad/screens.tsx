@@ -16,6 +16,15 @@ import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 /** Focus ring for raw buttons on a LIGHT surface (inside a Card) — the app's
  *  usual ink ring. */
 const FOCUS = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink";
+
+/** A shopping category's own glyph — food for Groceries, a box for Supplies. */
+const catIcon = (cat: string): IconName => {
+  const c = cat.toLowerCase();
+  if (c.includes("groc")) return "veg";
+  if (c.includes("pet")) return "pet";
+  if (c.includes("suppl")) return "box";
+  return "cart";
+};
 /** Its dark twin — for raw buttons on a wash or the ink backdrop. */
 const FOCUS_DARK = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lemon";
 
@@ -108,12 +117,13 @@ export function IpadToday() {
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      {/* HERO — the day, said out loud, in the HOUSE's voice. No "See the day"
-          button any more: the day is right below. */}
+      {/* HERO — the day, said out loud, in the HOUSE's voice. Card grammar:
+          icon (feed, the Today mark) + the faces, then the space, then the
+          date title and the day itself. */}
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="lemon" className="flex h-full min-h-[240px] flex-col">
-          <div className="flex items-start">
-            <Eyebrow><span suppressHydrationWarning>{todayLabel()}</span></Eyebrow>
+          <div className="flex items-center">
+            <IconTile name="feed" tone="onTint" />
             <span className="ml-auto flex -space-x-2">
               {people.slice(0, 4).map((id) => (
                 <span key={id} className="ring-2 ring-lemon">
@@ -123,11 +133,12 @@ export function IpadToday() {
             </span>
           </div>
           <div className="mt-auto">
-            <Sentence className="max-w-[20ch]">
+            <Eyebrow><span suppressHydrationWarning>{todayLabel()}</span></Eyebrow>
+            <Sentence className="mt-1 max-w-[20ch]">
               <span suppressHydrationWarning>{timeOfDay()}</span>. <Em>{s.householdName}</Em> has{" "}
               <Em>{today.length}</Em> {today.length === 1 ? "thing" : "things"} on today.
             </Sentence>
-            <div className="mt-5 flex items-center gap-2">
+            <div className="mt-4 flex items-center gap-2">
               <Pill tone="tag">{doneCount} already done</Pill>
             </div>
           </div>
@@ -137,7 +148,10 @@ export function IpadToday() {
       {/* WORTH A LOOK — immediate attention, top of the page. */}
       <motion.div variants={listItem} className="col-span-2">
         <Card pad="none" className="flex h-full flex-col">
-          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Worth a look" />
+          <div className="px-card-pad pt-card-pad">
+            <IconTile name="spark" />
+            <TitleBlock size="card" className="mt-4" title="Worth a look" />
+          </div>
           <List className="pb-2">
             {attention.map((a) => (
               <Row
@@ -175,22 +189,24 @@ export function IpadToday() {
             earned by the act, not standing furniture. */}
         {autoAdded.length > 0 && (
           <Card tone="lavender">
-            <div className="flex items-center gap-4">
-              <Icon name="spark" size={18} />
-              <div className="flex-1 text-bodysm font-medium leading-snug">
-                I added <Em>{autoAdded.length}</Em> things that were running low:{" "}
-                {autoAdded.map((i) => i.title).join(", ")}.
-              </div>
+            <IconTile name="spark" tone="lemon" />
+            <Eyebrow className="mt-4">Auto-added</Eyebrow>
+            <div className="mt-1 text-bodysm font-medium leading-snug">
+              <Em>{autoAdded.length}</Em> things that were running low, straight onto the list:{" "}
+              {autoAdded.map((i) => i.title).join(", ")}.
             </div>
           </Card>
         )}
         {cats.map((cat) => (
           <Card key={cat} pad="none">
-            <div className="flex items-center px-card-pad pt-card-pad">
-              <TitleBlock size="card" title={cat} />
-              <span className="ml-auto text-caption font-medium text-sub">
-                {list.filter((x) => x.category === cat && !x.done).length}
-              </span>
+            <div className="px-card-pad pt-card-pad">
+              <IconTile name={catIcon(cat)} />
+              <div className="mt-4 flex items-center">
+                <TitleBlock size="card" title={cat} />
+                <span className="ml-auto text-caption font-medium text-sub">
+                  {list.filter((x) => x.category === cat && !x.done).length}
+                </span>
+              </div>
             </div>
             <List className="pb-2">
               {list.filter((x) => x.category === cat).map((i2) => (
@@ -678,7 +694,7 @@ export function IpadHousehold() {
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
           <IconTile name="scale" tone="onDark" />
-          <Eyebrow tone="onDark" className="mt-5">Share of the work</Eyebrow>
+          <Eyebrow tone="onDark" className="mt-6">Share of the work</Eyebrow>
           {/* Caps at ~four rows and scrolls past that — a big family stays a
               tidy card beside the pulse instead of stretching the row. */}
           <div className="no-scrollbar mt-3 max-h-[164px] flex-1 overflow-y-auto">
@@ -725,9 +741,11 @@ export function IpadHousehold() {
           screen's one lemon shout: a headline finish-rate plus the numbers
           behind it. Household voice throughout — never "you're". */}
       <motion.div variants={listItem} className="col-span-4">
-        {/* Phone card grammar: icon, space, title, data. */}
-        <Card tone="lemon" className="flex flex-col">
-          <IconTile name="trend" />
+        {/* The family's "Your progress" — the SAME lavender progress card the
+            phone wears, so the two surfaces read as one app: trend well on
+            lavender, then the space, the title, and the figure. */}
+        <Card tone="lavender" className="flex flex-col">
+          <IconTile name="trend" tone="lemon" />
           <div className="mt-6 flex items-end gap-4">
             <div className="min-w-0 flex-1">
               <Eyebrow>Last 30 days</Eyebrow>
@@ -756,7 +774,10 @@ export function IpadHousehold() {
           other ambient block; white is reserved for worklists you act on. */}
       <motion.div variants={listItem} className="col-span-4">
         <Card tone="wash" pad="none">
-          <TitleBlock size="card" tone="onDark" className="px-card-pad pt-card-pad" title="Appliances & warranties" />
+          <div className="px-card-pad pt-card-pad">
+            <IconTile name="box" tone="onDark" />
+            <TitleBlock size="card" tone="onDark" className="mt-4" title="Appliances & warranties" />
+          </div>
           <List className="pb-2">
             {ASSETS.map(([name, warranty, next]) => (
               <Row key={name} tone="dark" lead={<IconTile name="box" tone="onDark" />} title={name} meta={warranty}
