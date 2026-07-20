@@ -56,7 +56,7 @@ export function IpadShell() {
 
   return (
     <div className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-ink text-white">
-      <header className="flex shrink-0 items-center gap-4 border-b border-white/[.06] px-inner py-5">
+      <header className="flex shrink-0 items-center gap-4 border-b border-white/[.06] px-3 py-5">
         {/* The household's own mark, relocated from the old sidebar — the one
             fixed "which home is this" anchor now that the nav floats and hides. */}
         <div className="flex min-w-0 shrink items-center gap-2">
@@ -116,11 +116,13 @@ export function IpadShell() {
       </header>
 
       {/* Entrance motion is keyed to navTick — mutations never re-trigger it.
-          p-inner (24px) all round; the deep bottom pad clears the floating nav
-          so the last row never hides behind it. */}
+          p-3 (12px) — content-to-bezel gutter — on three sides; pb-28 is its
+          own, separate, much deeper value (landscape-tuned nav clearance,
+          not part of the general gutter) and stays untouched so the last row
+          never hides behind the floating nav. */}
       <motion.div
         key={s.query ? "search" : s.navTick}
-        className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-inner pb-28"
+        className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pb-28"
       >
         {s.query ? <SearchResults /> : <RouteView route={route} />}
       </motion.div>
@@ -128,7 +130,7 @@ export function IpadShell() {
       {/* FLOATING GLASS NAV — always open, centred at the bottom. Every tab is
           named; the active one wears an inverting fill that SLIDES between tabs
           on navigation (shared layoutId). */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-6 z-30 flex justify-center px-inner">
+      <div className="pointer-events-none absolute inset-x-0 bottom-6 z-30 flex justify-center px-3">
         {/* The glass stays glass — it READS its backdrop (useBackdropTone) and
             inverts its contents: dark ink over a light card, white over ink. */}
         <nav
