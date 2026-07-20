@@ -343,8 +343,11 @@ export function IpadCalendar() {
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickDay(di); } }}
         className={clsx(
           "flex cursor-pointer flex-col text-left transition-colors",
-          // Week cells fill the column's full height; month cells stay compact.
-          week ? "h-full min-h-0 rounded-card p-3" : "min-h-[104px] gap-1 rounded-md p-2",
+          // Week cells fill the column's full height in landscape (a definite-
+          // height row to fill); portrait's row is auto-sized instead, so they
+          // just grow to fit their own events, with a floor so an empty day
+          // stays a real tap target.
+          week ? "min-h-[90px] rounded-card p-3 @[1024px]:h-full @[1024px]:min-h-0" : "min-h-[104px] gap-1 rounded-md p-2",
           FOCUS_DARK,
           isTodayCell
             ? "bg-lemon text-ink"
@@ -388,9 +391,12 @@ export function IpadCalendar() {
   };
 
   return (
-    // Fixed height, not page scroll: Week fills the screen (tall day columns +
-    // full-height pane); Month scrolls its own grid if it runs long.
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="flex h-full min-h-0 flex-col gap-card-pad">
+    // Landscape: fixed height, not page scroll — Week fills the screen (tall
+    // day columns + full-height pane); Month scrolls its own grid if it runs
+    // long. Portrait: the grid can't share a fixed viewport with a full pane
+    // AND stay a real 7-wide week, so it drops the lock and lets the page
+    // scroll instead, same as every other iPad screen.
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="flex flex-col gap-card-pad @[1024px]:h-full @[1024px]:min-h-0">
       {/* HEADER — the period, with steppers to walk weeks/months, and the view
           toggle. */}
       <motion.div variants={listItem} className="flex shrink-0 items-end gap-3 px-1.5">
@@ -418,21 +424,23 @@ export function IpadCalendar() {
         </span>
       </motion.div>
 
-      {/* BODY — the calendar and the pane, both filling the remaining height. */}
-      <div className="flex min-h-0 flex-1 gap-card-pad">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* BODY — the calendar and the pane. Landscape: side by side, both
+          filling the remaining height. Portrait: the pane drops below,
+          full width, and the page scrolls past whichever one runs long. */}
+      <div className="flex flex-col gap-card-pad @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:flex-row">
+        <div className="flex min-w-0 flex-col @[1024px]:min-h-0 @[1024px]:flex-1">
           {view === "Week" ? (
-            <motion.div variants={listItem} className="grid min-h-0 flex-1 auto-rows-fr grid-cols-7 gap-2">
+            <motion.div variants={listItem} className="grid max-h-[55vh] grid-cols-7 gap-2 overflow-y-auto @[1024px]:h-full @[1024px]:max-h-none @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:auto-rows-fr @[1024px]:overflow-visible">
               {weekDays(anchor).map((day) => dayCell(day, "week"))}
             </motion.div>
           ) : (
-            <motion.div variants={listItem} className="flex min-h-0 flex-1 flex-col">
+            <motion.div variants={listItem} className="flex flex-col @[1024px]:min-h-0 @[1024px]:flex-1">
               <div className="mb-2 grid shrink-0 grid-cols-7 gap-2 px-1">
                 {WEEKDAY_LABELS.map((w) => (
                   <div key={w} className="text-caption font-medium uppercase text-white/40">{w}</div>
                 ))}
               </div>
-              <div className="no-scrollbar grid min-h-0 flex-1 auto-rows-min grid-cols-7 gap-2 overflow-y-auto">
+              <div className="no-scrollbar grid auto-rows-min grid-cols-7 gap-2 @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:overflow-y-auto">
                 {days.map((day) => dayCell(day, "month", day.getMonth() !== month))}
               </div>
             </motion.div>
@@ -441,7 +449,7 @@ export function IpadCalendar() {
 
         {/* THE PANE — the selected day's events, each expandable in place. Full
             height, white: the screen's one worklist surface against the grid. */}
-        <motion.div variants={listItem} className="min-h-0 w-[320px] shrink-0">
+        <motion.div variants={listItem} className="w-full shrink-0 @[1024px]:w-[320px]">
           <CalendarPane day={selDay} expandedId={selEvent} onToggle={toggleEvent} />
         </motion.div>
       </div>
@@ -468,7 +476,7 @@ function CalendarPane({
   const d = parse(day);
 
   return (
-    <Card className="flex h-full flex-col">
+    <Card className="flex max-h-[50vh] flex-col @[1024px]:h-full @[1024px]:max-h-none">
       <TitleBlock
         size="card"
         className="shrink-0"
