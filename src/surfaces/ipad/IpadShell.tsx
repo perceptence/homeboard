@@ -59,13 +59,15 @@ export function IpadShell() {
       <header className="flex shrink-0 items-center gap-4 border-b border-white/[.06] px-inner py-5">
         {/* The household's own mark, relocated from the old sidebar — the one
             fixed "which home is this" anchor now that the nav floats and hides. */}
-        <div className="flex min-w-0 shrink items-center gap-3">
+        <div className="flex min-w-0 shrink items-center gap-2">
           <AppMark size={44} className="shrink-0 rounded-sm" />
           <span className="truncate font-tight text-h1 text-white">{s.householdName}</span>
         </div>
         {/* Pill, h-touch — the same shape and floor as the Feed's search bar
             and every other control in the app. No max-width: it spans
-            whatever room is left between the brand and the header actions. */}
+            whatever room is left between the brand and the header actions.
+            ml-2, matching the header actions' ml-2 on the other side, so the
+            search bar sits the same distance from both its neighbors. */}
         <label className="ml-2 flex h-touch flex-1 items-center gap-2 rounded-pill bg-white/[.06] px-3.5 text-white/45 focus-within:bg-white/[.10]">
           <Icon name="search" size={16} />
           <input
@@ -80,7 +82,11 @@ export function IpadShell() {
             </button>
           )}
         </label>
-        <div className="ml-auto flex items-center gap-2.5">
+        {/* ml-2, not ml-auto — the search bar (flex-1) already claims all
+            leftover row space, so ml-auto added nothing here. ml-2 mirrors
+            the search label's own ml-2, keeping this side's gap the same
+            24px as the "e" → search-bar gap on the other side. */}
+        <div className="ml-2 flex items-center gap-2.5">
           {/* tone="light" — the on-dark default everywhere else in the app. */}
           <ActionButton
             name="bell"
