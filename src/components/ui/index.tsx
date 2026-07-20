@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useDragControls } from "framer-motion";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Face } from "@/components/Face";
@@ -618,6 +618,10 @@ export function Sheet({
   const scrollRef = useRef<HTMLDivElement>(null);
   useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }); }, [scrollKey]);
 
+  // Drag-to-dismiss is started from the GRABBER only (dragListener=false +
+  // dragControls), so the body scrolls normally and the handle is the one
+  // thing that pulls the sheet down.
+  const dragControls = useDragControls();
   const phone = variant === "phone";
   return (
     <AnimatePresence>
@@ -640,30 +644,44 @@ export function Sheet({
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={spring}
+            drag="y"
+            dragListener={false}
+            dragControls={dragControls}
+            dragConstraints={{ top: 0, bottom: 0 }}
+            // Elastic only downward, and snap back unless the pull is far or
+            // fast enough — then close.
+            dragElastic={{ top: 0, bottom: 0.5 }}
+            onDragEnd={(_, info) => { if (info.offset.y > 120 || info.velocity.y > 600) onClose(); }}
             className={clsx(
               // flex column + overflow-hidden: only the MIDDLE scrolls.
               "absolute z-50 flex flex-col overflow-hidden bg-surface text-ink shadow-e3",
               phone
                 ? "inset-x-0 bottom-0 max-h-[88%] rounded-t-card"
-                // Centre-bottom of the view, ~60% wide — a wide panel that
-                // sits on the floor, not a small box floating mid-canvas.
-                : "inset-x-0 bottom-6 mx-auto max-h-[84%] w-[60%] rounded-card",
+                // A bottom sheet like the phone's — flush to the floor, rounded
+                // only on top — but a centred 60%-wide panel on the big canvas.
+                : "inset-x-0 bottom-0 mx-auto max-h-[84%] w-[60%] rounded-t-card",
             )}
           >
-            {/* The grabber rides the sheet's own edge — 12px, not 28. */}
-            {phone && <div className="mx-auto mt-3 h-[4px] w-10 shrink-0 rounded-pill bg-ink/10" />}
+            {/* The grabber: the sheet's own edge AND its drag handle. Pulling it
+                down past a threshold dismisses; touch-none keeps the gesture the
+                sheet's, not the page's. */}
+            <button
+              aria-label="Drag down to close"
+              onPointerDown={(e) => dragControls.start(e)}
+              className="group flex shrink-0 cursor-grab touch-none justify-center py-3 active:cursor-grabbing"
+            >
+              <span className="h-[4px] w-10 rounded-pill bg-ink/10 transition-colors group-hover:bg-ink/20" />
+            </button>
 
             {title && (
-              <h2 className={clsx("shrink-0 px-inner font-tight text-h1", phone ? "pt-4" : "pt-inner")}>
-                {title}
-              </h2>
+              <h2 className="shrink-0 px-inner pt-1 font-tight text-h1">{title}</h2>
             )}
 
             <div
               ref={scrollRef}
               className={clsx(
                 "no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-inner",
-                title ? "pt-4" : phone ? "pt-2" : "pt-inner",
+                title ? "pt-4" : "pt-2",
                 footer ? "pb-4" : "pb-inner",
               )}
             >
