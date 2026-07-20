@@ -307,8 +307,12 @@ export function IpadToday() {
         ) : null}
       </motion.div>
 
-      {/* THE SHARED LIST — today's errand, a wide shelf across the foot. */}
-      <motion.div variants={listItem} className="col-span-4 flex flex-col gap-tile">
+      {/* THE SHARED LIST — today's errand, a wide shelf across the foot.
+          Portrait carries extra clearance above it (mt-section, 32px) — the
+          grid gap it inherited by default was the same as every other
+          section seam, and this one needed to read as a bigger break, coming
+          right off a tall stack of day-columns. */}
+      <motion.div variants={listItem} className="col-span-4 flex flex-col gap-tile mt-section @[1024px]:mt-0">
         <Eyebrow tone="onDark">Shopping</Eyebrow>
         {/* Lavender ONLY when the AI actually did something — the accent is
             earned by the act, not standing furniture. */}
@@ -326,14 +330,12 @@ export function IpadToday() {
             </div>
           </Card>
         )}
-        {/* Portrait: a horizontal-scroll row, left to right — the same shelf
-            idiom as Worth a look and the people row. Landscape: the plain
-            3-up grid, all three fit without scrolling. */}
-        <div className="no-scrollbar flex gap-3 overflow-x-auto @[1024px]:grid @[1024px]:grid-cols-3 @[1024px]:overflow-visible">
+        {/* All three fit the width in every orientation — no scroll. */}
+        <div className="grid grid-cols-3 gap-3">
           {cats.map((cat) => {
             const left = list.filter((x) => x.category === cat && !x.done).length;
             return (
-            <Card key={cat} pad="none" className="w-[320px] shrink-0 self-start @[1024px]:w-auto @[1024px]:shrink">
+            <Card key={cat} pad="none" className="self-start">
               {/* Same card grammar as Worth a look / Appliances — icon on top, a
                   space, the title (its count riding the subtext), then the data
                   — but kept white, because this is a worklist you act on. */}
