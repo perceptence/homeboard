@@ -330,8 +330,11 @@ export function IpadCalendar() {
         <div className="min-w-0">
           <Eyebrow tone="onDark">Calendar</Eyebrow>
           <div className="mt-1 flex items-center gap-1">
-            <div className="font-tight text-h1 tabular-nums text-white">{periodLabel(view, anchor)}</div>
+            {/* ‹ flanks the value on the left, › on the right — the period reads
+                as the thing you're stepping through, not a label with a pair of
+                arrows tacked after it. */}
             <Step dir={-1} onClick={() => step(-1)} />
+            <div className="font-tight text-h1 tabular-nums text-white">{periodLabel(view, anchor)}</div>
             <Step dir={1} onClick={() => step(1)} />
             {!isCurrentPeriod(view, anchor) && (
               <button
