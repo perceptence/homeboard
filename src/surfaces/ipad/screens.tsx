@@ -69,6 +69,7 @@ export function IpadToday() {
       action: (
         <Button
           size="touch"
+          tone="lemon"
           onClick={() => {
             // Hand off to the provider's page (new tab); record it settled here.
             if (billDue.payUrl) window.open(billDue.payUrl, "_blank", "noopener");
@@ -83,7 +84,7 @@ export function IpadToday() {
   s.maint.filter((m) => m.status === "over").forEach((m) =>
     attention.push({
       key: m.id, icon: "wrench", tone: "neutral", title: m.title, meta: relative(m.due),
-      action: <Button size="touch" tone="outline" onClick={() => s.scheduleMaint(m.id)}>Schedule</Button>,
+      action: <Button size="touch" tone="outlineDark" onClick={() => s.scheduleMaint(m.id)}>Schedule</Button>,
     }),
   );
   if (low.length) {
@@ -130,19 +131,18 @@ export function IpadToday() {
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-x-3 gap-y-4 pb-2">
-      {/* THE HERO BAND — the day, opened. The greeting and the family on the
-          left; on the right, a white panel of what actually needs someone —
-          "Worth a look" — so the hero carries a decision, not just a mood.
-          "Up next" moved out: it's the head of the day-columns below. */}
+      {/* THE HERO BAND — the day, opened: the greeting on the left, the family
+          on the right, walled by nothing but space. It carries the mood; the
+          decisions live in "Worth a look" right below. */}
       <motion.div variants={listItem} className="col-span-4">
-        <Card tone="lemon" className="flex min-h-[300px] flex-col gap-6 lg:flex-row lg:gap-8">
-          {/* Left — the greeting and the family. */}
+        <Card tone="lemon" className="flex min-h-[260px] flex-col gap-6 lg:flex-row lg:items-stretch lg:gap-8">
+          {/* Left — the greeting. */}
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex items-center gap-3">
               <IconTile name="feed" tone="onTint" />
               <Eyebrow className="!text-ink/50"><span suppressHydrationWarning>{todayLabel()}</span></Eyebrow>
             </div>
-            <div className="mt-auto">
+            <div className="mt-auto pt-8">
               <h1 className="font-tight text-[56px] font-medium leading-[0.95] tracking-[-0.02em]">
                 <span suppressHydrationWarning>{greeting()}</span>.
               </h1>
@@ -151,42 +151,50 @@ export function IpadToday() {
                 {today.length === 1 ? "thing" : "things"} on today
                 {doneCount > 0 ? <>, <Em>{doneCount}</Em> already done</> : null}.
               </Sentence>
-              <div className="mt-6 flex items-center gap-3">
-                <span className="flex -space-x-2">
-                  {people.slice(0, 5).map((id) => (
-                    <span key={id} className="ring-2 ring-lemon">
-                      <Avatar member={s.members[id]} size={40} />
-                    </span>
-                  ))}
-                </span>
-                <span className="text-caption font-medium text-ink/50">{familyLine}</span>
-              </div>
             </div>
           </div>
 
-          {/* Right — Worth a look, a soft gray worklist panel on the lemon. Its
-              heading well matches the feed well on the left (same md size) but
-              wears lime, so it reads as the hero's own second mark. */}
-          <div className="flex shrink-0 flex-col overflow-hidden rounded-card bg-surface text-ink lg:w-[360px]">
-            <div className="flex items-center gap-3 px-card-pad pt-card-pad">
-              <IconTile name="spark" tone="lemon" />
-              <b className="text-h2">Worth a look</b>
+          {/* Right — the family, on a hairline-walled column of its own. */}
+          <div className="flex shrink-0 flex-col justify-end border-white/15 lg:w-[300px] lg:border-l lg:pl-8">
+            <Eyebrow className="!text-ink/50">The family</Eyebrow>
+            <div className="mt-4 flex items-center gap-3">
+              <span className="flex -space-x-2">
+                {people.slice(0, 5).map((id) => (
+                  <span key={id} className="ring-2 ring-lemon">
+                    <Avatar member={s.members[id]} size={44} />
+                  </span>
+                ))}
+              </span>
             </div>
-            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-card-pad pb-2 pt-2">
-              {attention.map((a) => (
-                <Row
-                  key={a.key}
-                  lead={<IconTile name={a.icon} tone="onTint" size="sm" />}
-                  title={a.title}
-                  meta={a.meta}
-                  actions={a.action}
-                />
-              ))}
-              {attention.length === 0 && (
-                <p className="py-8 text-center text-bodysm text-sub">Nothing needs a look. Rare — enjoy it.</p>
-              )}
-            </div>
+            <span className="mt-3 text-caption font-medium text-ink/50">{familyLine}</span>
           </div>
+        </Card>
+      </motion.div>
+
+      {/* WORTH A LOOK — what actually needs someone. Same grammar as Household's
+          "Share of the work": a dark-grey wash card, its icon on top, a space,
+          the eyebrow title, then the data — here, the attention items dealt
+          across so the row reads sideways, not down. */}
+      <motion.div variants={listItem} className="col-span-4">
+        <Card tone="wash">
+          <IconTile name="spark" tone="onDark" />
+          <Eyebrow tone="onDark" className="mt-6">Worth a look</Eyebrow>
+          {attention.length > 0 ? (
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {attention.map((a) => (
+                <div key={a.key} className="flex items-center gap-3 rounded-card border border-white/[.08] bg-white/[.04] p-4">
+                  <IconTile name={a.icon} tone="onDark" size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-bodysm font-medium leading-snug text-white">{a.title}</div>
+                    <div className="mt-0.5 truncate text-caption text-white/45">{a.meta}</div>
+                  </div>
+                  {a.action && <span className="shrink-0">{a.action}</span>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-bodysm text-white/45">Nothing needs a look. Rare — enjoy it.</p>
+          )}
         </Card>
       </motion.div>
 
@@ -838,9 +846,9 @@ export function IpadHousehold() {
         <Card tone="wash" pad="none">
           <div className="px-card-pad pt-card-pad">
             <IconTile name="box" tone="onDark" />
-            <TitleBlock size="card" tone="onDark" className="mt-4" title="Appliances & warranties" />
+            <Eyebrow tone="onDark" className="mt-6">Appliances &amp; warranties</Eyebrow>
           </div>
-          <List className="pb-2">
+          <List className="pb-2 pt-3">
             {ASSETS.map(([name, warranty, next]) => (
               <Row key={name} tone="dark" lead={<IconTile name="box" tone="onDark" />} title={name} meta={warranty}
                 actions={<Pill tone={next === "—" ? "dark" : "lavender"}>{next}</Pill>} />
