@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { EventCard, TaskCard } from "@/components/TaskCard";
-import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TitleBlock, type TileTone } from "@/components/ui";
-import { addDays, iso, isToday, relative, startOfWeek, timeMinutes, timeOfDay, today as todayLabel } from "@/lib/dates";
+import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TabToggle, TitleBlock, type TileTone } from "@/components/ui";
+import { addDays, clockLabel, iso, isToday, parse, periodLabel, relative, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
 import { billTasks, doers, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
 import type { Member, Role } from "@/lib/types";
@@ -214,70 +214,266 @@ export function IpadToday() {
    real Mon–Sun in the dark idiom, member-coloured chips, lemon = today.
    ════════════════════════════════════════════════════════════════════════════ */
 
+const CAL_VIEWS = ["Week", "Month"] as const;
+type CalView = (typeof CAL_VIEWS)[number];
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
 /** The real Mon–Sun of the week you're in — not a hardcoded row of numbers. */
 const weekDays = () =>
   Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(new Date()), i));
 
+/**
+ * The whole current month as a rectangle of weeks: from the Monday on/before
+ * the 1st to the Sunday on/after the last, so every row is a full week. Days
+ * from the neighbouring months come along (dimmed) — that's what makes it a
+ * calendar and not a ragged list.
+ */
+const monthDays = () => {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const gridStart = startOfWeek(first);
+  const gridEnd = addDays(startOfWeek(last), 7); // exclusive: end of the last week
+  const count = Math.round((+gridEnd - +gridStart) / 86_400_000);
+  return {
+    month: now.getMonth(),
+    days: Array.from({ length: count }, (_, i) => addDays(gridStart, i)),
+  };
+};
+
 export function IpadCalendar() {
   const s = useHousehold();
+  const [view, setView] = useState<CalView>("Week");
+  // The right pane is driven by a selected DAY (its event list) and optionally a
+  // selected EVENT (its details). Day defaults to today — the pane absorbs the
+  // old standalone "Today" card, but interactive.
+  const [selDay, setSelDay] = useState<string>(() => todayIso());
+  const [selEvent, setSelEvent] = useState<string | null>(null);
+
+  const pickDay = (di: string) => { setSelDay(di); setSelEvent(null); };
+  // Picking an event also moves the day under it, so "back" returns to the
+  // right list.
+  const pickEvent = (e: { id: string; due: string }) => { setSelDay(e.due); setSelEvent(e.id); };
+
+  const { month, days } = monthDays();
+
+  /** One event chip inside a grid cell — clickable straight through to its
+   *  details, stopping the cell's own day-select. */
+  const Chip = ({ id, who, title, time, dim }: { id: string; who: string; title: string; time?: string; dim?: boolean }) => (
+    <button
+      onClick={(ev) => { ev.stopPropagation(); pickEvent({ id, due: selDayForChip(id) }); }}
+      style={{ background: s.members[who]?.color }}
+      className={clsx("block w-full truncate rounded-sm px-2 py-1 text-left text-micro font-medium leading-tight text-white", dim && "opacity-40", FOCUS)}
+    >
+      {time && <span suppressHydrationWarning className="block opacity-75">{time}</span>}
+      {title}
+    </button>
+  );
+  // A chip knows its own event's day (so pickEvent lands the pane on it).
+  const selDayForChip = (id: string) => s.events.find((e) => e.id === id)?.due ?? selDay;
+
+  const dayCell = (day: Date, opts: { compact?: boolean; dim?: boolean }) => {
+    const di = iso(day);
+    const isTodayCell = isToday(di);
+    const isSel = di === selDay;
+    const evs = s.events.filter((e) => e.due === di);
+    return (
+      <div
+        key={di}
+        role="button"
+        tabIndex={0}
+        onClick={() => pickDay(di)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickDay(di); } }}
+        className={clsx(
+          "flex cursor-pointer flex-col rounded-card p-3 text-left transition-colors",
+          opts.compact ? "min-h-[104px] gap-1 rounded-md p-2" : "min-h-[220px]",
+          FOCUS_DARK,
+          isTodayCell
+            ? "bg-lemon text-ink"
+            : opts.dim
+              ? "border border-white/[.04] bg-white/[.02] text-white/35"
+              : "border border-white/10 bg-white/[.06] text-white hover:bg-white/[.09]",
+          // The ring marks the day the pane is READING — kept distinct from the
+          // lemon "today" fill, same two-state language as the phone's ruler.
+          isSel && !isTodayCell && "ring-2 ring-inset ring-lemon",
+          isSel && isTodayCell && "ring-2 ring-inset ring-ink/40",
+        )}
+      >
+        <div className="flex items-baseline justify-between">
+          {!opts.compact && (
+            <span className={clsx("text-caption font-medium uppercase", isTodayCell ? "opacity-50" : "text-white/45")}>
+              {day.toLocaleDateString("en-GB", { weekday: "short" })}
+            </span>
+          )}
+          <span className={clsx("tabular-nums", opts.compact ? "ml-auto text-bodysm font-medium" : "text-h2")}>{day.getDate()}</span>
+        </div>
+        <div className={clsx("flex flex-col", opts.compact ? "mt-1 gap-1" : "mt-2 gap-1.5")}>
+          {(opts.compact ? evs.slice(0, 2) : evs).map((e) => (
+            <Chip key={e.id} id={e.id} who={e.who} title={e.title} time={opts.compact ? undefined : e.time} dim={opts.dim} />
+          ))}
+          {opts.compact && evs.length > 2 && (
+            <span className="text-micro font-medium text-white/40">+{evs.length - 2} more</span>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      {/* Pulse on the ink. */}
-      <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
-        <Eyebrow tone="onDark">Calendar</Eyebrow>
-        <Sentence className="mt-auto max-w-[18ch] text-white">
-          <Em>{s.events.length}</Em> things on the calendar this week.
-        </Sentence>
-      </motion.div>
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="flex items-start gap-card-pad">
+      {/* LEFT — the calendar, Week or Month. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-card-pad">
+        <motion.div variants={listItem} className="flex items-end gap-3 px-1.5">
+          <div className="min-w-0">
+            <Eyebrow tone="onDark">Calendar</Eyebrow>
+            <div className="mt-1 font-tight text-h1 text-white">{periodLabel(view, new Date())}</div>
+          </div>
+          <span className="ml-auto">
+            <TabToggle options={CAL_VIEWS} value={view} onChange={(v) => { setView(v); setSelEvent(null); }} layoutId="ipadCalView" />
+          </span>
+        </motion.div>
 
-      <motion.div variants={listItem} className="col-span-2">
-        <Card pad="none" className="h-full">
-          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Today" />
-          <List className="pb-2">
-            {s.events.filter((e) => isToday(e.due)).map((e) => (
-              <Row key={e.id} lead={<Avatar member={s.members[e.who]} size={32} />} title={e.title}
-                meta={`${e.time} · ${s.members[e.who]?.name}`} />
-            ))}
-          </List>
-        </Card>
-      </motion.div>
-
-      {/* The week, in the dark idiom — same as the phone's own calendar cells
-          (washes, lemon = today). Seven opaque columns was a wall of white;
-          the member-coloured event chips read BETTER against the wash. */}
-      <motion.div variants={listItem} className="col-span-4 grid grid-cols-7 gap-3">
-        {weekDays().map((day) => {
-          const isTodayCell = isToday(iso(day));
-          return (
-            <Card
-              key={iso(day)}
-              // The lemon card is TODAY — which is a date test, not "the first column".
-              tone={isTodayCell ? "lemon" : "wash"}
-              pad="md"
-              className="min-h-[200px]"
-            >
-              <div className="flex items-baseline justify-between">
-                <span className={clsx("text-caption font-medium uppercase", isTodayCell ? "opacity-50" : "text-white/45")}>
-                  {day.toLocaleDateString("en-GB", { weekday: "short" })}
-                </span>
-                <span className="text-h2 tabular-nums">{day.getDate()}</span>
-              </div>
-              {s.events.filter((e) => e.due === iso(day)).map((e) => (
-                <div
-                  key={e.id}
-                  style={{ background: s.members[e.who].color }}
-                  className="mt-2 rounded-sm px-2 py-1.5 text-micro font-medium leading-tight text-white"
-                >
-                  <div className="opacity-75">{e.time}</div>
-                  {e.title}
-                </div>
+        {view === "Week" ? (
+          <motion.div variants={listItem} className="grid grid-cols-7 gap-2">
+            {weekDays().map((day) => dayCell(day, {}))}
+          </motion.div>
+        ) : (
+          <motion.div variants={listItem}>
+            <div className="mb-2 grid grid-cols-7 gap-2 px-1">
+              {WEEKDAY_LABELS.map((w) => (
+                <div key={w} className="text-caption font-medium uppercase text-white/40">{w}</div>
               ))}
-            </Card>
-          );
-        })}
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {days.map((day) => dayCell(day, { compact: true, dim: day.getMonth() !== month }))}
+            </div>
+          </motion.div>
+        )}
+      </div>
+
+      {/* RIGHT — the pane: a day's events, or one event's details. White, the
+          screen's one worklist surface, against the ambient dark grid. */}
+      <motion.div variants={listItem} className="w-[320px] shrink-0">
+        <CalendarPane day={selDay} eventId={selEvent} onPickEvent={setSelEvent} onBack={() => setSelEvent(null)} />
       </motion.div>
     </motion.div>
+  );
+}
+
+/** The Calendar's right pane. Two states on one surface: the selected day's
+ *  event list, and — once you tap one — that event's details with a way back. */
+function CalendarPane({
+  day, eventId, onPickEvent, onBack,
+}: {
+  day: string; eventId: string | null; onPickEvent: (id: string) => void; onBack: () => void;
+}) {
+  const s = useHousehold();
+  // Seeded demo event times drift across the hydration boundary (see IpadToday);
+  // the list sort waits for mount so the two renders can't disagree on order.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const event = eventId ? s.events.find((e) => e.id === eventId) : null;
+
+  if (event) {
+    const who = s.members[event.who];
+    return (
+      <Card className="flex flex-col">
+        <button
+          onClick={onBack}
+          className={clsx("-ml-1 mb-4 flex w-max items-center gap-1 rounded-sm py-0.5 pr-2 text-caption font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+        >
+          <Icon name="back" size={16} /> Back to the day
+        </button>
+
+        <div className="flex items-center gap-3">
+          <IconTile name={event.icon ?? "cal"} tone="lemon" />
+          <h2 className="min-w-0 font-tight text-h2">{event.title}</h2>
+        </div>
+
+        <div className="mt-5 space-y-3 text-bodysm">
+          <div className="flex items-center gap-3">
+            <span className="w-14 shrink-0 text-caption text-sub">Who</span>
+            <span className="flex min-w-0 items-center gap-2 font-medium">
+              <Avatar member={who} size={22} /> <span className="truncate">{who?.name ?? "—"}</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-14 shrink-0 text-caption text-sub">Time</span>
+            <span suppressHydrationWarning className="font-medium">{clockLabel(event.time)}</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-14 shrink-0 text-caption text-sub">{event.journey ? "Heading" : "Day"}</span>
+            <span className="min-w-0 truncate font-medium">{event.journey && event.where ? event.where : relative(event.due)}</span>
+          </div>
+        </div>
+
+        {event.recurring && (
+          <p className="mt-4 flex items-center gap-1.5 text-caption text-sub">
+            <Icon name="repeat" size={14} /> Repeats {event.recurring.toLowerCase()}
+          </p>
+        )}
+
+        {event.done ? (
+          <p className="mt-5 flex items-center justify-center gap-1.5 rounded-2xl bg-ink/[.05] py-3 text-bodysm font-medium text-sub">
+            <Icon name="check" size={16} /> Handled
+          </p>
+        ) : (
+          <div className="mt-5 flex flex-col gap-2">
+            {/* Same actions the event sheet offers — "On my way" only with
+                someone in `waiting` at the far end. */}
+            {!!event.waiting?.length && (
+              <Button tone="dark" size="lg" onClick={() => s.onWay(event.id)}>
+                <Icon name="car" size={16} /> On my way
+              </Button>
+            )}
+            <Button tone={event.waiting?.length ? "outline" : "dark"} size="lg" onClick={() => s.completeEvent(event.id)}>
+              <Icon name="check" size={16} /> Done
+            </Button>
+            <Button tone="outline" size="lg" onClick={() => s.remindForEvent(event.id)}>
+              <Icon name="bell" size={16} /> Remind me
+            </Button>
+          </div>
+        )}
+      </Card>
+    );
+  }
+
+  const evs = s.events
+    .filter((e) => e.due === day)
+    .sort((a, b) => (mounted ? timeMinutes(a.time) - timeMinutes(b.time) : 0) || a.id.localeCompare(b.id));
+  const d = parse(day);
+
+  return (
+    <Card className="flex flex-col">
+      <TitleBlock
+        size="card"
+        eyebrow={isToday(day) ? "Today" : d.toLocaleDateString("en-GB", { weekday: "long" })}
+        title={d.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
+      />
+      <div className="mt-stack flex flex-col">
+        {evs.map((e) => {
+          const who = s.members[e.who];
+          return (
+            <button
+              key={e.id}
+              onClick={() => onPickEvent(e.id)}
+              className={clsx("-mx-2 flex items-center gap-3 rounded-sm px-2 py-2.5 text-left transition-colors hover:bg-surface", FOCUS)}
+            >
+              <Avatar member={who} size={32} />
+              <span className="min-w-0 flex-1">
+                <span className={clsx("block truncate text-bodysm font-medium", e.done && "text-sub line-through")}>{e.title}</span>
+                <span className="block truncate text-caption text-sub">{who?.name ?? "—"}</span>
+              </span>
+              <span suppressHydrationWarning className="shrink-0 text-caption text-sub">{e.time}</span>
+            </button>
+          );
+        })}
+        {evs.length === 0 && (
+          <p className="py-8 text-center text-bodysm text-sub">Nothing on this day.</p>
+        )}
+      </div>
+    </Card>
   );
 }
 
