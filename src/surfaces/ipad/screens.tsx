@@ -135,7 +135,7 @@ export function IpadToday() {
           on the right, walled by nothing but space. It carries the mood; the
           decisions live in "Worth a look" right below. */}
       <motion.div variants={listItem} className="col-span-4">
-        <Card tone="lemon" className="flex min-h-[260px] flex-col gap-6 lg:flex-row lg:items-stretch lg:gap-8">
+        <Card tone="lemon" className="flex min-h-[260px] flex-col gap-6 @[1024px]:flex-row @[1024px]:items-stretch @[1024px]:gap-8">
           {/* Left — the greeting. */}
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex items-center gap-3">
@@ -155,7 +155,7 @@ export function IpadToday() {
           </div>
 
           {/* Right — the family, on a hairline-walled column of its own. */}
-          <div className="flex shrink-0 flex-col justify-end border-white/15 lg:w-[300px] lg:border-l lg:pl-8">
+          <div className="flex shrink-0 flex-col justify-end border-white/15 @[1024px]:w-[300px] @[1024px]:border-l @[1024px]:pl-8">
             <Eyebrow className="!text-ink/50">The family</Eyebrow>
             <div className="mt-4 flex items-center gap-3">
               <span className="flex -space-x-2">
@@ -180,12 +180,12 @@ export function IpadToday() {
           <IconTile name="spark" tone="onDark" />
           <Eyebrow tone="onDark" className="mt-6">Worth a look</Eyebrow>
           {attention.length > 0 ? (
-            // Three fill the row; a fourth doesn't wrap to a lonely second line —
-            // it rides off the right edge and the row scrolls sideways. Each item
-            // is pinned to a third of the visible width so the rhythm holds.
+            // Three fill the row (two in portrait, where a third's own width
+            // would get too cramped); a row that runs longer doesn't wrap to a
+            // lonely second line — it rides off the right edge and scrolls.
             <div className="no-scrollbar mt-4 flex gap-3 overflow-x-auto">
               {attention.map((a) => (
-                <div key={a.key} className="flex w-[calc((100%-1.5rem)/3)] shrink-0 items-center gap-3 rounded-card border border-white/[.08] bg-white/[.04] p-4">
+                <div key={a.key} className="flex w-[calc((100%-.75rem)/2)] shrink-0 items-center gap-3 rounded-card border border-white/[.08] bg-white/[.04] p-4 @[1024px]:w-[calc((100%-1.5rem)/3)]">
                   <IconTile name={a.icon} tone="onDark" size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="text-bodysm font-medium leading-snug text-white">{a.title}</div>
@@ -210,7 +210,7 @@ export function IpadToday() {
             <Sentence className="py-6 text-white">The house is caught up. <Em>Nothing on.</Em></Sentence>
           </Card>
         ) : mounted ? (
-          <div className="grid grid-cols-3 items-start gap-3">
+          <div className="grid grid-cols-1 items-start gap-3 @[1024px]:grid-cols-3">
             {DAY_PARTS.map((label, p) => (
               <div key={label} className="flex flex-col gap-tile">
                 <div className="px-1 text-caption font-medium uppercase tracking-[0.08em] text-white/40">{label}</div>
@@ -245,7 +245,7 @@ export function IpadToday() {
             </div>
           </Card>
         )}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 @[1024px]:grid-cols-3">
           {cats.map((cat) => {
             const left = list.filter((x) => x.category === cat && !x.done).length;
             return (
@@ -739,12 +739,12 @@ export function IpadHousehold() {
   const balanceLabel = move ? "Uneven" : "Even";
 
   return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-1 gap-card-pad pb-2 @[1024px]:grid-cols-4">
       {/* THE PULSE — the house speaking as itself, on the ink. Not a static
           "who lives here" any more: the census, what they're carrying, and a
           live where-everyone-is line, so the slot holds the house's state
           instead of one floating sentence. */}
-      <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
+      <motion.div variants={listItem} className="flex min-h-[200px] flex-col px-1.5 py-1 @[1024px]:col-span-2">
         <span className="flex -space-x-2">
           {everyone.slice(0, 5).map((m) => (
             <span key={m.id} className="ring-2 ring-ink">
@@ -766,7 +766,7 @@ export function IpadHousehold() {
       {/* SHARE OF THE WORK — beside the people, where Rooms used to sit. The
           phone card grammar: icon, space, title, then the data. Rebalancing
           moved to the Last-30 card's balance stat, so no action lives here. */}
-      <motion.div variants={listItem} className="col-span-2">
+      <motion.div variants={listItem} className="@[1024px]:col-span-2">
         <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
           <IconTile name="scale" tone="onDark" />
           <Eyebrow tone="onDark" className="mt-6">Share of the work</Eyebrow>
@@ -802,7 +802,7 @@ export function IpadHousehold() {
           wraps onto a second line and shoves everything below out of rhythm.
           The row's height is auto, so an open role picker just grows it rather
           than being clipped. */}
-      <motion.div variants={listItem} className="col-span-4">
+      <motion.div variants={listItem} className="@[1024px]:col-span-4">
         <div className="no-scrollbar flex items-start gap-card-pad overflow-x-auto">
           {everyone.map((m) => (
             <div key={m.id} className="w-[264px] shrink-0">
@@ -815,7 +815,7 @@ export function IpadHousehold() {
       {/* HOW IT'S GOING — the household's month at a glance, full width and the
           screen's one lemon shout: a headline finish-rate plus the numbers
           behind it. Household voice throughout — never "you're". */}
-      <motion.div variants={listItem} className="col-span-4">
+      <motion.div variants={listItem} className="@[1024px]:col-span-4">
         {/* The family's "Your progress" — the SAME lavender progress card the
             phone wears, so the two surfaces read as one app: trend well on
             lavender, then the space, the title, and the figure. */}
@@ -830,7 +830,7 @@ export function IpadHousehold() {
             </div>
             <span className="shrink-0 font-tight text-[56px] font-medium leading-none tabular-nums tracking-tighter">{pct}%</span>
           </div>
-          <div className="mt-6 grid grid-cols-4 gap-4 border-t border-ink/10 pt-5">
+          <div className="mt-6 grid grid-cols-2 gap-4 border-t border-ink/10 pt-5 @[1024px]:grid-cols-4">
             <Stat figure={done} label={done === 1 ? "thing done" : "things done"} />
             <Stat figure={autoOn} label={autoOn === 1 ? "running on autopilot" : "on autopilot"} />
             <Stat figure={upkeep} label="upkeep due" />
@@ -847,7 +847,7 @@ export function IpadHousehold() {
 
       {/* Appliances — a read-only status list, so it wears the wash like every
           other ambient block; white is reserved for worklists you act on. */}
-      <motion.div variants={listItem} className="col-span-4">
+      <motion.div variants={listItem} className="@[1024px]:col-span-4">
         <Card tone="wash" pad="none">
           <div className="px-card-pad pt-card-pad">
             <IconTile name="box" tone="onDark" />
@@ -863,18 +863,23 @@ export function IpadHousehold() {
       </motion.div>
 
       {/* THE THINGS AROUND — doors to the house's own machinery, in the
-          sidebar idiom: quiet washes, nothing shouting. */}
-      {DOORS.map((d) => (
-        <motion.div key={d.route} variants={listItem}>
-          <Card tone="wash" onClick={() => s.goIpad(d.route)} className="flex min-h-[160px] flex-col">
-            <IconTile name={d.icon} tone="onDark" />
-            <div className="mt-auto">
-              <b className="block text-h2">{d.label}</b>
-              <div className="mt-0.5 text-bodysm font-medium text-white/50">{d.blurb}</div>
-            </div>
-          </Card>
-        </motion.div>
-      ))}
+          sidebar idiom: quiet washes, nothing shouting. Own 2-up grid in
+          portrait (a door full-width, stacked four deep, wastes height for
+          what's a nav shortcut); `@[1024px]:contents` drops the wrapper in landscape
+          so the doors resume being plain col-span-1 children of the outer grid. */}
+      <div className="col-span-1 grid grid-cols-2 gap-card-pad @[1024px]:contents">
+        {DOORS.map((d) => (
+          <motion.div key={d.route} variants={listItem}>
+            <Card tone="wash" onClick={() => s.goIpad(d.route)} className="flex min-h-[160px] flex-col">
+              <IconTile name={d.icon} tone="onDark" />
+              <div className="mt-auto">
+                <b className="block text-h2">{d.label}</b>
+                <div className="mt-0.5 text-bodysm font-medium text-white/50">{d.blurb}</div>
+              </div>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
     </motion.div>
   );
 }

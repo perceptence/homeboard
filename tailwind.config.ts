@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import containerQueries from "@tailwindcss/container-queries";
 
 /**
  * Design tokens — transcribed directly from the master prompt.
@@ -90,6 +91,14 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  // The iPad's DeviceFrame renders content at true logical size (834/1194px)
+  // inside a `transform: scale()` wrapper for the preview — transforms never
+  // affect layout, so a viewport media query (`lg:`) always sees the real
+  // browser window, not the device's own width, and can't tell the iPad's
+  // orientation apart. Container queries measure the actual (pre-transform)
+  // box instead, so `@[1024px]:` on a container scoped to the device's own
+  // screen correctly reflects portrait vs landscape regardless of how the
+  // preview is scaled to fit the browser window.
+  plugins: [containerQueries],
 };
 export default config;

@@ -836,7 +836,10 @@ function TabletFrame({ children, chromeGap, orientation }: { children: ReactNode
       >
         <div
           style={{ width: d.w, height: d.h, borderRadius: d.screenRadius }}
-          className="relative overflow-hidden bg-ink"
+          // @container: the iPad's own portrait/landscape breakpoints (see
+          // tailwind.config.ts) measure THIS box's true CSS width, unaffected
+          // by the ancestor's visual scale transform.
+          className="relative overflow-hidden bg-ink @container"
         >
           {children}
 
