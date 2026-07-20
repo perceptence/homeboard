@@ -399,7 +399,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   onboarding: emptyDraft(),
 
   persona: "ipad",
-  ipadRoute: "home",
+  ipadRoute: "today",
   phoneRoute: "today",
   sheet: null,
   toast: null,
@@ -1292,7 +1292,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         activity: [{ text: `${d.householdName.trim() || "Your home"} is set up`, at: Date.now() }],
         unread: 1,
         persona: "ipad",
-        ipadRoute: "home",
+        ipadRoute: "today",
         toast: "Your home is set up",
         navTick: s.navTick + 1,
       };
@@ -1330,7 +1330,10 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 9: shopping items carry `by` (whose want it is). Re-seed.
   // 10: seeded `completedAt` history so the You tab's contribution is live. Re-seed.
   // 11: members gained `email` (Settings). Re-seed.
-  version: 11,
+  // 12: the iPad collapsed to three tabs — IpadRoute lost home/tasks/shopping/
+  //     calendar/insights/more/bills; a persisted stale route would render
+  //     nothing. Re-seed.
+  version: 12,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.
@@ -1769,12 +1772,13 @@ export const searchAll = (s: HouseholdState, raw: string): SearchHit[] => {
     const who = did ? s.members[did]?.name : "Unassigned";
     hits.push({
       key: `t${t.id}`, icon: "tasks", title: t.title,
-      meta: `Task · ${who}${t.done ? " · done" : ""}`, route: "tasks", taskId: t.id,
+      meta: `Task · ${who}${t.done ? " · done" : ""}`, route: "today", taskId: t.id,
     });
   });
   shoppingList(s).forEach((i) => {
     if (!i.title.toLowerCase().includes(q)) return;
-    hits.push({ key: `s${i.id}`, icon: "cart", title: i.title, meta: `Shopping · ${i.category}`, route: "shopping" });
+    // The shopping list lives on Today now — a shopping hit lands there.
+    hits.push({ key: `s${i.id}`, icon: "cart", title: i.title, meta: `Shopping · ${i.category}`, route: "today" });
   });
   s.inventory.forEach((i) => {
     if (!i.title.toLowerCase().includes(q)) return;
@@ -1786,7 +1790,8 @@ export const searchAll = (s: HouseholdState, raw: string): SearchHit[] => {
   });
   s.events.forEach((e) => {
     if (!e.title.toLowerCase().includes(q)) return;
-    hits.push({ key: `e${e.id}`, icon: "cal", title: e.title, meta: `Calendar · ${e.time}`, route: "calendar" });
+    // Events are dated things — the Ahead lens is where a date lives.
+    hits.push({ key: `e${e.id}`, icon: "cal", title: e.title, meta: `Calendar · ${e.time}`, route: "ahead" });
   });
   Object.values(s.members).forEach((m) => {
     if (!m.name.toLowerCase().includes(q)) return;

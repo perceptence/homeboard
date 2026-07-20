@@ -37,7 +37,9 @@ export function SearchResults() {
                   meta={h.meta}
                   onClick={() => {
                     s.setQuery("");
-                    s.goIpad(h.taskId ? "tasks" : h.route);
+                    // A task hit lands on Today AND opens the task itself —
+                    // the route is context, the sheet is the answer.
+                    s.goIpad(h.route);
                     if (h.taskId) s.openSheet({ type: "task", id: h.taskId });
                   }}
                   actions={<Icon name="fwd" size={16} className="text-sub" />}

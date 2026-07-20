@@ -9,41 +9,33 @@ import { press, smooth, spring } from "@/lib/motion";
 import { doers, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
 import type { IpadRoute } from "@/lib/types";
-import { IpadCalendar, IpadHome, IpadHousehold, IpadInsights, IpadShopping, IpadTasks } from "./screens";
-import { IpadAutomations, IpadBills, IpadInventory, IpadMaint, IpadMore, IpadSettings } from "./more";
+import { IpadAhead, IpadHousehold, IpadToday } from "./screens";
+import { IpadAutomations, IpadInventory, IpadMaint, IpadSettings } from "./more";
 import { SearchResults } from "./Search";
 
 /** Every iPad destination, in one place. */
 function RouteView({ route }: { route: IpadRoute }) {
   switch (route) {
-    case "home": return <IpadHome />;
-    case "tasks": return <IpadTasks />;
-    case "shopping": return <IpadShopping />;
-    case "calendar": return <IpadCalendar />;
+    case "today": return <IpadToday />;
+    case "ahead": return <IpadAhead />;
     case "household": return <IpadHousehold />;
-    case "insights": return <IpadInsights />;
-    case "more": return <IpadMore />;
-    case "bills": return <IpadBills />;
     case "inventory": return <IpadInventory />;
     case "maint": return <IpadMaint />;
     case "autos": return <IpadAutomations />;
     case "settings": return <IpadSettings />;
-    default: return <IpadHome />;
+    default: return <IpadToday />;
   }
 }
 
+/** Three tabs, the phone's axis minus the personal one: now → later → us. */
 const NAV: { route: IpadRoute; icon: IconName; label: string }[] = [
-  { route: "home", icon: "home", label: "Home" },
-  { route: "tasks", icon: "tasks", label: "Tasks" },
-  { route: "shopping", icon: "cart", label: "Shopping" },
-  { route: "calendar", icon: "cal", label: "Calendar" },
-  { route: "household", icon: "house", label: "Household" },
-  { route: "insights", icon: "chart", label: "Insights" },
-  { route: "more", icon: "grid", label: "More" },
+  { route: "today", icon: "feed", label: "Today" },
+  { route: "ahead", icon: "cal", label: "Ahead" },
+  { route: "household", icon: "people", label: "Household" },
 ];
 
-/** The five More sub-domains fold under the More tab — being in one keeps it lit. */
-const UNDER_MORE: IpadRoute[] = ["bills", "inventory", "maint", "autos", "settings"];
+/** Household's sub-screens are doors, not tabs — being in one keeps it lit. */
+const UNDER_HOUSEHOLD: IpadRoute[] = ["inventory", "maint", "autos", "settings"];
 
 export function IpadShell() {
   const s = useHousehold();
@@ -54,9 +46,9 @@ export function IpadShell() {
   // onboarded household without a member literally named Maya.
   const owner = doers(s).find((m) => m.role === "owner") ?? doers(s)[0];
 
-  // Which NAV item is lit: a More sub-screen keeps the More tab active, and
+  // Which NAV item is lit: a Household sub-screen keeps that tab active, and
   // is what the collapsed pill shows.
-  const navRoute: IpadRoute = UNDER_MORE.includes(route) ? "more" : route;
+  const navRoute: IpadRoute = UNDER_HOUSEHOLD.includes(route) ? "household" : route;
 
   // The floating nav is glass over a scrolling canvas — dark ink one moment, a
   // white worklist card the next. Same hook the phone uses: read the backdrop

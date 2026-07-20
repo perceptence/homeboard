@@ -619,9 +619,15 @@ export interface ActivityEntry {
 
 /** Which lens we're looking through. "ipad" = the shared family/owner superset. */
 export type Persona = "ipad" | MemberId;
+/**
+ * The iPad mirrors the phone's axis, minus the personal tab (the iPad is
+ * never a person): today = what's on now · ahead = the period lens ·
+ * household = the people and the things around the house. The last four are
+ * Household's sub-screens (doors, not tabs) — the nav keeps Household lit.
+ */
 export type IpadRoute =
-  | "home" | "tasks" | "shopping" | "calendar" | "household" | "insights"
-  | "more" | "bills" | "inventory" | "maint" | "autos" | "settings";
+  | "today" | "ahead" | "household"
+  | "inventory" | "maint" | "autos" | "settings";
 /**
  * The phone has THREE tabs, on one axis: now -> later -> me.
  * today = what's on right now · ahead = the week/month/quarter · you = the person.

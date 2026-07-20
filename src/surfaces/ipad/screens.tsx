@@ -4,12 +4,16 @@ import clsx from "clsx";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
-import { TaskCard } from "@/components/TaskCard";
-import { Avatar, AvatarStack, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TitleBlock, type TileTone } from "@/components/ui";
-import { addDays, iso, isToday, relative, startOfWeek, timeOfDay, today as todayLabel } from "@/lib/dates";
+import { EventCard, MaintCard, TaskCard } from "@/components/TaskCard";
+import { ScopePicker, Step, type Scope } from "@/components/Period";
+import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TitleBlock, type TileTone } from "@/components/ui";
+import {
+  groupIsPast, inRange, isCurrentPeriod, isToday, monthKey, monthLabel, parse,
+  periodRange, relative, shiftPeriod, timeMinutes, timeOfDay, today as todayLabel, weekKey, weekLabel,
+} from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
 import { billTasks, doers, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
-import type { Member, Role } from "@/lib/types";
+import type { HouseEvent, MaintItem, Member, Role, Task } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 
 /** Focus ring for raw buttons on a LIGHT surface (inside a Card) — the app's
@@ -18,8 +22,12 @@ const FOCUS = "outline-none focus-visible:outline-2 focus-visible:outline-offset
 /** Its dark twin — for raw buttons on a wash or the ink backdrop. */
 const FOCUS_DARK = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lemon";
 
+/* ════════════════════════════════════════════════════════════════════════════
+   TODAY — what is happening today, and what needs immediate attention.
+   The shared shopping list lives here too: it's today's errand, not a domain.
+   ════════════════════════════════════════════════════════════════════════════ */
 
-export function IpadHome() {
+export function IpadToday() {
   const s = useHousehold();
   const today = s.tasks.filter((t) => isToday(t.due) && !t.done);
   const doneCount = s.tasks.filter((t) => t.done).length;
@@ -27,15 +35,14 @@ export function IpadHome() {
   // The nearest unpaid bill-TASK — bills live on the one timeline now.
   const billDue = billTasks(s).filter((t) => !t.done).sort((a, b) => a.due.localeCompare(b.due))[0];
   const people = doers(s).map((m) => m.id);
-  const maxLoad = Math.max(1, ...people.map((p) => pendingFor(s, p)));
 
+  /* WORTH A LOOK — the things that would go wrong quietly: money running
+     late, upkeep gone overdue, supplies out, work nobody owns. */
   const attention: { key: string; icon: IconName; tone: TileTone; title: string; meta: string; action: React.ReactNode }[] = [];
   if (billDue) {
     attention.push({
       key: String(billDue.id), icon: billDue.source?.startsWith("Email") ? "mail" : "bill", tone: "neutral",
       title: `${billDue.title} — $${billDue.amount}`,
-      // The email automation's work announces itself; a hand-entered bill
-      // keeps a plain line.
       meta: billDue.source?.startsWith("Email")
         ? `${billDue.source} · ${relative(billDue.due).toLowerCase()}`
         : `${relative(billDue.due)} · not on autopay`,
@@ -64,7 +71,8 @@ export function IpadHome() {
       key: "low", icon: "box", tone: "neutral",
       title: `${low.length} items running low`,
       meta: low.map((i) => i.title).join(", "),
-      action: <Button size="touch" tone="outline" onClick={() => s.goIpad("shopping")}>Shopping</Button>,
+      // The list is a column away on this same screen now — no route to change.
+      action: undefined,
     });
   }
   const unowned = s.tasks.find((t) => !t.owner && !t.done);
@@ -77,15 +85,24 @@ export function IpadHome() {
     });
   }
 
+  /* HAPPENING TODAY — the whole household's day on one timeline, tasks and
+     events alike, in the order they happen. */
+  const happening = [
+    ...today.map((t) => ({ key: `t${t.id}`, at: timeMinutes(t.when), el: <TaskCard task={t} showOwner /> })),
+    ...s.events
+      .filter((e) => isToday(e.due) && !e.done)
+      .map((e) => ({ key: `e${e.id}`, at: timeMinutes(e.time), el: <EventCard event={e} showOwner /> })),
+  ].sort((a, b) => a.at - b.at);
+
+  /* THE SHARED LIST — grouped the way you'd walk the shop. */
+  const list = shoppingList(s);
+  const autoAdded = list.filter((i) => i.low && !i.done);
+  const cats = Array.from(new Set(list.map((i) => i.category)));
+
   return (
-    <motion.div
-      variants={listStagger}
-      initial="hidden"
-      animate="show"
-      className="grid auto-rows-[minmax(0,auto)] grid-cols-4 gap-card-pad pb-2"
-    >
-      {/* HERO — the day, said out loud, in the HOUSE's voice — never "you":
-          the count is everyone's, and the iPad is never a personal lens. */}
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
+      {/* HERO — the day, said out loud, in the HOUSE's voice. No "See the day"
+          button any more: the day is right below. */}
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="lemon" className="flex h-full min-h-[240px] flex-col">
           <div className="flex items-start">
@@ -105,275 +122,63 @@ export function IpadHome() {
             </Sentence>
             <div className="mt-5 flex items-center gap-2">
               <Pill tone="tag">{doneCount} already done</Pill>
-              <Button size="touch" className="ml-auto" onClick={() => s.goIpad("tasks")}>
-                See the day
-              </Button>
             </div>
           </div>
         </Card>
       </motion.div>
 
-      {/* Two quiet doors in the DARK idiom — the hero above is the screen's
-          one shout; these are ambient facts, so they wear the wash and let
-          the backdrop through instead of stacking more opaque slabs. */}
-      <motion.div variants={listItem}>
-        <Card tone="wash" className="flex h-full min-h-[240px] flex-col" onClick={() => s.goIpad("bills")}>
-          <IconTile name="bill" tone="onDark" />
-          <div className="mt-auto">
-            <div className="text-display tabular-nums">${billDue?.amount ?? 0}</div>
-            <div className="mt-1 text-h2 text-white/70">
-              {billDue ? <span suppressHydrationWarning>{billDue.title}, {relative(billDue.due).toLowerCase()}</span> : "Everything's paid"}
-            </div>
-          </div>
-        </Card>
-      </motion.div>
-
-      <motion.div variants={listItem}>
-        <Card tone="wash" className="flex h-full min-h-[240px] flex-col" onClick={() => s.goIpad("shopping")}>
-          <IconTile name="box" tone="onDark" />
-          <div className="mt-auto">
-            <div className="text-display tabular-nums">{low.length}</div>
-            <div className="mt-1 text-h2 text-white/70">
-              {low.length ? "things running low" : "Cupboards are full"}
-            </div>
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* WORTH A LOOK — wide, calm, two columns */}
-      {attention.length > 0 && (
-        <motion.div variants={listItem} className="col-span-2 row-span-2">
-          <Card pad="none" className="flex h-full flex-col">
-            <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Worth a look" />
-            <List className="pb-2">
-              {attention.map((a) => (
-                <Row
-                  key={a.key}
-                  lead={<IconTile name={a.icon} tone={a.tone} />}
-                  title={a.title}
-                  meta={a.meta}
-                  actions={a.action}
-                />
-              ))}
-            </List>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* WHO'S CARRYING — the balance display lives in the dark voice, like
-          the phone's House board: member colours pop against the wash, and
-          the one lavender strip stays the AI's accent. */}
-      <motion.div variants={listItem} className="col-span-2 row-span-2">
-        <Card tone="wash" className="flex h-full flex-col">
-          <TitleBlock size="card" tone="onDark" title="Who’s carrying today" />
-          <div className="mt-stack flex-1">
-            {people.map((id) => {
-              const m = s.members[id];
-              const load = pendingFor(s, id);
-              return (
-                <div key={id} className="mb-3.5 flex items-center gap-4 last:mb-0">
-                  <div className="flex w-24 items-center gap-2">
-                    <Avatar member={m} size={26} />
-                    <b className="text-bodysm font-medium">{m.name}</b>
-                  </div>
-                  <div className="h-2.5 flex-1 overflow-hidden rounded-pill bg-white/10">
-                    <motion.div
-                      className="h-full rounded-pill"
-                      style={{ background: m.color }}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(load / maxLoad) * 100}%` }}
-                      transition={{ duration: 0.7, ease: [0.2, 0.7, 0.2, 1] }}
-                    />
-                  </div>
-                  {/* caption, not micro — a load count is meta text (it explains
-                      the bar beside it); micro is reserved for whisper cues. */}
-                  <span className="w-14 text-right text-caption font-medium tabular-nums text-white/55">
-                    {load}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <Card tone="lavender" pad="md" className="mt-stack">
-            <div className="flex items-center gap-4">
-              <Icon name="spark" size={18} />
-              <div className="flex-1 text-bodysm font-medium leading-snug">
-                Someone&rsquo;s doing more than their share.
-              </div>
-              <Button size="touch" onClick={s.rebalance}>Even it out</Button>
-            </div>
-          </Card>
-        </Card>
-      </motion.div>
-
-      {/* UPKEEP — small, quiet: text-h2, the same weight class the bill/
-          shopping cards above use for their caption, not a full hero. */}
+      {/* WORTH A LOOK — immediate attention, top of the page. */}
       <motion.div variants={listItem} className="col-span-2">
-        <Card tone="wash" className="flex min-h-[160px] flex-col" onClick={() => s.goIpad("maint")}>
-          <IconTile name="wrench" tone="onDark" />
-          <div className="mt-auto text-h2">
-            <Em>{s.maint.filter((m) => m.status === "over" || m.status === "due").length}</Em> bits of
-            upkeep this week.
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* COMING UP — wide list */}
-      <motion.div variants={listItem} className="col-span-2">
-        <Card pad="none">
-          <div className="flex items-center px-card-pad pt-card-pad">
-            <TitleBlock size="card" title="Coming up" />
-            <Button size="touch" tone="ghost" className="ml-auto" onClick={() => s.goIpad("calendar")}>
-              Calendar <Icon name="fwd" size={14} />
-            </Button>
-          </div>
-          <List className="pb-1">
-            {s.events.slice(0, 4).map((e) => (
+        <Card pad="none" className="flex h-full flex-col">
+          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Worth a look" />
+          <List className="pb-2">
+            {attention.map((a) => (
               <Row
-                key={e.id}
-                lead={<Avatar member={s.members[e.who]} size={32} />}
-                title={e.title}
-                // e.time on the near-term demo events is seeded relative to
-                // NOW (see tAt in lib/seed.ts), computed fresh at module
-                // import — server and client import it moments apart, so
-                // the two initial renders can genuinely disagree by a few
-                // minutes. Same carve-out as todayLabel()/timeOfDay() above.
-                meta={<span suppressHydrationWarning>{relative(e.due)} · {e.time}</span>}
+                key={a.key}
+                lead={<IconTile name={a.icon} tone={a.tone} />}
+                title={a.title}
+                meta={a.meta}
+                actions={a.action}
               />
             ))}
+            {attention.length === 0 && (
+              <p className="py-6 text-center text-bodysm text-sub">Nothing needs a look. Rare — enjoy it.</p>
+            )}
           </List>
         </Card>
       </motion.div>
-    </motion.div>
-  );
-}
 
-export function IpadTasks() {
-  const s = useHousehold();
-  const today = s.tasks.filter((t) => isToday(t.due) && !t.done);
-  const week = s.tasks.filter((t) => !isToday(t.due) && !t.done && t.due <= iso(addDays(new Date(), 7)));
-  const done = s.tasks.filter((t) => t.done);
-  const people = doers(s);
-
-  return (
-    <motion.div
-      variants={listStagger}
-      initial="hidden"
-      animate="show"
-      className="grid grid-cols-4 gap-card-pad pb-2"
-    >
-      {/* THE PULSE — the day said straight on the ink, page voice. The white
-          task cards below are the screen's light; the hero doesn't need to be
-          another slab (heavy contrast was the iPad's whole problem). */}
-      <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
-        <Eyebrow tone="onDark">Tasks</Eyebrow>
-        <div className="mt-auto">
-          <Sentence className="max-w-[18ch] text-white">
-            <Em>{today.length}</Em> {today.length === 1 ? "thing" : "things"} on today,{" "}
-            <Em>{done.length}</Em> already done.
-          </Sentence>
-          <Button
-            size="touch"
-            tone="light"
-            className="mt-5"
-            onClick={() =>
-              s.openSheet({
-                type: "newTask",
-                draft: { title: "", owner: people[0]?.id ?? null, when: "Today", priority: "med" },
-              })
-            }
-          >
-            <Icon name="plus" size={16} /> New task
-          </Button>
-        </div>
-      </motion.div>
-
-      {/* Who has what — a glance, not a chart. Ambient fact → wash. */}
-      <motion.div variants={listItem} className="col-span-2">
-        <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
-          <Eyebrow tone="onDark">Spread across the house</Eyebrow>
-          <div className="mt-auto grid grid-cols-4 gap-3">
-            {people.map((m) => (
-              <div key={m.id} className="flex flex-col items-start gap-2">
-                <Avatar member={m} size={36} />
-                <div>
-                  <div className="text-[22px] font-medium leading-none tabular-nums">
-                    {pendingFor(s, m.id)}
-                  </div>
-                  {/* caption, not micro — a name is meta text, not a whisper cue. */}
-                  <div className="mt-1 text-caption font-medium text-white/55">{m.name}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </motion.div>
-
-      {today.length > 0 && (
-        <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
-          <Eyebrow tone="onDark">Today</Eyebrow>
-          {today.map((t) => <TaskCard key={t.id} task={t} showOwner />)}
-        </motion.div>
-      )}
-
-      {week.length > 0 && (
-        <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
-          <Eyebrow tone="onDark">This week</Eyebrow>
-          {week.map((t) => <TaskCard key={t.id} task={t} showOwner />)}
-        </motion.div>
-      )}
-
-      {done.length > 0 && (
-        <motion.div variants={listItem} className="col-span-4 flex flex-col gap-tile">
-          <Eyebrow tone="onDark">Done</Eyebrow>
-          {done.map((t) => <TaskCard key={t.id} task={t} showOwner />)}
-        </motion.div>
-      )}
-
-      {s.tasks.length === 0 && (
-        <motion.div variants={listItem} className="col-span-4">
-          <Card tone="wash" pad="lg" className="min-h-[200px] text-center">
-            <Sentence className="mt-10 text-white">The house is caught up. <Em>Nothing to do.</Em></Sentence>
+      {/* HAPPENING TODAY — the day itself, whoever it belongs to. */}
+      <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
+        <Eyebrow tone="onDark">Happening today</Eyebrow>
+        {happening.map((c) => (
+          <div key={c.key}>{c.el}</div>
+        ))}
+        {happening.length === 0 && (
+          <Card tone="wash" pad="lg" className="text-center">
+            <Sentence className="py-6 text-white">The house is caught up. <Em>Nothing on.</Em></Sentence>
           </Card>
-        </motion.div>
-      )}
-    </motion.div>
-  );
-}
+        )}
+      </motion.div>
 
-export function IpadShopping() {
-  const s = useHousehold();
-  const list = shoppingList(s);
-  const low = list.filter((i) => i.low && !i.done);
-  const left = list.filter((i) => !i.done);
-  const cats = Array.from(new Set(list.map((i) => i.category)));
-
-  return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      {/* Pulse on the ink — the list below carries the white. */}
-      <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
+      {/* THE SHARED LIST — today's errand, on today's page. */}
+      <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
         <Eyebrow tone="onDark">Shopping</Eyebrow>
-        <Sentence className="mt-auto max-w-[18ch] text-white">
-          <Em>{left.length}</Em> {left.length === 1 ? "thing" : "things"} to pick up.
-        </Sentence>
-      </motion.div>
-
-      {/* Lavender ONLY when the AI actually did something — the accent is
-          earned by the act, not standing furniture. Quiet state = wash. */}
-      <motion.div variants={listItem} className="col-span-2">
-        <Card tone={low.length ? "lavender" : "wash"} className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="spark" tone={low.length ? "neutral" : "onDark"} />
-          <div className={clsx("mt-auto text-h2", !low.length && "text-white/70")}>
-            {low.length
-              ? <>I added <Em>{low.length}</Em> things that were running low: {low.map((i) => i.title).join(", ")}.</>
-              : <>Nothing&rsquo;s running low. <Em>Cupboards are full.</Em></>}
-          </div>
-        </Card>
-      </motion.div>
-
-      {cats.map((cat) => (
-        <motion.div key={cat} variants={listItem} className="col-span-2">
-          <Card pad="none">
+        {/* Lavender ONLY when the AI actually did something — the accent is
+            earned by the act, not standing furniture. */}
+        {autoAdded.length > 0 && (
+          <Card tone="lavender">
+            <div className="flex items-center gap-4">
+              <Icon name="spark" size={18} />
+              <div className="flex-1 text-bodysm font-medium leading-snug">
+                I added <Em>{autoAdded.length}</Em> things that were running low:{" "}
+                {autoAdded.map((i) => i.title).join(", ")}.
+              </div>
+            </div>
+          </Card>
+        )}
+        {cats.map((cat) => (
+          <Card key={cat} pad="none">
             <div className="flex items-center px-card-pad pt-card-pad">
               <TitleBlock size="card" title={cat} />
               <span className="ml-auto text-caption font-medium text-sub">
@@ -392,78 +197,195 @@ export function IpadShopping() {
               ))}
             </List>
           </Card>
-        </motion.div>
-      ))}
+        ))}
+      </motion.div>
     </motion.div>
   );
 }
 
-/** The real Mon–Sun of the week you're in — not a hardcoded row of numbers. */
-const weekDays = () =>
-  Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(new Date()), i));
+/* ════════════════════════════════════════════════════════════════════════════
+   AHEAD — the phone's period lens, in the household voice: everyone's tasks,
+   events and upkeep on one dated timeline, at Week / Month / Quarter / Year.
+   ════════════════════════════════════════════════════════════════════════════ */
 
-export function IpadCalendar() {
+/** One row in the Ahead list — a task, an event or an upkeep item, all dated. */
+type Item =
+  | { kind: "task"; due: string; task: Task }
+  | { kind: "event"; due: string; event: HouseEvent }
+  | { kind: "maint"; due: string; item: MaintItem };
+
+const isDone = (i: Item) => i.kind === "task" && i.task.done;
+
+/**
+ * The phone's `aheadFor`, minus the member filter — the iPad is the household,
+ * so EVERYTHING dated is on its horizon (unowned tasks included: work nobody
+ * owns is still the house's). No query branches either: the iPad's search is
+ * the global overlay in the header.
+ */
+function aheadForHouse(
+  s: ReturnType<typeof useHousehold.getState>,
+  scope: Scope,
+  anchor: Date,
+) {
+  const range = periodRange(scope, anchor);
+
+  const items: Item[] = [
+    ...s.tasks
+      .filter((t) => inRange(t.due, range))
+      .map((task): Item => ({ kind: "task", due: task.due, task })),
+    ...s.events
+      .filter((e) => inRange(e.due, range))
+      .map((event): Item => ({ kind: "event", due: event.due, event })),
+    // Upkeep only shows once you're looking past the current week — same rule
+    // as the phone: a Week view is about the days, not the season.
+    ...(scope === "Week"
+      ? []
+      : s.maint
+          .filter((m) => inRange(m.due, range))
+          .map((item): Item => ({ kind: "maint", due: item.due, item }))),
+  ].sort((a, b) => a.due.localeCompare(b.due) || Number(isDone(a)) - Number(isDone(b)));
+
+  /* Group at the rung BELOW the scope — grouping a month by month is one
+     group, which is no grouping at all. */
+  const by = scope === "Week" ? null : scope === "Month" ? "week" : "month";
+  const keyOf = (due: string) => (by === "week" ? weekKey(due) : monthKey(due));
+
+  const groups = !by
+    ? [{ key: "", label: "", items, past: false }]
+    : [...new Set(items.map((i) => keyOf(i.due)))].sort().map((key) => ({
+        key,
+        label: by === "week" ? weekLabel(key) : monthLabel(key),
+        items: items.filter((i) => keyOf(i.due) === key),
+        past: groupIsPast(key),
+      }));
+
+  return {
+    groups,
+    /** Zooming a group means "show me that period" — a week key needs Week scope. */
+    zoomScope: (by === "week" ? "Week" : "Month") as Scope,
+    count: items.filter((i) => !isDone(i)).length,
+  };
+}
+
+export function IpadAhead() {
   const s = useHousehold();
+  const [scope, setScope] = useState<Scope>("Week");
+  const [anchor, setAnchor] = useState<Date>(() => new Date());
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const ahead = aheadForHouse(s, scope, anchor);
+
+  const setScopeAt = (next: Scope) => {
+    // Changing scope always re-centres on today; you meant "this month", not
+    // "the month around whatever you happened to be reading".
+    setScope(next);
+    setAnchor(new Date());
+  };
+  /** Zoom a group: same data, tighter lens. A week group needs Week scope. */
+  const zoomTo = (key: string) => {
+    setAnchor(parse(key.length === 7 ? `${key}-01` : key));
+    setScope(ahead.zoomScope);
+  };
+  const step = (dir: -1 | 1) => setAnchor((a) => shiftPeriod(scope, a, dir));
 
   return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      {/* Pulse on the ink. */}
-      <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
-        <Eyebrow tone="onDark">Calendar</Eyebrow>
-        <Sentence className="mt-auto max-w-[18ch] text-white">
-          <Em>{s.events.length}</Em> things on the calendar this week.
-        </Sentence>
-      </motion.div>
-
-      <motion.div variants={listItem} className="col-span-2">
-        <Card pad="none" className="h-full">
-          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Today" />
-          <List className="pb-2">
-            {s.events.filter((e) => isToday(e.due)).map((e) => (
-              <Row key={e.id} lead={<Avatar member={s.members[e.who]} size={32} />} title={e.title}
-                meta={`${e.time} · ${s.members[e.who]?.name}`} />
-            ))}
-          </List>
-        </Card>
-      </motion.div>
-
-      {/* The week, in the dark idiom — same as the phone's own calendar cells
-          (washes, lemon = today). Seven opaque columns was a wall of white;
-          the member-coloured event chips read BETTER against the wash. */}
-      <motion.div variants={listItem} className="col-span-4 grid grid-cols-7 gap-3">
-        {weekDays().map((day) => {
-          const isTodayCell = isToday(iso(day));
-          return (
-            <Card
-              key={iso(day)}
-              // The lemon card is TODAY — which is a date test, not "the first column".
-              tone={isTodayCell ? "lemon" : "wash"}
-              pad="md"
-              className="min-h-[200px]"
-            >
-              <div className="flex items-baseline justify-between">
-                <span className={clsx("text-caption font-medium uppercase", isTodayCell ? "opacity-50" : "text-white/45")}>
-                  {day.toLocaleDateString("en-GB", { weekday: "short" })}
-                </span>
-                <span className="text-h2 tabular-nums">{day.getDate()}</span>
-              </div>
-              {s.events.filter((e) => e.due === iso(day)).map((e) => (
-                <div
-                  key={e.id}
-                  style={{ background: s.members[e.who].color }}
-                  className="mt-2 rounded-sm px-2 py-1.5 text-micro font-medium leading-tight text-white"
+    <motion.div variants={listStagger} initial="hidden" animate="show">
+      {/* Page voice on the ink — the same control cluster the phone's Ahead
+          header carries: ‹ period › with the label AS the scope picker. */}
+      <motion.div variants={listItem} className="px-1.5">
+        <TitleBlock
+          size="page"
+          tone="onDark"
+          eyebrow={
+            <span className="-ml-1 flex items-center gap-0.5">
+              <Step dir={-1} onClick={() => step(-1)} />
+              <ScopePicker
+                scope={scope} anchor={anchor}
+                open={scopeOpen} setOpen={setScopeOpen}
+                onPick={setScopeAt}
+              />
+              <Step dir={1} onClick={() => step(1)} />
+              {!isCurrentPeriod(scope, anchor) && (
+                <button
+                  onClick={() => setAnchor(new Date())}
+                  className="ml-1 rounded-pill bg-white/10 px-2 py-0.5 text-caption normal-case tracking-normal text-white/70 transition-colors hover:bg-white/20 hover:text-white"
                 >
-                  <div className="opacity-75">{e.time}</div>
-                  {e.title}
-                </div>
+                  Today
+                </button>
+              )}
+            </span>
+          }
+          title="What’s ahead"
+          subtext={`${ahead.count} ${ahead.count === 1 ? "thing" : "things"} this ${scope.toLowerCase()}`}
+        />
+      </motion.div>
+
+      {/* Swipe/drag left or right to step a period — we only read the gesture's
+          DIRECTION; dragSnapToOrigin puts the list back. */}
+      <motion.div
+        drag="x"
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.12}
+        dragSnapToOrigin
+        onDragEnd={(_, info) => {
+          if (Math.abs(info.offset.x) > 60) step(info.offset.x < 0 ? 1 : -1);
+        }}
+        className="mt-stack flex flex-col gap-tile"
+      >
+        {ahead.groups.map((g) => (
+          <div key={g.key || "flat"} className="flex flex-col gap-tile">
+            {/* A group heading is a DOOR: tap it to narrow the screen onto that
+                period — and the affordance names where it lands. */}
+            {g.key && (
+              <motion.button
+                variants={listItem}
+                onClick={() => zoomTo(g.key)}
+                className={clsx("group flex items-center gap-2 px-1.5 pb-1 pt-3 text-left", FOCUS_DARK)}
+              >
+                <Eyebrow tone="onDark" className={clsx(g.past && "text-white/25")}>{g.label}</Eyebrow>
+                <span className="text-caption text-white/30">{g.items.length}</span>
+                <span className="ml-auto flex items-center gap-0.5 whitespace-nowrap text-micro
+                                 uppercase tracking-[.14em] text-white/30 transition-colors
+                                 group-hover:text-white/70">
+                  Open {ahead.zoomScope.toLowerCase()}
+                  <Icon name="fwd" size={12} />
+                </span>
+              </motion.button>
+            )}
+            {/* Two columns — the cards are compact stadiums, and a 900px single
+                column reads as a ribbon in a hallway. */}
+            <div className="grid grid-cols-2 gap-tile">
+              {g.items.map((i) => (
+                <motion.div
+                  key={`${i.kind}-${i.kind === "task" ? i.task.id : i.kind === "event" ? i.event.id : i.item.id}`}
+                  variants={listItem}
+                  // What's behind you is still there, just quieter.
+                  className={clsx(g.past && "opacity-60")}
+                >
+                  {i.kind === "task" && <TaskCard task={i.task} showOwner />}
+                  {i.kind === "event" && <EventCard event={i.event} showOwner />}
+                  {i.kind === "maint" && <MaintCard item={i.item} />}
+                </motion.div>
               ))}
+            </div>
+          </div>
+        ))}
+
+        {ahead.count === 0 && (
+          <motion.div variants={listItem}>
+            <Card tone="wash" pad="lg" className="text-center">
+              <Sentence className="py-6 text-white">Nothing on this {scope.toLowerCase()} — <Em>enjoy!</Em></Sentence>
             </Card>
-          );
-        })}
+          </motion.div>
+        )}
       </motion.div>
     </motion.div>
   );
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   HOUSEHOLD — the people, how the work is sharing out, and the things around
+   the house. Insights live here now: fairness belongs with the faces.
+   ════════════════════════════════════════════════════════════════════════════ */
 
 const ROOMS = ["Kitchen", "Living room", "Primary bath", "Kids room", "Yard", "Garage"];
 const ASSETS: [string, string, string][] = [
@@ -473,6 +395,14 @@ const ASSETS: [string, string, string][] = [
   ["Lawn mower", "Warranty ends Oct", "Service due"],
 ];
 
+/** The doors to the house's own machinery — sub-screens, not tabs. */
+const DOORS: { route: "inventory" | "maint" | "autos" | "settings"; icon: IconName; label: string; blurb: string }[] = [
+  { route: "inventory", icon: "box", label: "Inventory", blurb: "Pantry, supplies, medicine" },
+  { route: "maint", icon: "wrench", label: "Maintenance", blurb: "Upkeep & warranties" },
+  { route: "autos", icon: "bolt", label: "Automations", blurb: "Rules & AI" },
+  { route: "settings", icon: "gear", label: "Settings", blurb: "Members, privacy, AI" },
+];
+
 /**
  * A person, as the household actually knows them: who they are, what they may
  * do, and what they look after — the three kept visibly separate, because
@@ -480,11 +410,8 @@ const ASSETS: [string, string, string][] = [
  *
  * The role is a CONTROL, not a label. It's assigned, so it must be changeable;
  * a role you can only read is one the app is secretly deriving. The picker
- * expands IN PLACE — white cards on a recessed panel, an ink ring on the
- * chosen one — the same selector language as the phone's Manage-household
- * role picker, not a floating dropdown (which risks clipping inside a grid
- * cell, and was the exact "feels misplaced" pattern the phone moved away
- * from).
+ * expands IN PLACE — the dark twin of the phone's selector language: recessed
+ * ink panel, wash options, lemon ring on the chosen one.
  */
 function PersonCard({ member: m }: { member: Member }) {
   const s = useHousehold();
@@ -531,9 +458,6 @@ function PersonCard({ member: m }: { member: Member }) {
                   transition={smooth}
                   className="overflow-hidden"
                 >
-                  {/* The dark twin of the in-place picker: recessed ink panel,
-                      wash options, lemon ring on the chosen one — the phone's
-                      own dark-selector idiom (Ahead's scope picker). */}
                   <div className="mt-2 flex flex-col gap-1.5 rounded-md bg-black/25 p-1.5">
                     {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
                       <button
@@ -585,10 +509,15 @@ export function IpadHousehold() {
   const people = everyone.filter((m) => m.kind === "person").length;
   const pets = everyone.filter((m) => m.kind === "pet").length;
 
+  // The insights, baked in: how much gets finished, and how it shares out.
+  const done = s.tasks.filter((t) => t.done).length;
+  const pct = Math.round((done / Math.max(1, s.tasks.length)) * 100);
+  const loads = doers(s).map((m) => ({ m, load: s.tasks.filter((t) => holder(t) === m.id).length }));
+  const total = Math.max(1, loads.reduce((sum, l) => sum + l.load, 0));
+
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      {/* Pulse on the ink — who lives here, said in the page voice, with the
-          faces beside it instead of wrapped in another slab. */}
+      {/* Pulse on the ink — who lives here, said in the page voice. */}
       <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
         <span className="flex -space-x-2">
           {everyone.slice(0, 5).map((m) => (
@@ -603,8 +532,7 @@ export function IpadHousehold() {
         </Sentence>
       </motion.div>
 
-      {/* Rooms are ambient structure, not work — wash, with the room chips in
-          the same translucent idiom. */}
+      {/* Rooms are ambient structure, not work — wash. */}
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
           <TitleBlock size="card" tone="onDark" title="Rooms" />
@@ -625,31 +553,11 @@ export function IpadHousehold() {
         </motion.div>
       ))}
 
-      <motion.div variants={listItem} className="col-span-4">
-        <Card pad="none">
-          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Appliances & warranties" />
-          <List className="pb-2">
-            {ASSETS.map(([name, warranty, next]) => (
-              <Row key={name} lead={<IconTile name="box" />} title={name} meta={warranty}
-                actions={<Pill tone={next === "—" ? "tag" : "lavender"}>{next}</Pill>} />
-            ))}
-          </List>
-        </Card>
-      </motion.div>
-    </motion.div>
-  );
-}
-
-export function IpadInsights() {
-  const s = useHousehold();
-  const done = s.tasks.filter((t) => t.done).length;
-  const pct = Math.round((done / Math.max(1, s.tasks.length)) * 100);
-  const loads = doers(s).map((m) => ({ m, load: s.tasks.filter((t) => holder(t) === m.id).length }));
-  const total = Math.max(1, loads.reduce((sum, l) => sum + l.load, 0));
-
-  return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      <motion.div variants={listItem} className="col-span-2">
+      {/* HOW IT'S GOING — the insights, where the people are. The lemon is the
+          screen's one shout; the balance display stays in the dark voice.
+          col-start-1 opens a fresh row: an odd person count would otherwise
+          wedge this pair into the leftover columns and split it. */}
+      <motion.div variants={listItem} className="col-span-2 col-start-1">
         <Card tone="lemon" className="flex h-full min-h-[200px] flex-col">
           <Eyebrow>Last 30 days</Eyebrow>
           <div className="mt-auto flex items-end gap-4">
@@ -662,33 +570,10 @@ export function IpadInsights() {
         </Card>
       </motion.div>
 
-      {/* Two ambient stats in the wash — the lemon card above is the screen's
-          one shout; these are quiet numbers, not slabs. */}
-      <motion.div variants={listItem}>
-        <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="spark" tone="onDark" />
-          <div className="mt-auto">
-            <div className="text-display tabular-nums">~5 hrs</div>
-            <div className="mt-1 text-bodysm font-medium text-white/55">coordinating saved</div>
-          </div>
-        </Card>
-      </motion.div>
-
-      <motion.div variants={listItem}>
-        <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
-          <IconTile name="chart" tone="onDark" />
-          <div className="mt-auto">
-            <div className="text-display">Fair</div>
-            <div className="mt-1 text-bodysm font-medium text-white/55">household balance</div>
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* The balance display, dark like Home's — member colours carry it. */}
       <motion.div variants={listItem} className="col-span-2">
-        <Card tone="wash" className="h-full">
+        <Card tone="wash" className="flex h-full flex-col">
           <TitleBlock size="card" tone="onDark" title="Share of the work" />
-          <div className="mt-stack">
+          <div className="mt-stack flex-1">
             {loads.map(({ m, load }) => {
               const share = Math.round((load / total) * 100);
               return (
@@ -711,21 +596,43 @@ export function IpadInsights() {
               );
             })}
           </div>
+          <Card tone="lavender" pad="md" className="mt-stack">
+            <div className="flex items-center gap-4">
+              <Icon name="spark" size={18} />
+              <div className="flex-1 text-bodysm font-medium leading-snug">
+                Someone&rsquo;s doing more than their share.
+              </div>
+              <Button size="touch" onClick={s.rebalance}>Even it out</Button>
+            </div>
+          </Card>
         </Card>
       </motion.div>
 
-      <motion.div variants={listItem} className="col-span-2">
-        <Card pad="none" className="h-full">
-          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="What’s coming for the house" />
+      <motion.div variants={listItem} className="col-span-4">
+        <Card pad="none">
+          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Appliances & warranties" />
           <List className="pb-2">
-            {s.maint.slice(0, 4).map((m) => (
-              <Row key={m.id} lead={<IconTile name="wrench" />}
-                title={m.title} meta={`${m.asset} · ${m.cadence}`}
-                actions={<Pill tone={m.status === "over" ? "light" : "tag"}>{relative(m.due)}</Pill>} />
+            {ASSETS.map(([name, warranty, next]) => (
+              <Row key={name} lead={<IconTile name="box" />} title={name} meta={warranty}
+                actions={<Pill tone={next === "—" ? "tag" : "lavender"}>{next}</Pill>} />
             ))}
           </List>
         </Card>
       </motion.div>
+
+      {/* THE THINGS AROUND — doors to the house's own machinery, in the
+          sidebar idiom: quiet washes, nothing shouting. */}
+      {DOORS.map((d) => (
+        <motion.div key={d.route} variants={listItem}>
+          <Card tone="wash" onClick={() => s.goIpad(d.route)} className="flex min-h-[160px] flex-col">
+            <IconTile name={d.icon} tone="onDark" />
+            <div className="mt-auto">
+              <b className="block text-h2">{d.label}</b>
+              <div className="mt-0.5 text-bodysm font-medium text-white/50">{d.blurb}</div>
+            </div>
+          </Card>
+        </motion.div>
+      ))}
     </motion.div>
   );
 }

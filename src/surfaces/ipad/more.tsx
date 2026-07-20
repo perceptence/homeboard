@@ -6,137 +6,30 @@ import { Icon, type IconName } from "@/components/Icons";
 import { Button, Card, Em, IconTile, List, Pill, type PillTone, Row, Sentence, TitleBlock } from "@/components/ui";
 import { listItem, listStagger } from "@/lib/motion";
 import { relative } from "@/lib/dates";
-import { billTasks, useHousehold } from "@/lib/store";
-import type { IpadRoute, MaintStatus, StockStatus } from "@/lib/types";
+import { useHousehold } from "@/lib/store";
+import type { MaintStatus, StockStatus } from "@/lib/types";
 
 /**
- * Shared header for every More sub-domain — `TitleBlock tone="onDark"`, same
- * as every page header on the phone. The title itself read fine before (it
- * inherits white from the page), but the subtitle was set in `text-sub`, a
- * LIGHT-surface gray, directly on the dark ink backdrop — nearly illegible.
- * `onDark` gets it back to white/55.
+ * HOUSEHOLD'S SUB-SCREENS — Inventory, Maintenance, Automations, Settings.
+ * Doors off the Household tab, not tabs of their own: the nav keeps Household
+ * lit while you're in one, and Back returns you to the people.
+ *
+ * Shared header: `TitleBlock tone="onDark"` — the title inherits white from
+ * the page, and the subtitle must never be text-sub (a LIGHT-surface gray)
+ * on the dark ink backdrop.
  */
 function Back({ title, subtitle }: { title: string; subtitle?: string }) {
   const goIpad = useHousehold((s) => s.goIpad);
   return (
     <motion.div variants={listItem} className="mb-stack flex items-center gap-4">
       <button
-        onClick={() => goIpad("more")}
-        aria-label="Back to More"
+        onClick={() => goIpad("household")}
+        aria-label="Back to Household"
         className="grid h-touch w-touch shrink-0 place-items-center rounded-pill bg-card text-ink shadow-e2 transition-shadow hover:shadow-e3"
       >
         <Icon name="back" size={18} />
       </button>
       <TitleBlock size="page" tone="onDark" title={title} subtext={subtitle} />
-    </motion.div>
-  );
-}
-
-/* ---------------- More index ---------------- */
-
-const TILES: { route: IpadRoute; icon: IconName; label: string; blurb: string }[] = [
-  { route: "bills", icon: "bill", label: "Bills", blurb: "Rent, utilities, subscriptions" },
-  { route: "inventory", icon: "box", label: "Inventory", blurb: "Pantry, supplies, medicine" },
-  { route: "maint", icon: "wrench", label: "Maintenance", blurb: "Upkeep & warranties" },
-  { route: "autos", icon: "bolt", label: "Automations", blurb: "Rules & AI" },
-  { route: "settings", icon: "gear", label: "Settings", blurb: "Members, privacy, AI" },
-];
-
-export function IpadMore() {
-  const goIpad = useHousehold((s) => s.goIpad);
-  return (
-    <motion.div variants={listStagger} initial="hidden" animate="show">
-      <motion.div variants={listItem}>
-        <TitleBlock size="page" tone="onDark" title="More" subtext="Everything else your home runs on" />
-      </motion.div>
-      {/* A MENU, in the sidebar's own idiom — translucent washes on the ink,
-          nothing shouting. Lemon marks the active thing, and a resting menu
-          has no active thing; five opaque slabs here was where the "too white
-          on black" feeling started. */}
-      <motion.div variants={listItem} className="mt-section grid grid-cols-3 gap-card-pad">
-        {TILES.map((t, i) => (
-          <Card
-            key={t.route}
-            tone="wash"
-            onClick={() => goIpad(t.route)}
-            className={clsx("flex min-h-[200px] flex-col", i === 0 && "col-span-2")}
-          >
-            <IconTile name={t.icon} tone="onDark" />
-            <div className="mt-auto">
-              <b className="block text-h2">{t.label}</b>
-              <div className="mt-0.5 text-bodysm font-medium text-white/50">{t.blurb}</div>
-            </div>
-          </Card>
-        ))}
-      </motion.div>
-    </motion.div>
-  );
-}
-
-/* ---------------- Bills ---------------- */
-
-/**
- * A money LENS, not a store. The Bill object died — a bill is a task with an
- * amount — so this screen just reads the money off the one timeline: what's
- * still owed on top, settled underneath. Paying here is the same act as
- * completing the task anywhere else.
- */
-export function IpadBills() {
-  const s = useHousehold();
-  const money = billTasks(s).sort((a, b) => Number(a.done) - Number(b.done) || a.due.localeCompare(b.due));
-  const owed = money.filter((t) => !t.done);
-  const outstanding = owed.reduce((sum, t) => sum + (t.amount ?? 0), 0);
-
-  return (
-    <motion.div variants={listStagger} initial="hidden" animate="show">
-      <Back title="Bills" />
-      {/* The pulse — money's state said straight on the ink, page voice.
-          The list below carries the screen's white. */}
-      <motion.div variants={listItem} className="mb-stack px-1.5">
-        <Sentence className="max-w-[22ch] text-white">
-          {outstanding ? <><Em>${outstanding}</Em> still to pay.</> : <>Everything&rsquo;s <Em>paid</Em>.</>}
-        </Sentence>
-      </motion.div>
-      <motion.div variants={listItem}>
-        <Card pad="none">
-          <List>
-            {money.map((t) => (
-              <Row
-                key={t.id}
-                lead={<IconTile name={t.source?.startsWith("Email") ? "mail" : "bill"} />}
-                title={t.title}
-                muted={t.done}
-                // Provenance leads: a bill that filed ITSELF (the email
-                // automation) says so, and wears the mail glyph.
-                meta={<span suppressHydrationWarning>
-                  {t.source ? `${t.source} · ` : ""}{t.done ? "settled" : relative(t.due).toLowerCase()}
-                </span>}
-                actions={
-                  <>
-                    <b className="text-bodysm tabular-nums">${t.amount}</b>
-                    {t.done ? (
-                      <Pill tone="tag">Paid</Pill>
-                    ) : (
-                      // With a payUrl, "Pay" is a HANDOFF to the provider's own
-                      // page (new tab — the app never touches card details);
-                      // the task is recorded settled here.
-                      <Button
-                        size="touch"
-                        onClick={() => {
-                          if (t.payUrl) window.open(t.payUrl, "_blank", "noopener");
-                          s.settleBill(t.id);
-                        }}
-                      >
-                        Pay{t.payUrl && <Icon name="out" size={13} />}
-                      </Button>
-                    )}
-                  </>
-                }
-              />
-            ))}
-          </List>
-        </Card>
-      </motion.div>
     </motion.div>
   );
 }
