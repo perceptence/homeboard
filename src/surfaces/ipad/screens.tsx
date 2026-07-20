@@ -7,7 +7,7 @@ import { Icon, type IconName } from "@/components/Icons";
 import { EventCard, TaskCard } from "@/components/TaskCard";
 import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TabToggle, TitleBlock, type TileTone } from "@/components/ui";
 import { Step } from "@/components/Period";
-import { addDays, clockLabel, isCurrentPeriod, iso, isToday, parse, periodLabel, relative, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
+import { addDays, clockLabel, isCurrentPeriod, iso, isToday, parse, periodLabel, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
 import { billTasks, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
 import type { HouseEvent, Member, Role } from "@/lib/types";
@@ -664,6 +664,22 @@ export function IpadHousehold() {
   const total = Math.max(1, loads.reduce((sum, l) => sum + l.load, 0));
   const autoOn = s.automations.filter((a) => a.on).length;
   const upkeep = s.maint.filter((m) => m.status === "over" || m.status === "due").length;
+
+  // The pulse's live half: everything open (unclaimed work is still the
+  // house's), and who ISN'T simply around right now.
+  const open = s.tasks.filter((t) => !t.done).length;
+  const elsewhere = doers(s)
+    .map((m) => ({ m, p: m.availability?.presence ?? ("here" as const) }))
+    .filter((x) => x.p !== "here");
+  const whereLine = elsewhere.length === 0
+    ? "Everyone’s around right now."
+    : elsewhere
+        .map(({ m, p }) =>
+          p === "wfh" ? `${m.name} is home today`
+          : p === "out" ? `${m.name} is out`
+          : m.availability?.to ? `${m.name} is away until ${relativeInline(m.availability.to)}`
+          : `${m.name} is away`)
+        .join(" · ") + ".";
   // Balance is the ENGINE's call, not a re-derived spread: previewRebalance
   // returns a worthwhile move only when the load can actually be evened (it
   // already knows who's barred from what), so "Even" means as-even-as-it-gets,
@@ -673,19 +689,27 @@ export function IpadHousehold() {
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      {/* Pulse on the ink — who lives here, said in the page voice. */}
+      {/* THE PULSE — the house speaking as itself, on the ink. Not a static
+          "who lives here" any more: the census, what they're carrying, and a
+          live where-everyone-is line, so the slot holds the house's state
+          instead of one floating sentence. */}
       <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
         <span className="flex -space-x-2">
           {everyone.slice(0, 5).map((m) => (
             <span key={m.id} className="ring-2 ring-ink">
-              <Avatar member={m} size={30} />
+              <Avatar member={m} size={34} />
             </span>
           ))}
         </span>
-        <Sentence className="mt-auto max-w-[20ch] text-white">
-          <Em>{people}</Em> {people === 1 ? "person" : "people"}
-          {pets ? <> and <Em>{pets}</Em> {pets === 1 ? "pet" : "pets"}</> : null} live here.
-        </Sentence>
+        <div className="mt-auto">
+          <Eyebrow tone="onDark">The household</Eyebrow>
+          <Sentence className="mt-1 max-w-[22ch] text-white">
+            <Em>{people}</Em> {people === 1 ? "person" : "people"}
+            {pets ? <> and <Em>{pets}</Em> {pets === 1 ? "pet" : "pets"}</> : null}, carrying{" "}
+            <Em>{open}</Em> {open === 1 ? "thing" : "things"} between them.
+          </Sentence>
+          <p className="mt-2.5 text-bodysm font-medium text-white/50">{whereLine}</p>
+        </div>
       </motion.div>
 
       {/* SHARE OF THE WORK — beside the people, where Rooms used to sit. The
