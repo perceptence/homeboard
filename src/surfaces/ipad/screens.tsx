@@ -119,6 +119,21 @@ export function IpadToday() {
     dayItems.filter((it) => it.part === p).sort((a, b) => timeMinutes(a.when) - timeMinutes(b.when) || a.key.localeCompare(b.key)),
   );
 
+  // Portrait only (see the @[1024px]: gates below — landscape always shows
+  // all three in full): the part of the day it actually is stays open, the
+  // other two collapse to a one-line count. Read only inside the `mounted`
+  // branch, same hydration carve-out as the buckets above — `nowPart` is
+  // never used to decide anything before the client has painted once.
+  const nowPart = DAY_PARTS.indexOf(timeOfDay());
+  const [manualExpand, setManualExpand] = useState<Set<number>>(new Set());
+  const isPartOpen = (p: number) => p === nowPart || manualExpand.has(p);
+  const togglePart = (p: number) =>
+    setManualExpand((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p); else next.add(p);
+      return next;
+    });
+
   // A warm, honest line under the faces — wfh counts as "around" (they're
   // home); only out/away is elsewhere.
   const out = doers(s).filter((m) => { const p = m.availability?.presence ?? "here"; return p === "out" || p === "away"; });
@@ -133,9 +148,11 @@ export function IpadToday() {
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-x-3 gap-y-4 pb-2">
       {/* THE HERO BAND — the day, opened: the greeting on the left, the family
           on the right, walled by nothing but space. It carries the mood; the
-          decisions live in "Worth a look" right below. */}
+          decisions live in "Worth a look" right below. Row in EVERY
+          orientation — the family sits beside "Good morning", not under it,
+          even in portrait's narrower width. */}
       <motion.div variants={listItem} className="col-span-4">
-        <Card tone="lemon" className="flex min-h-[260px] flex-col gap-6 @[1024px]:flex-row @[1024px]:items-stretch @[1024px]:gap-8">
+        <Card tone="lemon" className="flex min-h-[260px] flex-row items-stretch gap-6 @[1024px]:gap-8">
           {/* Left — the greeting. */}
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex items-center gap-3">
@@ -155,7 +172,7 @@ export function IpadToday() {
           </div>
 
           {/* Right — the family, on a hairline-walled column of its own. */}
-          <div className="flex shrink-0 flex-col justify-end border-white/15 @[1024px]:w-[300px] @[1024px]:border-l @[1024px]:pl-8">
+          <div className="flex w-[220px] shrink-0 flex-col justify-end border-l border-white/15 pl-6 @[1024px]:w-[300px] @[1024px]:pl-8">
             <Eyebrow className="!text-ink/50">The family</Eyebrow>
             <div className="mt-4 flex items-center gap-3">
               <span className="flex -space-x-2">
@@ -211,17 +228,48 @@ export function IpadToday() {
           </Card>
         ) : mounted ? (
           <div className="grid grid-cols-1 items-start gap-3 @[1024px]:grid-cols-3">
-            {DAY_PARTS.map((label, p) => (
+            {DAY_PARTS.map((label, p) => {
+              const open = isPartOpen(p);
+              return (
               <div key={label} className="flex flex-col gap-tile">
-                <div className="px-1 text-caption font-medium uppercase tracking-[0.08em] text-white/40">{label}</div>
-                {buckets[p].map((c) => (
-                  <div key={c.key}>{c.el}</div>
-                ))}
-                {buckets[p].length === 0 && (
+                {/* Landscape: a plain heading, all three always open. Portrait:
+                    the current part of the day leads; the other two collapse
+                    to a tap-to-open count, so the screen doesn't spend the
+                    same weight on "this evening" as on "right now". */}
+                <button
+                  onClick={() => togglePart(p)}
+                  className="flex items-center justify-between px-1 text-left @[1024px]:pointer-events-none"
+                >
+                  <span className="text-caption font-medium uppercase tracking-[0.08em] text-white/40">{label}</span>
+                  {buckets[p].length > 0 && (
+                    <Icon name={open ? "chevUp" : "chevDown"} size={14} className="text-white/30 @[1024px]:hidden" />
+                  )}
+                </button>
+                {buckets[p].length === 0 ? (
                   <div className="rounded-card border border-white/[.06] px-3 py-4 text-caption text-white/30">Nothing scheduled</div>
+                ) : (
+                  <>
+                    {/* Snippet — portrait only, and only while collapsed. */}
+                    <button
+                      onClick={() => togglePart(p)}
+                      className={clsx(
+                        "rounded-card border border-white/[.06] bg-white/[.02] px-3 py-4 text-left text-caption text-white/40 @[1024px]:hidden",
+                        open ? "hidden" : "block",
+                      )}
+                    >
+                      {buckets[p].length} {buckets[p].length === 1 ? "thing" : "things"}
+                    </button>
+                    {/* Full list — always in landscape; portrait only once open. */}
+                    <div className={clsx("flex-col gap-tile", open ? "flex" : "hidden @[1024px]:flex")}>
+                      {buckets[p].map((c) => (
+                        <div key={c.key}>{c.el}</div>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : null}
       </motion.div>
@@ -245,11 +293,14 @@ export function IpadToday() {
             </div>
           </Card>
         )}
-        <div className="grid grid-cols-1 gap-3 @[1024px]:grid-cols-3">
+        {/* Portrait: a horizontal-scroll row, left to right — the same shelf
+            idiom as Worth a look and the people row. Landscape: the plain
+            3-up grid, all three fit without scrolling. */}
+        <div className="no-scrollbar flex gap-3 overflow-x-auto @[1024px]:grid @[1024px]:grid-cols-3 @[1024px]:overflow-visible">
           {cats.map((cat) => {
             const left = list.filter((x) => x.category === cat && !x.done).length;
             return (
-            <Card key={cat} pad="none" className="self-start">
+            <Card key={cat} pad="none" className="w-[320px] shrink-0 self-start @[1024px]:w-auto @[1024px]:shrink">
               {/* Same card grammar as Worth a look / Appliances — icon on top, a
                   space, the title (its count riding the subtext), then the data
                   — but kept white, because this is a worklist you act on. */}
