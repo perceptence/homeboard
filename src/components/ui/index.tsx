@@ -287,6 +287,25 @@ export function TitleBlock({
 }
 
 /* ============================================================
+   AppMark — the Homeboard icon itself (app/icon.svg), inlined so it can
+   sit at any size without an <img> request. Same mark as the home-screen
+   icon and the splash, so "which app is this" never has two different
+   answers.
+   ============================================================ */
+
+export function AppMark({ size = 44, className }: { size?: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 512 512" width={size} height={size} className={clsx("shrink-0", className)} aria-hidden="true">
+      <rect width="512" height="512" rx="116" fill="#0E0E10" />
+      <path d="M118 182 L182 125 L246 182 V206 Q246 246 206 246 H158 Q118 246 118 206 Z" fill="#F4FF7A" />
+      <rect x="266" y="118" width="128" height="128" rx="40" fill="#F5F4F8" opacity=".32" />
+      <rect x="118" y="266" width="128" height="128" rx="40" fill="#F5F4F8" opacity=".32" />
+      <rect x="266" y="266" width="128" height="128" rx="40" fill="#C9C8F0" opacity=".9" />
+    </svg>
+  );
+}
+
+/* ============================================================
    Avatar — 32px small, per spec
    ============================================================ */
 

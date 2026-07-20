@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { useRef } from "react";
 import { motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
-import { ActionButton, Button } from "@/components/ui";
+import { ActionButton, AppMark, Button } from "@/components/ui";
 import { press, spring } from "@/lib/motion";
 import { doers, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
@@ -59,15 +59,14 @@ export function IpadShell() {
       <header className="flex shrink-0 items-center gap-4 border-b border-white/[.06] px-inner py-5">
         {/* The household's own mark, relocated from the old sidebar — the one
             fixed "which home is this" anchor now that the nav floats and hides. */}
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-touch w-touch shrink-0 place-items-center rounded-sm bg-lemon text-ink">
-            <Icon name="house" size={18} />
-          </span>
+        <div className="flex min-w-0 shrink items-center gap-3">
+          <AppMark size={44} className="shrink-0 rounded-sm" />
           <span className="truncate font-tight text-h1 text-white">{s.householdName}</span>
         </div>
         {/* Pill, h-touch — the same shape and floor as the Feed's search bar
-            and every other control in the app. */}
-        <label className="ml-2 flex h-touch max-w-[320px] flex-1 items-center gap-2 rounded-pill bg-white/[.06] px-3.5 text-white/45 focus-within:bg-white/[.10]">
+            and every other control in the app. No max-width: it spans
+            whatever room is left between the brand and the header actions. */}
+        <label className="ml-2 flex h-touch flex-1 items-center gap-2 rounded-pill bg-white/[.06] px-3.5 text-white/45 focus-within:bg-white/[.10]">
           <Icon name="search" size={16} />
           <input
             value={s.query}
