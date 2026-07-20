@@ -71,12 +71,14 @@ export function IpadToday() {
       tone: "neutral",
       title: c.title,
       meta: c.detail,
+      // Both open a confirming sheet — covering a whole day or reworking a
+      // clash is never a one-tap action.
       action:
         c.kind === "away" ? (
-          <Button size="touch" tone="light" onClick={() => s.coverAway(c.who)}>Find cover</Button>
-        ) : c.taskId != null ? (
-          <Button size="touch" tone="outlineDark" onClick={() => s.openSheet({ type: "assign", id: c.taskId! })}>Move one</Button>
-        ) : undefined,
+          <Button size="touch" tone="light" onClick={() => s.openSheet({ type: "cover", who: c.who })}>Find cover</Button>
+        ) : (
+          <Button size="touch" tone="light" onClick={() => s.openSheet({ type: "reschedule", who: c.who })}>Reschedule</Button>
+        ),
     }),
   );
 

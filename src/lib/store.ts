@@ -16,13 +16,15 @@ import {
 import { addDays, iso, isToday, relative, relativeInline, timeMinutes, todayIso } from "./dates";
 
 export interface Sheet {
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newEvent" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock";
+  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newEvent" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock" | "cover" | "reschedule";
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;
   draft?: { title: string; owner: MemberId | null; when: string; priority: Priority };
   /** Pre-fills New event with the day you tapped on the calendar. */
   due?: string;
+  /** The person a Cover / Reschedule sheet is resolving a conflict for. */
+  who?: MemberId;
   /** Seed text for the automation builder — the sentence someone typed into New
    *  Task that turned out to be a routine. Present only when launched from that
    *  nudge, which is also the signal to CLOSE (not return to Manage) on save. */
@@ -301,6 +303,10 @@ interface HouseholdState {
   deleteTask: (id: number) => void;
   addEvent: (e: { title: string; who: MemberId; due: string; time: string; recurring?: string }) => void;
   deleteEvent: (id: string) => void;
+  /** Push an event to a new time — the reschedule half of resolving a clash. */
+  rescheduleEvent: (id: string, time: string) => void;
+  /** Tell the far end you're running late (in-household → notify; optionally move). */
+  flagRunningLate: (p: { eventId: string; tell?: MemberId; moveTo?: string }) => void;
 
   /* --- creating the things the phone could only view (owner/permitted) --- */
   addAutomation: (a: { when: AutoWhen; then: AutoThen }) => void;
@@ -802,6 +808,48 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
             toast: `“${removed.title}” restored`,
             toastUndo: null,
           })),
+      };
+    }),
+
+  rescheduleEvent: (id, time) =>
+    set((s) => {
+      const e = s.events.find((x) => x.id === id);
+      if (!e) return {};
+      return {
+        events: s.events.map((x) => (x.id === id ? { ...x, time } : x)),
+        sheet: null,
+        toast: `Moved to ${time} — the clash is gone`,
+        toastWho: e.who,
+        ...logged(s, `Moved “${e.title}” to ${time}`, e.who),
+      };
+    }),
+
+  flagRunningLate: ({ eventId, tell, moveTo }) =>
+    set((s) => {
+      const e = s.events.find((x) => x.id === eventId);
+      if (!e) return {};
+      const events = moveTo ? s.events.map((x) => (x.id === eventId ? { ...x, time: moveTo } : x)) : s.events;
+      const teller = s.members[e.who]?.name ?? "Someone";
+      // In-household: it's a real notification — bump the unread dot, log it,
+      // and land the toast under their face so it reads as "they now know".
+      if (tell) {
+        const name = s.members[tell]?.name ?? "them";
+        return {
+          events,
+          sheet: null,
+          toast: `${name} knows now`,
+          toastWho: tell,
+          // logged() already bumps unread — this IS the notification.
+          ...logged(s, `${teller} let ${name} know they're running late to “${e.title}”`, tell),
+        };
+      }
+      // Outside friend: the message was copied to send by hand — just record it.
+      return {
+        events,
+        sheet: null,
+        toast: moveTo ? `Message ready · moved to ${moveTo}` : "Message ready to send",
+        toastWho: e.who,
+        ...logged(s, `${teller} sorted the clash on “${e.title}”`, e.who),
       };
     }),
 
@@ -1546,53 +1594,93 @@ export interface Conflict {
 
 const CLASH_MINS = 45;
 
+/** One timed thing on someone's day, carrying enough to resolve it later. */
+export interface ClashItem {
+  at: number;      // minutes into the day
+  title: string;
+  time: string;    // the clock label as shown ("9:40 AM")
+  taskId?: number;
+  eventId?: string;
+}
+
+/** Work someone still HOLDS that can't happen because they're away today. */
+export const strandedByAway = (s: HouseholdState, memberId: MemberId): Task[] => {
+  const m = s.members[memberId];
+  if (!m || m.availability?.presence !== "away") return [];
+  return s.tasks.filter((t) => t.owner === memberId && !t.done && !t.coveredBy && awayOn(m, t.due));
+};
+
+/** The first two of a person's today items that start too close to do both. */
+export const clashPair = (s: HouseholdState, memberId: MemberId): [ClashItem, ClashItem] | null => {
+  const timed: ClashItem[] = [
+    ...s.tasks
+      .filter((t) => holder(t) === memberId && !t.done && isToday(t.due) && timeMinutes(t.when) >= 0)
+      .map((t) => ({ at: timeMinutes(t.when), title: t.title, time: t.when, taskId: t.id })),
+    ...s.events
+      .filter((e) => e.who === memberId && !e.done && isToday(e.due) && timeMinutes(e.time) >= 0)
+      .map((e) => ({ at: timeMinutes(e.time), title: e.title, time: e.time, eventId: e.id })),
+  ].sort((a, b) => a.at - b.at);
+  for (let i = 1; i < timed.length; i++) {
+    if (timed[i].at - timed[i - 1].at <= CLASH_MINS) return [timed[i - 1], timed[i]];
+  }
+  return null;
+};
+
 export const conflicts = (s: HouseholdState, forMember?: MemberId): Conflict[] => {
   const out: Conflict[] = [];
   const people = forMember ? doers(s).filter((m) => m.id === forMember) : doers(s);
 
   for (const m of people) {
     // AWAY — work dated within their away span that's still theirs to do.
-    if (m.availability?.presence === "away") {
-      const stranded = s.tasks.filter(
-        (t) => t.owner === m.id && !t.done && !t.coveredBy && awayOn(m, t.due),
-      );
-      if (stranded.length) {
-        out.push({
-          kind: "away",
-          key: `away-${m.id}`,
-          who: m.id,
-          title: `${m.name} is away today`,
-          detail: `${stranded.length} ${stranded.length === 1 ? "task" : "tasks"} still on them — ${stranded.map((t) => t.title).join(", ")}`,
-        });
-      }
+    const stranded = strandedByAway(s, m.id);
+    if (stranded.length) {
+      out.push({
+        kind: "away",
+        key: `away-${m.id}`,
+        who: m.id,
+        title: `${m.name} is away today`,
+        detail: `${stranded.length} ${stranded.length === 1 ? "task" : "tasks"} still on them — ${stranded.map((t) => t.title).join(", ")}`,
+      });
     }
 
-    // CLASH — timed things today this person is on, sorted, first tight gap wins.
-    const timed = [
-      ...s.tasks
-        .filter((t) => holder(t) === m.id && !t.done && isToday(t.due) && timeMinutes(t.when) >= 0)
-        .map((t) => ({ at: timeMinutes(t.when), label: t.title, taskId: t.id as number | undefined })),
-      ...s.events
-        .filter((e) => e.who === m.id && !e.done && isToday(e.due) && timeMinutes(e.time) >= 0)
-        .map((e) => ({ at: timeMinutes(e.time), label: e.title, taskId: undefined as number | undefined })),
-    ].sort((a, b) => a.at - b.at);
-
-    for (let i = 1; i < timed.length; i++) {
-      const a = timed[i - 1], b = timed[i];
-      if (b.at - a.at <= CLASH_MINS) {
-        out.push({
-          kind: "clash",
-          key: `clash-${m.id}`,
-          who: m.id,
-          title: `${m.name} is double-booked`,
-          detail: `${a.label} and ${b.label}, ${b.at - a.at} min apart`,
-          taskId: a.taskId ?? b.taskId,
-        });
-        break; // one flag per person is enough — the point is made
-      }
+    // CLASH — two today items starting too close to do both.
+    const pair = clashPair(s, m.id);
+    if (pair) {
+      const [a, b] = pair;
+      out.push({
+        kind: "clash",
+        key: `clash-${m.id}`,
+        who: m.id,
+        title: `${m.name} is double-booked`,
+        detail: `${a.title} and ${b.title}, ${b.at - a.at} min apart`,
+        taskId: a.taskId ?? b.taskId,
+      });
     }
   }
   return out;
+};
+
+/**
+ * WHAT "FIND COVER" WOULD DO — decided, not done (the RebalanceSheet pattern).
+ * Mirrors coverAway's ACCUMULATE exactly (each pick sees the prior ones), so the
+ * confirmation sheet shows the very moves coverAway will apply. A task nobody can
+ * take is simply absent from the list — the sheet counts those as still-stranded.
+ */
+export const previewCoverAway = (s: HouseholdState, memberId: MemberId): Move[] => {
+  const m = s.members[memberId];
+  if (!m || m.availability?.presence !== "away") return [];
+  const moves: Move[] = [];
+  const tasks = [...s.tasks];
+  for (let i = 0; i < tasks.length; i++) {
+    const t = tasks[i];
+    if (t.owner !== memberId || t.done || t.coveredBy || !awayOn(m, t.due)) continue;
+    const pick = suggestTaker({ ...s, tasks }, t);
+    const to = pick ? s.members[pick.id] : undefined;
+    if (!to) continue;
+    tasks[i] = { ...t, coveredBy: to.id };
+    moves.push({ task: t, from: m, to });
+  }
+  return moves;
 };
 
 /* ─────────────── automations: the rule, said out loud ─────────────── */

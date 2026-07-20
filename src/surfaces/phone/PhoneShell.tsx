@@ -598,11 +598,10 @@ function PhoneHouse() {
         // knowing. Away and task-clashes DO carry a verb.
         eyebrow: "Heads up",
         line: <>{topConflict.title} — {topConflict.detail}.</>,
-        verb: topConflict.kind === "away" ? "Find cover" : topConflict.taskId != null ? "Move one" : null,
-        act: () => {
-          if (topConflict.kind === "away") s.coverAway(topConflict.who);
-          else if (topConflict.taskId != null) s.openSheet({ type: "assign", id: topConflict.taskId });
-        },
+        // Both open a confirming sheet: cover the day, or rework the clash and
+        // tell the far end. Never a silent one-tap reshuffle.
+        verb: topConflict.kind === "away" ? "Find cover" : "Reschedule",
+        act: () => s.openSheet({ type: topConflict.kind === "away" ? "cover" : "reschedule", who: topConflict.who }),
       }
     : unowned
     ? {

@@ -5,7 +5,7 @@ import {
   Baby, CreditCard, ExternalLink, House, LayoutGrid, ListChecks, Mail, Package, PawPrint, Repeat,
   ArrowLeftRight, ArrowUpRight, ChevronDown, ChevronUp, ChevronsUp, Plus, Search, Settings, ShoppingCart, Signal, Sparkles, Star, TrendingUp, User, Users, Wifi, Wrench, X, Zap,
   Clock, Heart, KeyRound, Lock, MapPin, Mic, Moon, Scale, Sun, LayoutList,
-  Trash2, Sprout, Music2, GraduationCap, Gift, Car, Navigation, PartyPopper, Utensils, RotateCcw, Carrot, Flower2, Camera, RotateCw,
+  Trash2, Sprout, Music2, GraduationCap, Gift, Car, Navigation, PartyPopper, Utensils, RotateCcw, Carrot, Flower2, Camera, RotateCw, Copy,
 } from "lucide-react";
 
 /**
@@ -114,6 +114,7 @@ const MAP = {
   veg: Carrot,             // the Groceries aisle — food, not the act of shopping
   camera: Camera,          // change your photo — the one editable-avatar affordance
   rotate: RotateCw,        // the demo's landscape/portrait toggle — devices turning, not undoing
+  copy: Copy,              // copy a drafted message to send by hand
 } satisfies Record<string, IconGlyph>;
 
 /** What every entry must accept — lucide icons do; so must any hand-drawn one.

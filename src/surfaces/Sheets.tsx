@@ -10,8 +10,8 @@ import { addDays, ago, badge, clockLabel, dayLabel, iso, isToday, relative, star
 import { taskGlyph } from "@/lib/glyphs";
 import { parseAutomation, parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
-import { autoThenTitle, autoWhenPhrase, currentMember, doers, pendingFor, previewRebalance, recall, shoppingList, suggestTaker, useHousehold, whyNot } from "@/lib/store";
-import type { AutoThen, AutoWhen, Member, MemberId, MemberKind, Priority, Role, ShopCategory, ShopItem, StockStatus, Task } from "@/lib/types";
+import { autoThenTitle, autoWhenPhrase, clashPair, currentMember, doers, pendingFor, previewCoverAway, previewRebalance, recall, shoppingList, strandedByAway, suggestTaker, useHousehold, whyNot } from "@/lib/store";
+import type { AutoThen, AutoWhen, HouseEvent, Member, MemberId, MemberKind, Priority, Role, ShopCategory, ShopItem, StockStatus, Task } from "@/lib/types";
 import { ROLE_CAN, ROLE_HINT, ROLE_LABEL, ROLE_NEEDS, ROLE_RANK } from "@/lib/types";
 
 /** Where a typed shopping item files itself — read from the words, shown live
@@ -83,6 +83,8 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
         {sheet?.type === "assign" && <AssignSheet id={sheet.id as number} />}
         {sheet?.type === "handoff" && <HandoffSheet id={sheet.id as number | undefined} />}
         {sheet?.type === "rebalance" && <RebalanceSheet />}
+        {sheet?.type === "cover" && <CoverSheet who={sheet.who} />}
+        {sheet?.type === "reschedule" && <RescheduleSheet who={sheet.who} />}
         {sheet?.type === "shop" && <ShopSheet />}
         {sheet?.type === "stock" && <InventorySheet />}
         {sheet?.type === "activity" && <ActivitySheet />}
@@ -294,6 +296,210 @@ function RebalanceSheet() {
         >
           Move it
         </Button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * COVER WHILE AWAY — the confirmation "Find cover" was missing.
+ *
+ * Moving someone's whole day onto other people is exactly the kind of authority
+ * that shouldn't ride on one tap (same lesson as Even it out). So this shows the
+ * plan first — every stranded task and who'd pick it up, decided by the SAME
+ * engine that will apply it (`previewCoverAway` mirrors `coverAway`) — and asks.
+ */
+function CoverSheet({ who }: { who?: MemberId }) {
+  const s = useHousehold();
+  const m = who ? s.members[who] : undefined;
+  const moves = who ? previewCoverAway(s, who) : [];
+  const stranded = who ? strandedByAway(s, who) : [];
+  const cantPlace = stranded.length - moves.length; // nobody eligible
+
+  if (!m || stranded.length === 0) {
+    return (
+      <>
+        <h2 className="font-tight text-h1">Nothing to cover</h2>
+        <p className="mt-1.5 text-bodysm text-sub">Everything of {m?.name ?? "theirs"} is already in hand.</p>
+        <Button tone="dark" size="lg" className="mt-5 w-full" onClick={s.closeSheet}>Close</Button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <span className="flex items-center gap-3">
+        <IconTile name="handoff" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">Cover while away</h2>
+      </span>
+      <p className="mt-1.5 text-bodysm text-sub">
+        {m.name} is away — here&rsquo;s who&rsquo;d pick {moves.length === 1 ? "the one thing" : `each of the ${moves.length}`} up.
+      </p>
+
+      <div className="no-scrollbar mt-4 max-h-[288px] space-y-2 overflow-y-auto">
+        {moves.map(({ task, to }) => (
+          <div key={task.id} className="flex items-center gap-3 rounded-card bg-card p-3">
+            <span className="grid w-[40px] shrink-0 place-items-center self-stretch rounded-pill bg-ink text-white">
+              <Icon name={taskGlyph(task)} size={18} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <b className="block truncate text-bodysm">{task.title}</b>
+              <span className="text-caption text-sub">{clockLabel(task.when)}</span>
+            </div>
+            <span className="flex shrink-0 items-center gap-1.5">
+              <Icon name="arrow" size={14} className="text-sub" />
+              <Avatar member={to} size={24} />
+              <span className="text-bodysm font-medium">{to.name}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {cantPlace > 0 && (
+        <p className="mt-2 text-caption text-sub">
+          {cantPlace} nobody can take — {m.name}&rsquo;ll keep {cantPlace === 1 ? "it" : "those"}.
+        </p>
+      )}
+
+      <div className="mt-5 flex gap-2">
+        <Button tone="outline" size="lg" className="flex-1" onClick={s.closeSheet}>Not now</Button>
+        <Button tone="dark" size="lg" className="flex-1" onClick={() => { s.coverAway(who!); s.closeSheet(); }}>
+          Cover {moves.length}
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/** Who's at the far end of an event — a household member (notify them), an
+ *  outside friend named in the title ("Padel with Marco"), or nobody. */
+function counterpart(
+  e: HouseEvent | undefined,
+  members: Record<MemberId, Member>,
+): { kind: "household"; members: Member[] } | { kind: "outside"; name: string } | { kind: "none" } {
+  if (!e) return { kind: "none" };
+  if (e.waiting?.length) {
+    const ms = e.waiting.map((id) => members[id]).filter(Boolean) as Member[];
+    if (ms.length) return { kind: "household", members: ms };
+  }
+  const m = e.title.match(/\bwith\s+([A-Z][\w'’-]*)/);
+  if (m) return { kind: "outside", name: m[1] };
+  return { kind: "none" };
+}
+
+/**
+ * RESCHEDULE — Sam can't be in two places at once. He picks which one gives, and
+ * the app helps him TELL the far end: a household member gets a real notification;
+ * an outside friend gets a drafted message he can copy and send himself; a thing
+ * with nobody waiting (a locker pickup) just moves to a new time.
+ */
+function RescheduleSheet({ who }: { who?: MemberId }) {
+  const s = useHousehold();
+  const m = who ? s.members[who] : undefined;
+  const pair = who ? clashPair(s, who) : null;
+  const [pickIdx, setPickIdx] = useState<0 | 1>(0);
+  const [copied, setCopied] = useState(false);
+  const [moveTo, setMoveTo] = useState("");
+  const [clockOpen, setClockOpen] = useState(false);
+
+  if (!m || !pair) {
+    return (
+      <>
+        <h2 className="font-tight text-h1">Nothing clashing</h2>
+        <p className="mt-1.5 text-bodysm text-sub">{m?.name ?? "Their"} day is clear.</p>
+        <Button tone="dark" size="lg" className="mt-5 w-full" onClick={s.closeSheet}>Close</Button>
+      </>
+    );
+  }
+
+  const chosen = pair[pickIdx];
+  const chosenEvent = chosen.eventId ? s.events.find((e) => e.id === chosen.eventId) : undefined;
+  const cp = counterpart(chosenEvent, s.members);
+  const draft = chosenEvent
+    ? `Hi${cp.kind === "outside" ? ` ${cp.name}` : ""} — I've hit a scheduling clash and I'm running late for ${chosenEvent.title} (${chosen.time}). Any chance we push it back? Sorry for the short notice!`
+    : "";
+
+  const copy = () => {
+    navigator.clipboard?.writeText(draft).catch(() => {});
+    setCopied(true);
+    if (chosenEvent) s.flagRunningLate({ eventId: chosenEvent.id });
+  };
+
+  return (
+    <>
+      <span className="flex items-center gap-3">
+        <IconTile name="clock" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">Two places at once</h2>
+      </span>
+      <p className="mt-1.5 text-bodysm text-sub">{m.name} can&rsquo;t do both. Which one gives?</p>
+
+      {/* Pick the one to move. */}
+      <div className="mt-4 space-y-2">
+        {pair.map((it, i) => {
+          const on = pickIdx === i;
+          return (
+            <button
+              key={i}
+              onClick={() => { setPickIdx(i as 0 | 1); setCopied(false); }}
+              className={clsx(
+                "flex w-full items-center gap-3 rounded-card p-3 text-left transition-shadow",
+                on ? "bg-card shadow-e2 ring-2 ring-inset ring-ink" : "bg-card/70 hover:bg-card",
+              )}
+            >
+              <span className="grid w-[52px] shrink-0 place-items-center self-stretch rounded-pill bg-ink text-caption font-semibold text-white">
+                {it.time.replace(/\s?(AM|PM)/i, "")}
+              </span>
+              <div className="min-w-0 flex-1">
+                <b className="block truncate text-bodysm">{it.title}</b>
+                <span className="text-caption text-sub">{it.time}</span>
+              </div>
+              {on && <Icon name="check" size={16} className="shrink-0 text-ink" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tell the far end. */}
+      <div className="mt-5">
+        {cp.kind === "household" ? (
+          <>
+            <p className="text-bodysm text-sub">
+              {cp.members.map((x) => x.name).join(" & ")} {cp.members.length === 1 ? "is" : "are"} waiting — we&rsquo;ll let them know.
+            </p>
+            <Button
+              tone="dark" size="lg" className="mt-3 w-full"
+              onClick={() => s.flagRunningLate({ eventId: chosenEvent!.id, tell: cp.members[0].id })}
+            >
+              <Icon name="bell" size={16} /> Let {cp.members[0].name} know
+            </Button>
+          </>
+        ) : cp.kind === "outside" ? (
+          <>
+            <span className="text-caption font-medium uppercase tracking-wide text-sub">Message for {cp.name}</span>
+            <p className="mt-2 rounded-card bg-card p-card-pad text-bodysm leading-snug text-ink">{draft}</p>
+            <Button tone={copied ? "outline" : "dark"} size="lg" className="mt-3 w-full" onClick={copy}>
+              <Icon name={copied ? "check" : "copy"} size={16} /> {copied ? `Copied — send it to ${cp.name}` : "Copy message"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="text-bodysm text-sub">Nobody&rsquo;s waiting on this — just move it to a clearer time.</p>
+            <div className="mt-3">
+              <PickerChip kind="time" open={clockOpen} active={!!moveTo} onToggle={() => setClockOpen((o) => !o)}>
+                {moveTo || "Pick a time"}
+              </PickerChip>
+            </div>
+            <PickerPanel open={clockOpen}>
+              <MiniClock value={moveTo} onPick={(t) => setMoveTo(t)} />
+            </PickerPanel>
+            <Button
+              tone="dark" size="lg" className="mt-3 w-full" disabled={!moveTo}
+              onClick={() => chosenEvent && s.rescheduleEvent(chosenEvent.id, moveTo)}
+            >
+              <Icon name="clock" size={16} /> Move to {moveTo || "…"}
+            </Button>
+          </>
+        )}
       </div>
     </>
   );
