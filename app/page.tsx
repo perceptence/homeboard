@@ -20,6 +20,10 @@ import { PhoneShell } from "@/surfaces/phone/PhoneShell";
  */
 export default function Page() {
   const s = useHousehold();
+  // Preview-only, ephemeral: which way the iPad frame is turned. Not app
+  // data, so it doesn't touch the persisted store — a reload always comes
+  // back up landscape.
+  const [orientation, setOrientation] = useState<"landscape" | "portrait">("landscape");
 
   useEffect(() => {
     // Rehydrate AFTER React has hydrated — persist's default (rehydrate on
@@ -61,6 +65,18 @@ export default function Page() {
             Family iPad
           </SwitchButton>
 
+          {/* Rotate the iPad frame — preview-only, so it only shows up when
+              there's an iPad on screen to turn. */}
+          {!isPhone && (
+            <button
+              onClick={() => setOrientation((o) => (o === "landscape" ? "portrait" : "landscape"))}
+              aria-label={`Rotate to ${orientation === "landscape" ? "portrait" : "landscape"}`}
+              className="rounded-pill p-2 text-white/55 transition-colors hover:text-white"
+            >
+              <Icon name="rotate" size={16} strokeWidth={2.2} />
+            </button>
+          )}
+
           {people.slice(0, 4).map((m) => (
             <SwitchButton key={m.id} active={s.persona === m.id} onClick={() => s.setPersona(m.id)}>
               <Avatar member={m} size={20} />
@@ -78,7 +94,7 @@ export default function Page() {
         </div>
       )}
 
-      <DeviceFrame kind={kind} chromeGap={onboarding ? 90 : 130}>
+      <DeviceFrame kind={kind} chromeGap={onboarding ? 90 : 130} orientation={isPhone ? undefined : orientation}>
         {/* Launch splash — INSIDE the glass. It's the app opening, not the
             demo page loading, so it belongs on the device's own screen. */}
         <Splash />

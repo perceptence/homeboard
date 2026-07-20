@@ -118,16 +118,18 @@ function useFit(
   return { ...box, ...nudge };
 }
 
+export type Orientation = "landscape" | "portrait";
+
 export function DeviceFrame({
-  kind, children, chromeGap = 150,
-}: { kind: DeviceKind; children: ReactNode; chromeGap?: number }) {
+  kind, children, chromeGap = 150, orientation = "landscape",
+}: { kind: DeviceKind; children: ReactNode; chromeGap?: number; orientation?: Orientation }) {
   return kind === "phone" ? (
     // Centred in the leftover space — a phone floats; the tablet sits.
     <div className="flex min-h-0 w-full flex-1 items-center justify-center">
       <PhoneChrome chromeGap={chromeGap}>{children}</PhoneChrome>
     </div>
   ) : (
-    <TabletFrame chromeGap={chromeGap}>{children}</TabletFrame>
+    <TabletFrame chromeGap={chromeGap} orientation={orientation}>{children}</TabletFrame>
   );
 }
 
@@ -806,8 +808,11 @@ function BatteryGlyph({ level = 0.68 }: { level?: number }) {
 
 /* ─────────────────────────────── tablet ─────────────────────────────── */
 
-function TabletFrame({ children, chromeGap }: { children: ReactNode; chromeGap: number }) {
-  const d = DEVICES.tablet;
+function TabletFrame({ children, chromeGap, orientation }: { children: ReactNode; chromeGap: number; orientation: Orientation }) {
+  // Portrait is the SAME device, rotated — derived by swapping w/h off the one
+  // landscape entry, not a second DEVICES key that could drift on bezel/radius.
+  const base = DEVICES.tablet;
+  const d = orientation === "portrait" ? { ...base, w: base.h, h: base.w } : base;
   const outerW = d.w + d.bezel * 2;
   const outerH = d.h + d.bezel * 2;
   const frame = useRef<HTMLDivElement>(null);
