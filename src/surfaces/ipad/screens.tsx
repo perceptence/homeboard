@@ -227,7 +227,10 @@ export function IpadToday() {
             <Sentence className="py-6 text-white">The house is caught up. <Em>Nothing on.</Em></Sentence>
           </Card>
         ) : mounted ? (
-          <div className="grid grid-cols-1 items-start gap-3 @[1024px]:grid-cols-3">
+          // Portrait's stacked blocks want real air between them (Morning's
+          // last card to Afternoon's heading); landscape's gap is the column
+          // gutter instead, a different axis, kept at the original 12px.
+          <div className="grid grid-cols-1 items-start gap-8 @[1024px]:grid-cols-3 @[1024px]:gap-3">
             {DAY_PARTS.map((label, p) => {
               const open = isPartOpen(p);
               return (
@@ -249,20 +252,50 @@ export function IpadToday() {
                   <div className="rounded-card border border-white/[.06] px-3 py-4 text-caption text-white/30">Nothing scheduled</div>
                 ) : (
                   <>
-                    {/* Snippet — portrait only, and only while collapsed. */}
-                    <button
-                      onClick={() => togglePart(p)}
-                      className={clsx(
-                        "rounded-card border border-white/[.06] bg-white/[.02] px-3 py-4 text-left text-caption text-white/40 @[1024px]:hidden",
-                        open ? "hidden" : "block",
-                      )}
-                    >
-                      {buckets[p].length} {buckets[p].length === 1 ? "thing" : "things"}
-                    </button>
-                    {/* Full list — always in landscape; portrait only once open. */}
-                    <div className={clsx("flex-col gap-tile", open ? "flex" : "hidden @[1024px]:flex")}>
+                    {/* Portrait ONLY, mounted/unmounted by React (not hidden by
+                        CSS) — a `layout`-animated card measured while its
+                        parent was `display:none` reports a 0×0 box, so
+                        un-hiding it made every card FLIP-animate in from the
+                        top-left corner. AnimatePresence gives it a real
+                        enter/exit instead of a snap-then-glitch. */}
+                    <div className="@[1024px]:hidden">
+                      <AnimatePresence initial={false}>
+                        {open ? (
+                          <motion.div
+                            key="list"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={smooth}
+                            className="overflow-hidden"
+                          >
+                            <div className="flex flex-col gap-tile">
+                              {buckets[p].map((c) => (
+                                <div key={c.key}>{c.el}</div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        ) : (
+                          <motion.button
+                            key="snippet"
+                            onClick={() => togglePart(p)}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={smooth}
+                            className="w-full rounded-card border border-white/[.06] bg-white/[.02] px-3 py-4 text-left text-caption text-white/40"
+                          >
+                            {buckets[p].length} {buckets[p].length === 1 ? "thing" : "things"}
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    {/* Landscape ONLY — always the full list, its visibility
+                        never toggling by JS state, so its own `layout`
+                        measurements stay stable. */}
+                    <div className="hidden flex-col gap-tile @[1024px]:flex">
                       {buckets[p].map((c) => (
-                        <div key={c.key}>{c.el}</div>
+                        <div key={`lg-${c.key}`}>{c.el}</div>
                       ))}
                     </div>
                   </>
