@@ -771,11 +771,11 @@ export function Toast({
             <button
               onClick={onUndo}
               // A defined, inset control — its own 36px height (not stretched to
-              // the pill), a solid ink fill so it reads clearly as THE action to
-              // take, and real breathing room from the pill edges. The pill is
-              // pointer-events-none so it never eats a tap meant for the screen;
-              // this one interactive thing re-enables pointers on itself.
-              className="pointer-events-auto ml-1 flex h-9 shrink-0 items-center gap-1.5 rounded-pill bg-ink px-4 font-semibold text-white transition-colors hover:bg-ink/90 active:bg-ink/80"
+              // the pill) and real breathing room from the pill edges. Colour is
+              // the original quiet ink-wash — only the sizing was ever the issue.
+              // The pill is pointer-events-none so it never eats a tap meant for
+              // the screen; this one interactive thing re-enables pointers on itself.
+              className="pointer-events-auto ml-1 flex h-9 shrink-0 items-center gap-1.5 rounded-pill bg-ink/[.06] px-4 font-semibold text-ink transition-colors hover:bg-ink/10 active:bg-ink/[.14]"
             >
               <Icon name="undo" size={14} />
               Undo
