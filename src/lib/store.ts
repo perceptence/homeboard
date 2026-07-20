@@ -1337,7 +1337,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   //     persisted "ahead" would leave the collapsed nav pill EMPTY. Re-seed.
   // 14: today is topped up to a floor (5 Maya / 5 Sam / 2 Leo / 2 Ada) so the
   //     demo never opens onto a thin day. Re-seed.
-  version: 14,
+  // 15: every task has an owner now (Mow the lawn was the last unowned one).
+  //     Re-seed.
+  version: 15,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.

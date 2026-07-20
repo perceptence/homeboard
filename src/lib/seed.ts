@@ -68,7 +68,7 @@ const baseTasks: Task[] = [
      "On my way" notifies them, the live trip runs on their phones, and Sam gets
      Maps — he's the one driving. `waiting` is what earns the button. */
   { id: 4, title: "Pick up the kids", owner: "sam", when: "3:15 PM", due: d(0), done: false, priority: "high", requires: "full", source: "Calendar", journey: true, where: "School", waiting: ["leo", "ada"], icon: "kid" },
-  { id: 5, title: "Mow the lawn", owner: null, suggest: "sam", when: "Morning", due: d(2), done: false, priority: "low", recurring: "Seasonal", requires: "full", source: "Home maintenance" },
+  { id: 5, title: "Mow the lawn", owner: "sam", when: "Morning", due: d(2), done: false, priority: "low", recurring: "Seasonal", requires: "full", source: "Home maintenance" },
   { id: 6, title: "Fold the laundry", owner: "maya", when: "Morning", due: d(0), done: true, completedAt: doneAgo(0), priority: "low", minAge: 6, source: "Laundry" },
   { id: 7, title: "Set the table", owner: "ada", when: "6:00 PM", due: d(0), done: true, completedAt: doneAgo(0), priority: "low", minAge: 4, source: "Meals" },
   /* Sam's recent history — done this week, so the You tab's contribution and

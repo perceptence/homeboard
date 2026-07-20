@@ -95,15 +95,6 @@ export function IpadToday() {
       action: undefined,
     });
   }
-  const unowned = s.tasks.find((t) => !t.owner && !t.done);
-  if (unowned?.suggest) {
-    attention.push({
-      key: "unowned", icon: "user", tone: "neutral",
-      title: `${unowned.title} needs an owner`,
-      meta: `Suggested: ${s.members[unowned.suggest].name}`,
-      action: <Button size="touch" tone="lemon" onClick={() => s.acceptSuggestion(unowned.id)}>Assign</Button>,
-    });
-  }
 
   /* HAPPENING TODAY, SPLIT IN THREE — the whole household's day dealt into
      Morning / Afternoon / Evening columns so a full day spreads sideways
@@ -173,17 +164,19 @@ export function IpadToday() {
             </div>
           </div>
 
-          {/* Right — Worth a look, a white worklist panel sitting on the lemon. */}
-          <div className="flex shrink-0 flex-col overflow-hidden rounded-card bg-card text-ink shadow-e1 lg:w-[360px]">
-            <div className="flex items-center gap-2.5 px-card-pad pt-card-pad">
-              <IconTile name="spark" size="sm" />
+          {/* Right — Worth a look, a soft gray worklist panel on the lemon. Its
+              heading well matches the feed well on the left (same md size) but
+              wears lime, so it reads as the hero's own second mark. */}
+          <div className="flex shrink-0 flex-col overflow-hidden rounded-card bg-surface text-ink lg:w-[360px]">
+            <div className="flex items-center gap-3 px-card-pad pt-card-pad">
+              <IconTile name="spark" tone="lemon" />
               <b className="text-h2">Worth a look</b>
             </div>
             <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-card-pad pb-2 pt-2">
               {attention.map((a) => (
                 <Row
                   key={a.key}
-                  lead={<IconTile name={a.icon} tone={a.tone} size="sm" />}
+                  lead={<IconTile name={a.icon} tone="onTint" size="sm" />}
                   title={a.title}
                   meta={a.meta}
                   actions={a.action}
@@ -197,10 +190,10 @@ export function IpadToday() {
         </Card>
       </motion.div>
 
-      {/* HAPPENING TODAY — the whole day, dealt into three columns by when it
-          happens, so a busy day reads across, not down. */}
+      {/* THE DAY — dealt into three columns by when it happens, so a busy day
+          reads across, not down. No "Happening today" heading: the column
+          heads (Morning / Afternoon / Evening) already title the section. */}
       <motion.div variants={listItem} className="col-span-4 flex flex-col gap-tile">
-        <Eyebrow tone="onDark">Happening today</Eyebrow>
         {dayItems.length === 0 ? (
           <Card tone="wash" pad="lg" className="text-center">
             <Sentence className="py-6 text-white">The house is caught up. <Em>Nothing on.</Em></Sentence>
