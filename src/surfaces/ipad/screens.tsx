@@ -482,13 +482,22 @@ function CalendarPane({
    the house. Insights live here now: fairness belongs with the faces.
    ════════════════════════════════════════════════════════════════════════════ */
 
-const ROOMS = ["Kitchen", "Living room", "Primary bath", "Kids room", "Yard", "Garage"];
 const ASSETS: [string, string, string][] = [
   ["HVAC system", "Warranty to 2027", "Filter in 4 days"],
   ["Dishwasher", "Warranty to 2026", "Descale next mo"],
   ["Washer + dryer", "Warranty to 2028", "—"],
   ["Lawn mower", "Warranty ends Oct", "Service due"],
 ];
+
+/** One figure + its label in the wide insights card — ink on the lemon. */
+function Stat({ figure, label }: { figure: React.ReactNode; label: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="truncate text-h1 font-medium leading-none tabular-nums">{figure}</div>
+      <div className="mt-1 truncate text-caption font-medium text-ink/55">{label}</div>
+    </div>
+  );
+}
 
 /** The doors to the house's own machinery — sub-screens, not tabs. */
 const DOORS: { route: "inventory" | "maint" | "autos" | "settings"; icon: IconName; label: string; blurb: string }[] = [
@@ -604,11 +613,18 @@ export function IpadHousehold() {
   const people = everyone.filter((m) => m.kind === "person").length;
   const pets = everyone.filter((m) => m.kind === "pet").length;
 
-  // The insights, baked in: how much gets finished, and how it shares out.
+  // The insights, baked in: how much gets finished, how it shares out, and the
+  // machinery quietly carrying its own weight.
   const done = s.tasks.filter((t) => t.done).length;
   const pct = Math.round((done / Math.max(1, s.tasks.length)) * 100);
   const loads = doers(s).map((m) => ({ m, load: s.tasks.filter((t) => holder(t) === m.id).length }));
   const total = Math.max(1, loads.reduce((sum, l) => sum + l.load, 0));
+  const autoOn = s.automations.filter((a) => a.on).length;
+  const upkeep = s.maint.filter((m) => m.status === "over" || m.status === "due").length;
+  // Balance as a word, from how far apart the biggest and smallest loads sit.
+  const shares = loads.map((l) => Math.round((l.load / total) * 100));
+  const spread = shares.length ? Math.max(...shares) - Math.min(...shares) : 0;
+  const balanceLabel = spread <= 20 ? "Even" : spread <= 40 ? "Fair" : "Lopsided";
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
@@ -627,46 +643,11 @@ export function IpadHousehold() {
         </Sentence>
       </motion.div>
 
-      {/* Rooms are ambient structure, not work — wash. */}
+      {/* SHARE OF THE WORK — beside the people, where Rooms used to sit. The one
+          place the fairness engine surfaces: member-coloured load bars and the
+          lavender "even it out" when someone's carrying too much. */}
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
-          <TitleBlock size="card" tone="onDark" title="Rooms" />
-          <div className="mt-auto flex flex-wrap gap-2">
-            {ROOMS.map((r) => (
-              <span key={r} className="flex h-touch items-center gap-2 rounded-pill bg-white/[.08] px-3.5 text-bodysm font-medium text-white/85">
-                <Icon name="house" size={14} className="text-white/45" />
-                {r}
-              </span>
-            ))}
-          </div>
-        </Card>
-      </motion.div>
-
-      {everyone.map((m) => (
-        <motion.div key={m.id} variants={listItem}>
-          <PersonCard member={m} />
-        </motion.div>
-      ))}
-
-      {/* HOW IT'S GOING — the insights, where the people are. The lemon is the
-          screen's one shout; the balance display stays in the dark voice.
-          col-start-1 opens a fresh row: an odd person count would otherwise
-          wedge this pair into the leftover columns and split it. */}
-      <motion.div variants={listItem} className="col-span-2 col-start-1">
-        <Card tone="lemon" className="flex h-full min-h-[200px] flex-col">
-          <Eyebrow>Last 30 days</Eyebrow>
-          <div className="mt-auto flex items-end gap-4">
-            {/* Household voice — never "you're"; this is everyone's number. */}
-            <Sentence className="flex-1 max-w-[16ch]">
-              The house is finishing <Em>most</Em>{" "}of what it&rsquo;s asked.
-            </Sentence>
-            <span className="text-[46px] font-medium leading-none tabular-nums tracking-tighter">{pct}%</span>
-          </div>
-        </Card>
-      </motion.div>
-
-      <motion.div variants={listItem} className="col-span-2">
-        <Card tone="wash" className="flex h-full flex-col">
           <TitleBlock size="card" tone="onDark" title="Share of the work" />
           <div className="mt-stack flex-1">
             {loads.map(({ m, load }) => {
@@ -703,13 +684,47 @@ export function IpadHousehold() {
         </Card>
       </motion.div>
 
+      {everyone.map((m) => (
+        <motion.div key={m.id} variants={listItem}>
+          <PersonCard member={m} />
+        </motion.div>
+      ))}
+
+      {/* HOW IT'S GOING — the household's month at a glance, full width and the
+          screen's one lemon shout: a headline finish-rate plus the numbers
+          behind it. Household voice throughout — never "you're". */}
       <motion.div variants={listItem} className="col-span-4">
-        <Card pad="none">
-          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Appliances & warranties" />
+        <Card tone="lemon" className="flex flex-col">
+          <div className="flex items-start gap-6">
+            <div className="min-w-0 flex-1">
+              <Eyebrow>Last 30 days</Eyebrow>
+              <Sentence className="mt-2 max-w-[26ch]">
+                The house is finishing <Em>most</Em>{" "}of what it&rsquo;s asked.
+              </Sentence>
+            </div>
+            <div className="shrink-0 text-right">
+              <div className="text-[56px] font-medium leading-none tabular-nums tracking-tighter">{pct}%</div>
+              <div className="mt-1 text-caption font-medium text-ink/55">finished</div>
+            </div>
+          </div>
+          <div className="mt-6 grid grid-cols-4 gap-4 border-t border-ink/10 pt-5">
+            <Stat figure={done} label={done === 1 ? "thing done" : "things done"} />
+            <Stat figure={autoOn} label={autoOn === 1 ? "running on autopilot" : "on autopilot"} />
+            <Stat figure={upkeep} label="upkeep due" />
+            <Stat figure={balanceLabel} label="the balance" />
+          </div>
+        </Card>
+      </motion.div>
+
+      {/* Appliances — a read-only status list, so it wears the wash like every
+          other ambient block; white is reserved for worklists you act on. */}
+      <motion.div variants={listItem} className="col-span-4">
+        <Card tone="wash" pad="none">
+          <TitleBlock size="card" tone="onDark" className="px-card-pad pt-card-pad" title="Appliances & warranties" />
           <List className="pb-2">
             {ASSETS.map(([name, warranty, next]) => (
-              <Row key={name} lead={<IconTile name="box" />} title={name} meta={warranty}
-                actions={<Pill tone={next === "—" ? "tag" : "lavender"}>{next}</Pill>} />
+              <Row key={name} tone="dark" lead={<IconTile name="box" tone="onDark" />} title={name} meta={warranty}
+                actions={<Pill tone={next === "—" ? "dark" : "lavender"}>{next}</Pill>} />
             ))}
           </List>
         </Card>

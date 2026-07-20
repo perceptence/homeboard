@@ -83,24 +83,30 @@ export function List({ children, className }: { children: ReactNode; className?:
 }
 
 export function Row({
-  lead, title, meta, actions, onClick, muted,
+  lead, title, meta, actions, onClick, muted, tone = "light",
 }: {
   lead?: ReactNode; title: ReactNode; meta?: ReactNode; actions?: ReactNode;
   onClick?: () => void; muted?: boolean;
+  /** `dark` — the row lives on a wash/ink surface: the hairline and meta invert
+   *  to white so the whole row reads on the dark canvas. Title inherits (white
+   *  from the wash), same as on a light card it inherits ink. */
+  tone?: "light" | "dark";
 }) {
+  const dark = tone === "dark";
   return (
     <div
       onClick={onClick}
       className={clsx(
-        "-mx-2 flex min-h-touch items-center gap-4 rounded-sm border-t border-ink/[.06] px-2 py-3 transition-colors duration-300 ease-out first:border-t-0",
-        onClick && "cursor-pointer hover:bg-surface",
+        "-mx-2 flex min-h-touch items-center gap-4 rounded-sm border-t px-2 py-3 transition-colors duration-300 ease-out first:border-t-0",
+        dark ? "border-white/10" : "border-ink/[.06]",
+        onClick && (dark ? "cursor-pointer hover:bg-white/[.05]" : "cursor-pointer hover:bg-surface"),
         muted && "opacity-55",
       )}
     >
       {lead}
       <div className="min-w-0 flex-1">
         <div className="text-h2">{title}</div>
-        {meta && <div className="mt-0.5 truncate text-bodysm text-sub">{meta}</div>}
+        {meta && <div className={clsx("mt-0.5 truncate text-bodysm", dark ? "text-white/50" : "text-sub")}>{meta}</div>}
       </div>
       {actions && (
         <div className="ml-auto flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -454,7 +460,7 @@ export function Check({ done, onClick, size = 24 }: { done: boolean; onClick: ()
    Buttons — 52px primary; 44px is the floor for any tap target
    ============================================================ */
 
-export type BtnTone = "dark" | "lemon" | "light" | "outline" | "ghost";
+export type BtnTone = "dark" | "lemon" | "light" | "outline" | "outlineDark" | "ghost";
 export type BtnSize = "touch" | "lg";
 
 const btnTone: Record<BtnTone, string> = {
@@ -464,6 +470,9 @@ const btnTone: Record<BtnTone, string> = {
   light: "bg-card text-ink shadow-e1 hover:shadow-e2",
   /** The secondary action ON a white card. `light` would be white-on-white. */
   outline: "border border-ink/20 bg-transparent text-ink hover:bg-ink/[.04]",
+  /** `outline`'s dark twin — the secondary action ON a wash/ink surface, where
+   *  ink text and ink borders both vanish. */
+  outlineDark: "border border-white/25 bg-transparent text-white hover:bg-white/10",
   ghost: "bg-transparent text-sub hover:bg-ink/[.05] hover:text-ink",
 };
 
