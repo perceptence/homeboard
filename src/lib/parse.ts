@@ -259,19 +259,24 @@ export function parseTask(input: string, people: { id: string; name: string }[] 
  * what needs doing, and the app should know a dentist appointment can't be
  * handed off the way watering the plants can.
  *
- * Two honest signals, both about PRESENCE rather than effort: some things need
+ * Three honest signals, all about PRESENCE rather than effort: some things need
  * a specific body in a specific chair (medical, personal grooming, a booked
- * slot with a name attached), and some things are made of a plan shared with
- * someone in particular ("with Marco") — you can't send a substitute to your
- * own plans. Everything else defaults to flexible, because most household
- * work — trash, plants, groceries, laundry — genuinely doesn't care who does
- * it. Wrong guesses are a tap away to fix, never a blocker.
+ * slot), some name a PROPER-NOUN companion ("with Marco"), and some are a social
+ * meet-up with anyone ("coffee with priya", "lunch with the team") — you can't
+ * send a substitute to your own plans. Everything else defaults to flexible,
+ * because most household work — trash, plants, groceries, laundry — genuinely
+ * doesn't care who does it. Wrong guesses are a tap away to fix, never a blocker.
  */
 const PERSONAL_COMMITMENT = /\b(dentist|doctor|dr\.?\s|physician|appointment|check-?up|therapy|therapist|counsell?ing|haircut|salon|barber|manicure|pedicure|interview|exam|surgery|hearing|court date|graduation|wedding|funeral|rehearsal|lesson|flight|game|match|recital)\b/i;
-const SHARED_PLAN = /\bwith\s+[A-Z][\w'’-]*/;
+// A capitalised companion is a person, whatever the sentence: "Padel with Marco".
+const NAMED_PLAN = /\bwith\s+[A-Z][\w'’-]*/;
+// A social meet-up word + "with" is a plan with someone, and the companion may
+// be lowercase ("coffee with priya") — the activity word is what disambiguates
+// it from "help with homework". Kept tight so chores don't get swept in.
+const SOCIAL_PLAN = /\b(coffee|lunch|dinner|brunch|breakfast|drinks?|beers?|catch[-\s]?up|meet(?:ing|up)?|hang[-\s]?out|playdate|date night|walk|call)\b[\s\S]*\bwith\b/i;
 
 export function inferFixed(title: string): boolean {
-  return PERSONAL_COMMITMENT.test(title) || SHARED_PLAN.test(title);
+  return PERSONAL_COMMITMENT.test(title) || NAMED_PLAN.test(title) || SOCIAL_PLAN.test(title);
 }
 
 /**

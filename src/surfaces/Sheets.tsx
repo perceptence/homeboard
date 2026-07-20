@@ -28,20 +28,25 @@ const inferCat = (t: string): ShopCategory =>
  * ("Delete for good?") and puts the red button beside a way out. Red is the one
  * place this palette earns an alarm colour: a real, irreversible destroy.
  */
-function DeleteControl({ label, onDelete }: { label: string; onDelete: () => void }) {
+function DeleteControl({ label, onDelete, inline }: { label: string; onDelete: () => void; inline?: boolean }) {
   const [armed, setArmed] = useState(false);
+  // `inline` sits beside another foot action (Edit); the standalone variant is
+  // a full-width line on its own with top spacing.
   if (!armed) {
     return (
       <button
         onClick={() => setArmed(true)}
-        className="mt-4 flex w-full items-center justify-center gap-1.5 py-1.5 text-caption font-medium text-sub transition-colors hover:text-danger"
+        className={clsx(
+          "flex items-center justify-center gap-1.5 py-1.5 text-caption font-medium text-sub transition-colors hover:text-danger",
+          inline ? "" : "mt-4 w-full",
+        )}
       >
         <Icon name="trash" size={14} /> Delete {label}
       </button>
     );
   }
   return (
-    <div className="mt-4 flex items-center justify-center gap-2 text-caption font-medium">
+    <div className={clsx("flex items-center justify-center gap-2 text-caption font-medium", inline ? "" : "mt-4")}>
       <span className="text-sub">Delete for good?</span>
       <button onClick={() => setArmed(false)} className="rounded-pill px-3 py-1.5 text-ink transition-colors hover:bg-ink/[.05]">Keep it</button>
       <button onClick={onDelete} className="rounded-pill bg-danger px-3 py-1.5 text-white transition-[filter] hover:brightness-95">Delete</button>
@@ -1576,8 +1581,88 @@ function InventorySheet() {
 function EventSheet({ id }: { id: string }) {
   const s = useHousehold();
   const e = s.events.find((x) => x.id === id);
+
+  // Edit draft — hooks before any early return.
+  const [editing, setEditing] = useState(false);
+  const [dTitle, setDTitle] = useState("");
+  const [dWho, setDWho] = useState<MemberId>("");
+  const [dDay, setDDay] = useState("");
+  const [dTime, setDTime] = useState("");
+  const [pick, setPick] = useState<"date" | "time" | null>(null);
+
   if (!e) return null;
   const who = s.members[e.who];
+  const people = doers(s);
+
+  const startEdit = () => {
+    setDTitle(e.title); setDWho(e.who); setDDay(e.due); setDTime(e.time);
+    setPick(null); setEditing(true);
+  };
+  const save = () => {
+    if (!dTitle.trim()) return;
+    s.updateEvent(id, { title: dTitle.trim(), who: dWho, due: dDay, time: dTime });
+    setEditing(false);
+  };
+
+  // EDIT MODE — the U of CRUD. Same fields the composer fills, on an event that
+  // already exists: rename, re-assign, move the day or time.
+  if (editing) {
+    return (
+      <>
+        <span className="flex items-center gap-3">
+          <IconTile name="cal" tone="lemon" />
+          <h2 className="min-w-0 font-tight text-h1">Edit event</h2>
+        </span>
+
+        <input
+          autoFocus
+          value={dTitle}
+          onChange={(ev) => setDTitle(ev.target.value)}
+          onKeyDown={(ev) => { if (ev.key === "Enter") save(); }}
+          className="mt-5 w-full rounded-card border border-ink/[.12] bg-transparent px-4 py-3 text-body text-ink outline-none focus:border-ink/30"
+        />
+
+        <div className="mt-4">
+          <span className="text-caption font-medium uppercase tracking-wide text-sub">Whose</span>
+          <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto">
+            {people.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setDWho(m.id)}
+                className={clsx(
+                  "flex shrink-0 items-center gap-2 rounded-pill border py-1 pl-1 pr-3 transition-colors",
+                  dWho === m.id ? "border-ink bg-ink text-white" : "border-ink/[.12] text-ink hover:border-ink/30",
+                )}
+              >
+                <Avatar member={m} size={26} />
+                <span className="text-bodysm font-medium">{m.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <PickerChip kind="date" open={pick === "date"} active onToggle={() => setPick(pick === "date" ? null : "date")}>
+            {relative(dDay)}
+          </PickerChip>
+          <PickerChip kind="time" open={pick === "time"} active onToggle={() => setPick(pick === "time" ? null : "time")}>
+            {dTime}
+          </PickerChip>
+        </div>
+        <PickerPanel open={pick === "date"}>
+          <MiniCalendar value={dDay} onPick={(d) => { setDDay(d); setPick(null); }} />
+        </PickerPanel>
+        <PickerPanel open={pick === "time"}>
+          <MiniClock value={dTime} onPick={(t) => setDTime(t)} />
+        </PickerPanel>
+
+        <div className="mt-5 flex gap-2">
+          <Button tone="outline" size="lg" className="flex-1" onClick={() => setEditing(false)}>Cancel</Button>
+          <Button tone="lemon" size="lg" className="flex-1" disabled={!dTitle.trim()} onClick={save}>Save</Button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -1643,7 +1728,17 @@ function EventSheet({ id }: { id: string }) {
           </Button>
         </>
       )}
-      <DeleteControl label="event" onDelete={() => s.deleteEvent(e.id)} />
+      {/* Edit + Delete: the two quiet foot actions, same weight. */}
+      <div className="mt-4 flex items-center justify-center gap-1.5">
+        <button
+          onClick={startEdit}
+          className="flex items-center gap-1.5 py-1.5 text-caption font-medium text-sub transition-colors hover:text-ink"
+        >
+          <Icon name="gear" size={14} /> Edit event
+        </button>
+        <span aria-hidden className="text-sub/40">·</span>
+        <DeleteControl label="event" onDelete={() => s.deleteEvent(e.id)} inline />
+      </div>
     </>
   );
 }
@@ -1796,29 +1891,45 @@ function HandoffSheet({ id }: { id?: number }) {
                     }
                   />
 
-                  {/* THE SPLIT CTA. Left zone commits the recommendation in one
-                      tap; right zone (past the pipe) opens the dock to choose. */}
-                  <span className="flex shrink-0 items-stretch self-center overflow-hidden rounded-pill bg-ink text-white">
-                    <button
-                      disabled={!pick}
-                      onClick={(e) => { e.stopPropagation(); if (pick) s.handOff(t.id, pick.id); }}
-                      className="flex items-center gap-1.5 py-2 pl-3 pr-2.5 transition-colors hover:bg-white/10 disabled:opacity-50"
-                    >
-                      <Icon name="handoff" size={12} className="shrink-0" />
-                      {taker && <span className="max-w-[56px] truncate text-[11px] font-semibold">{taker.name}</span>}
-                    </button>
-                    <span aria-hidden className="my-1.5 w-px bg-white/20" />
+                  {/* THE CTA. With a recommendation it's a split control: left
+                      commits it in one tap, right opens the dock to choose
+                      instead. With NONE — a bill only the bill-holder can hold,
+                      say — there's nothing to one-tap, so it collapses to a
+                      single "Choose" that opens the dock. No dead disabled half. */}
+                  {pick ? (
+                    <span className="flex shrink-0 items-stretch self-center overflow-hidden rounded-pill bg-ink text-white">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); s.handOff(t.id, pick.id); }}
+                        className="flex items-center gap-1.5 py-2 pl-3 pr-2.5 transition-colors hover:bg-white/10"
+                      >
+                        <Icon name="handoff" size={12} className="shrink-0" />
+                        {taker && <span className="max-w-[56px] truncate text-[11px] font-semibold">{taker.name}</span>}
+                      </button>
+                      <span aria-hidden className="my-1.5 w-px bg-white/20" />
+                      <button
+                        aria-expanded={open}
+                        aria-label="Choose someone else"
+                        onClick={(e) => { e.stopPropagation(); toggle(); }}
+                        className="flex items-center px-2 transition-colors hover:bg-white/10"
+                      >
+                        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
+                          <Icon name="chevDown" size={12} className="text-white/70" />
+                        </motion.span>
+                      </button>
+                    </span>
+                  ) : (
                     <button
                       aria-expanded={open}
-                      aria-label="Choose someone else"
                       onClick={(e) => { e.stopPropagation(); toggle(); }}
-                      className="flex items-center px-2 transition-colors hover:bg-white/10"
+                      className="flex shrink-0 items-center gap-1.5 self-center rounded-pill bg-ink px-3.5 py-2 text-[11px] font-semibold text-white transition-colors hover:bg-ink/90"
                     >
+                      <Icon name="handoff" size={12} className="shrink-0" />
+                      Choose
                       <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
                         <Icon name="chevDown" size={12} className="text-white/70" />
                       </motion.span>
                     </button>
-                  </span>
+                  )}
                 </div>
 
                 <AnimatePresence initial={false}>

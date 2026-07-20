@@ -303,6 +303,8 @@ interface HouseholdState {
   /** Remove a task / event entirely. Both close their sheet and offer an undo. */
   deleteTask: (id: number) => void;
   addEvent: (e: { title: string; who: MemberId; due: string; time: string; recurring?: string }) => void;
+  /** Edit an event in place — the U of CRUD (title, whose, day, time, repeat). */
+  updateEvent: (id: string, patch: Partial<Pick<HouseEvent, "title" | "who" | "due" | "time" | "recurring">>) => void;
   deleteEvent: (id: string) => void;
   /** Push an event to a new time — the reschedule half of resolving a clash. */
   rescheduleEvent: (id: string, time: string) => void;
@@ -809,6 +811,18 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
             toast: `“${removed.title}” restored`,
             toastUndo: null,
           })),
+      };
+    }),
+
+  updateEvent: (id, patch) =>
+    set((s) => {
+      const e = s.events.find((x) => x.id === id);
+      if (!e) return {};
+      return {
+        events: s.events.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+        toast: "Event updated",
+        toastWho: (patch.who ?? e.who) as MemberId,
+        ...logged(s, `Edited “${patch.title ?? e.title}”`, patch.who ?? e.who),
       };
     }),
 
