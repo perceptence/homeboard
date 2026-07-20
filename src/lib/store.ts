@@ -26,6 +26,12 @@ export interface Sheet {
   draft?: { title: string; owner: MemberId | null; when: string; priority: Priority };
   /** The person a Cover / Reschedule sheet is resolving a conflict for. */
   who?: MemberId;
+  /** EDIT MODE for the one add composer (type "newTask"). Set exactly one: the
+   *  sheet opens pre-filled from that task/event, titled "Edit", and its footer
+   *  saves via updateTask / updateEvent instead of adding. The U of CRUD reuses
+   *  the very same screen as the C, so an edit looks like the add it mirrors. */
+  editTaskId?: number;
+  editEventId?: string;
   /** Seed text for the automation builder — the sentence someone typed into New
    *  Task that turned out to be a routine. Present only when launched from that
    *  nudge, which is also the signal to CLOSE (not return to Manage) on save. */
@@ -300,6 +306,8 @@ interface HouseholdState {
 
   toggleTask: (id: number) => void;
   addTask: (t: { title: string; owner: MemberId | null; when: string; due: string; priority: Priority; requires?: Role; minAge?: number; source?: string; said?: string; recurring?: string; amount?: number }) => void;
+  /** Edit a task in place — the U of CRUD (title, owner, day, time, priority, repeat). */
+  updateTask: (id: number, patch: Partial<Pick<Task, "title" | "owner" | "when" | "due" | "priority" | "recurring">>) => void;
   /** Remove a task / event entirely. Both close their sheet and offer an undo. */
   deleteTask: (id: number) => void;
   addEvent: (e: { title: string; who: MemberId; due: string; time: string; recurring?: string }) => void;
@@ -758,6 +766,24 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         sheet: null,
         toast: `Task added${forWho}`,
         ...logged(s, `Added “${title}”${forWho}`, owner ?? undefined),
+      };
+    }),
+
+  // Edit in place. Reassigning the owner clears a stale cover — a task handed to
+  // someone new isn't still "covered by" whoever the old owner had arranged.
+  updateTask: (id, patch) =>
+    set((s) => {
+      const t = s.tasks.find((x) => x.id === id);
+      if (!t) return {};
+      const reassigned = patch.owner !== undefined && patch.owner !== t.owner;
+      const nextOwner = patch.owner !== undefined ? patch.owner : t.owner;
+      return {
+        tasks: s.tasks.map((x) =>
+          x.id === id ? { ...x, ...patch, ...(reassigned ? { coveredBy: undefined } : {}) } : x,
+        ),
+        toast: "Task updated",
+        toastWho: nextOwner,
+        ...logged(s, `Edited “${patch.title ?? t.title}”`, nextOwner ?? undefined),
       };
     }),
 

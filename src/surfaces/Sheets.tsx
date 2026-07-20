@@ -225,7 +225,20 @@ function TaskSheet({ id }: { id: number }) {
           </Button>
         </>
       )}
-      <DeleteControl label="task" onDelete={() => s.deleteTask(id)} />
+      {/* Edit + Delete: the two quiet foot actions, same weight — mirrors an
+          event's sheet exactly. Edit reopens the add composer, pre-filled and
+          titled "Edit task", so correcting a task is the same screen as adding
+          one. */}
+      <div className="mt-4 flex items-center justify-center gap-1.5">
+        <button
+          onClick={() => s.openSheet({ type: "newTask", editTaskId: id })}
+          className="flex items-center gap-1.5 py-1.5 text-caption font-medium text-sub transition-colors hover:text-ink"
+        >
+          <Icon name="edit" size={14} /> Edit task
+        </button>
+        <span aria-hidden className="text-sub/40">·</span>
+        <DeleteControl label="task" onDelete={() => s.deleteTask(id)} inline />
+      </div>
     </>
   );
 }
@@ -1581,88 +1594,8 @@ function InventorySheet() {
 function EventSheet({ id }: { id: string }) {
   const s = useHousehold();
   const e = s.events.find((x) => x.id === id);
-
-  // Edit draft — hooks before any early return.
-  const [editing, setEditing] = useState(false);
-  const [dTitle, setDTitle] = useState("");
-  const [dWho, setDWho] = useState<MemberId>("");
-  const [dDay, setDDay] = useState("");
-  const [dTime, setDTime] = useState("");
-  const [pick, setPick] = useState<"date" | "time" | null>(null);
-
   if (!e) return null;
   const who = s.members[e.who];
-  const people = doers(s);
-
-  const startEdit = () => {
-    setDTitle(e.title); setDWho(e.who); setDDay(e.due); setDTime(e.time);
-    setPick(null); setEditing(true);
-  };
-  const save = () => {
-    if (!dTitle.trim()) return;
-    s.updateEvent(id, { title: dTitle.trim(), who: dWho, due: dDay, time: dTime });
-    setEditing(false);
-  };
-
-  // EDIT MODE — the U of CRUD. Same fields the composer fills, on an event that
-  // already exists: rename, re-assign, move the day or time.
-  if (editing) {
-    return (
-      <>
-        <span className="flex items-center gap-3">
-          <IconTile name="cal" tone="lemon" />
-          <h2 className="min-w-0 font-tight text-h1">Edit event</h2>
-        </span>
-
-        <input
-          autoFocus
-          value={dTitle}
-          onChange={(ev) => setDTitle(ev.target.value)}
-          onKeyDown={(ev) => { if (ev.key === "Enter") save(); }}
-          className="mt-5 w-full rounded-card border border-ink/[.12] bg-transparent px-4 py-3 text-body text-ink outline-none focus:border-ink/30"
-        />
-
-        <div className="mt-4">
-          <span className="text-caption font-medium uppercase tracking-wide text-sub">Whose</span>
-          <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto">
-            {people.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setDWho(m.id)}
-                className={clsx(
-                  "flex shrink-0 items-center gap-2 rounded-pill border py-1 pl-1 pr-3 transition-colors",
-                  dWho === m.id ? "border-ink bg-ink text-white" : "border-ink/[.12] text-ink hover:border-ink/30",
-                )}
-              >
-                <Avatar member={m} size={26} />
-                <span className="text-bodysm font-medium">{m.name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 flex gap-2">
-          <PickerChip kind="date" open={pick === "date"} active onToggle={() => setPick(pick === "date" ? null : "date")}>
-            {relative(dDay)}
-          </PickerChip>
-          <PickerChip kind="time" open={pick === "time"} active onToggle={() => setPick(pick === "time" ? null : "time")}>
-            {dTime}
-          </PickerChip>
-        </div>
-        <PickerPanel open={pick === "date"}>
-          <MiniCalendar value={dDay} onPick={(d) => { setDDay(d); setPick(null); }} />
-        </PickerPanel>
-        <PickerPanel open={pick === "time"}>
-          <MiniClock value={dTime} onPick={(t) => setDTime(t)} />
-        </PickerPanel>
-
-        <div className="mt-5 flex gap-2">
-          <Button tone="outline" size="lg" className="flex-1" onClick={() => setEditing(false)}>Cancel</Button>
-          <Button tone="lemon" size="lg" className="flex-1" disabled={!dTitle.trim()} onClick={save}>Save</Button>
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
@@ -1728,13 +1661,15 @@ function EventSheet({ id }: { id: string }) {
           </Button>
         </>
       )}
-      {/* Edit + Delete: the two quiet foot actions, same weight. */}
+      {/* Edit + Delete: the two quiet foot actions, same weight. Edit reopens the
+          very composer that CREATED it — pre-filled, titled "Edit event" — so the
+          U of CRUD is the same screen as the C, not a second bespoke form. */}
       <div className="mt-4 flex items-center justify-center gap-1.5">
         <button
-          onClick={startEdit}
+          onClick={() => s.openSheet({ type: "newTask", editEventId: e.id })}
           className="flex items-center gap-1.5 py-1.5 text-caption font-medium text-sub transition-colors hover:text-ink"
         >
-          <Icon name="gear" size={14} /> Edit event
+          <Icon name="edit" size={14} /> Edit event
         </button>
         <span aria-hidden className="text-sub/40">·</span>
         <DeleteControl label="event" onDelete={() => s.deleteEvent(e.id)} inline />
@@ -2109,6 +2044,15 @@ function NewTaskSheet({
   open, variant, onClose,
 }: { open: boolean; variant: "phone" | "ipad"; onClose: () => void }) {
   const s = useHousehold();
+  // EDIT MODE. The same composer is the U of CRUD as well as the C: opened with
+  // an id, it pre-fills from that task/event and saves in place. Exactly one id
+  // is ever set (the sheet type guards it), and `editing` is the single switch
+  // the render reads for its handful of add-vs-edit differences.
+  const sheet = s.sheet?.type === "newTask" ? s.sheet : undefined;
+  const editTaskId = sheet?.editTaskId;
+  const editEventId = sheet?.editEventId;
+  const editing = editTaskId != null || editEventId != null;
+
   const [raw, setRaw] = useState("");
   const [adjusting, setAdjusting] = useState(false);
   const [ownerPick, setOwnerPick] = useState<MemberId | null | undefined>(undefined);
@@ -2124,20 +2068,45 @@ function NewTaskSheet({
   const [fixedPick, setFixedPick] = useState<boolean | undefined>(undefined);
 
   // The sheet stays mounted so it can animate out — so it must forget the last
-  // task when it opens again, or you'd reopen onto someone else's sentence.
+  // task when it opens again, or you'd reopen onto someone else's sentence. In
+  // EDIT mode the same reset PRE-FILLS instead: every field starts on the thing
+  // being edited, so "Save" with no changes is a no-op and every control is a
+  // correction. Deps are the id pair, not `s` — we want the snapshot at open,
+  // not a re-fill on every keystroke the edit itself makes to the store.
   useEffect(() => {
     if (!open) return;
-    setRaw("");
     setAdjusting(false);
-    setOwnerPick(undefined);
-    setPickedDue(null);
-    setPickedWhen(null);
-    setPickedPri(null);
-    setRecurring(null);
     setDateOpen(false);
     setTimeOpen(false);
-    setFixedPick(undefined);
-  }, [open]);
+    if (editTaskId != null) {
+      const t = s.tasks.find((x) => x.id === editTaskId);
+      setRaw(t?.title ?? "");
+      setOwnerPick(t?.owner ?? null);
+      setPickedDue(t?.due ?? null);
+      setPickedWhen(t?.when ?? null);
+      setPickedPri(t?.priority ?? null);
+      setRecurring(t?.recurring ?? null);
+      setFixedPick(false); // a task is flexible — it's what makes it a task
+    } else if (editEventId != null) {
+      const e = s.events.find((x) => x.id === editEventId);
+      setRaw(e?.title ?? "");
+      setOwnerPick(e?.who ?? null);
+      setPickedDue(e?.due ?? null);
+      setPickedWhen(e?.time ?? null);
+      setPickedPri(null);
+      setRecurring(e?.recurring ?? null);
+      setFixedPick(true); // an event is a booked slot — fixed to whoever's going
+    } else {
+      setRaw("");
+      setOwnerPick(undefined);
+      setPickedDue(null);
+      setPickedWhen(null);
+      setPickedPri(null);
+      setRecurring(null);
+      setFixedPick(undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editTaskId, editEventId]);
 
   const people = doers(s);
   const dictation = useDictation((text) => setRaw(text));
@@ -2192,7 +2161,10 @@ function NewTaskSheet({
    * carries the VETTING with it: a precedent's requires/minAge come along, so
    * work assessed once is never re-assessed by a regex.
    */
-  const known = ready && settled && substantive ? recall(s, title) : null;
+  // No guessing in EDIT mode: the owner is already whoever holds it, so recall
+  // and the Balancer would be second-guessing a settled fact, not filling a
+  // blank. The Assign-to pills still let you reassign by hand.
+  const known = !editing && ready && settled && substantive ? recall(s, title) : null;
   const requires = parsed.requires ?? known?.requires;
   const minAge = known?.minAge;
   const source = known?.source;
@@ -2221,7 +2193,7 @@ function NewTaskSheet({
    * `gate` deliberately carries no owner, so suggestTaker ranks everyone and
    * doesn't exclude whoever is currently picked.
    */
-  const nominee = ready && settled && substantive ? suggestTaker(s, gate) : null;
+  const nominee = !editing && ready && settled && substantive ? suggestTaker(s, gate) : null;
 
   /**
    * WHO ACTUALLY GETS IT — including the Balancer's pick.
@@ -2263,6 +2235,20 @@ function NewTaskSheet({
   // thing it just heard.
   const commit = () => {
     if (!ready) return;
+    // EDIT saves in place and closes (updateTask/updateEvent don't touch the
+    // sheet, so the composer closes itself). A task stays a task and an event
+    // stays an event — the kind is fixed at edit time, so this never converts
+    // one into the other; it just writes back the fields the form exposes.
+    if (editTaskId != null) {
+      s.updateTask(editTaskId, { title, owner: assignee, when, due, priority, recurring: recurring ?? undefined });
+      onClose();
+      return;
+    }
+    if (editEventId != null) {
+      s.updateEvent(editEventId, { title, who: assignee ?? people[0]?.id, due, time: when, recurring: recurring ?? undefined });
+      onClose();
+      return;
+    }
     if (fixed) {
       s.addEvent({ title, who: assignee ?? people[0]?.id, due, time: when, recurring: recurring ?? undefined });
     } else {
@@ -2275,10 +2261,10 @@ function NewTaskSheet({
       open={open}
       onClose={onClose}
       variant={variant}
-      title="New task"
+      title={editEventId != null ? "Edit event" : editTaskId != null ? "Edit task" : "New task"}
       footer={
         <Button tone="lemon" size="lg" className={clsx("w-full", !ready && "opacity-40")} onClick={commit}>
-          {ready ? `Add “${title}”` : "Add task"}
+          {editing ? "Save changes" : ready ? `Add “${title}”` : "Add task"}
         </Button>
       }
     >
@@ -2404,7 +2390,7 @@ function NewTaskSheet({
           to be an automation that RECURS, not a task you'll re-add every week.
           Offered, never forced: the task footer still adds it as-is. Handing
           `autoText` over seeds the builder with the very words typed here. */}
-      {ready && routine && (
+      {ready && routine && !editing && (
         <div className="mt-3 flex items-center gap-3 rounded-card bg-lavender p-card-pad text-ink">
           <IconTile name="repeat" tone="onTint" />
           <div className="min-w-0 flex-1">
@@ -2487,7 +2473,11 @@ function NewTaskSheet({
                 question about the thing itself, decided by default and overridden
                 only when the guess is wrong. Hidden for money — a bill is never a
                 booked slot, whatever the sentence sounds like. */}
-            {parsed.amount == null && (
+            {/* Hidden in EDIT: this toggle switches a thing between task and event,
+                and an edit deliberately preserves the kind (converting is a delete
+                + re-add, not a field change). In add mode it's the one correction
+                for `inferFixed`'s guess. */}
+            {parsed.amount == null && !editing && (
               <div className="mt-4">
                 <span className="text-caption font-medium uppercase tracking-wide text-sub">Who can do it</span>
                 <div className="mt-2 flex flex-wrap gap-1.5">
