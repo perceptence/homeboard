@@ -3,10 +3,30 @@
 import clsx from "clsx";
 import { motion } from "framer-motion";
 import { badge, clockLabel, relative } from "@/lib/dates";
+import { press } from "@/lib/motion";
 import { holder, useHousehold } from "@/lib/store";
 import type { HouseEvent, MaintItem, Task } from "@/lib/types";
-import { Icon } from "./Icons";
+import { Icon, type IconName } from "./Icons";
 import { Avatar, Button, Card, Check, DateBadge, PriorityPill, TitleBlock } from "./ui";
+
+/**
+ * A trailing action reduced to its glyph: a white icon on a black-fill circle,
+ * sized to the reassign avatar it sits beside. On the dense shared-iPad columns
+ * a full "Remind" / "On my way" pill is more weight than the gesture needs — the
+ * circle carries the same tap, quietly.
+ */
+function RoundAction({ name, label, onClick }: { name: IconName; label: string; onClick: () => void }) {
+  return (
+    <motion.button
+      whileTap={press}
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      aria-label={label}
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-pill bg-ink text-white transition-colors duration-300 ease-out hover:bg-ink/90"
+    >
+      <Icon name={name} size={16} />
+    </motion.button>
+  );
+}
 
 /**
  * THE STANDARD CARD FORMAT — every task and event on a white card uses it:
@@ -117,9 +137,13 @@ export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean 
                 <Icon name="x" size={14} /> Cancel trip
               </Button>
             ) : !!task.waiting?.length && !task.done ? (
-              <Button tone="dark" onClick={() => onWay(task.id)}>
-                <Icon name="car" size={14} /> On my way
-              </Button>
+              showOwner ? (
+                <RoundAction name="car" label="On my way" onClick={() => onWay(task.id)} />
+              ) : (
+                <Button tone="dark" onClick={() => onWay(task.id)}>
+                  <Icon name="car" size={14} /> On my way
+                </Button>
+              )
             ) : showOwner ? (
               // On the shared iPad the day is dealt into dense columns, and a
               // filled black "Done" on every card turns the screen into a wall
@@ -187,11 +211,13 @@ export function EventCard({ event, showOwner }: { event: HouseEvent; showOwner?:
               <span className="flex items-center gap-1 text-caption font-medium text-sub">
                 <Icon name="check" size={14} /> Handled
               </span>
+            ) : showOwner ? (
+              // On the shared iPad the reminder collapses to its bell in a black
+              // circle — same tap, none of the pill's weight in the tight columns.
+              <RoundAction name="bell" label="Remind" onClick={() => remindForEvent(event.id)} />
             ) : (
               <Button tone="outline" onClick={() => remindForEvent(event.id)}>
-                {/* "Remind" on the shared iPad — the columns are tight and the
-                    "me" is noise there; the phone keeps the first-person promise. */}
-                <Icon name="bell" size={14} /> {showOwner ? "Remind" : "Remind me"}
+                <Icon name="bell" size={14} /> Remind me
               </Button>
             )}
           </>
