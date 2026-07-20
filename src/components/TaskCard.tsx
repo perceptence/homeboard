@@ -122,7 +122,12 @@ export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean 
         actions={
           <>
             {showOwner && owner && (
-              <button aria-label="Reassign" onClick={() => openSheet({ type: "assign", id: task.id })}>
+              // A bare <button> is a block box with its own text line —
+              // the avatar (inline-flex) sat on that line's baseline, which
+              // left descender space below it and threw the button's center
+              // off from the check-circle beside it. `flex` drops the line
+              // box entirely, so the button sizes to exactly its 32px avatar.
+              <button aria-label="Reassign" className="flex shrink-0" onClick={() => openSheet({ type: "assign", id: task.id })}>
                 <Avatar member={owner} />
               </button>
             )}
