@@ -87,6 +87,10 @@ export function IpadShell() {
             name="bell"
             label="Activity"
             tone="light"
+            // The dot's separator ring matches what's BEHIND the dot — the ink
+            // header. The default ring-lemon was built for the phone hero's
+            // lemon card and read as a yellow stroke here.
+            ring="ring-ink"
             dot={s.unread > 0}
             // Open ONLY — markRead moved into the sheet itself. Calling it here
             // burned the evidence before the sheet could render.
