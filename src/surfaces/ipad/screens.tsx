@@ -247,10 +247,12 @@ export function IpadToday() {
             const left = list.filter((x) => x.category === cat && !x.done).length;
             return (
             <Card key={cat} pad="none" className="self-start">
-              {/* Icon beside the title, the count riding the title's subtext. */}
-              <div className="flex items-center gap-3 px-card-pad pt-card-pad">
+              {/* Same card grammar as Worth a look / Appliances — icon on top, a
+                  space, the title (its count riding the subtext), then the data
+                  — but kept white, because this is a worklist you act on. */}
+              <div className="px-card-pad pt-card-pad">
                 <IconTile name={catIcon(cat)} />
-                <TitleBlock size="card" title={cat} subtext={left ? `${left} to get` : "All bought"} />
+                <TitleBlock size="card" className="mt-6" title={cat} subtext={left ? `${left} to get` : "All bought"} />
               </div>
               <List className="pt-3 pb-2">
                 {list.filter((x) => x.category === cat).map((i2) => (

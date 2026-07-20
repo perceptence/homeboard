@@ -6,7 +6,7 @@ import { badge, clockLabel, relative } from "@/lib/dates";
 import { holder, useHousehold } from "@/lib/store";
 import type { HouseEvent, MaintItem, Task } from "@/lib/types";
 import { Icon } from "./Icons";
-import { Avatar, Button, Card, DateBadge, PriorityPill, TitleBlock } from "./ui";
+import { Avatar, Button, Card, Check, DateBadge, PriorityPill, TitleBlock } from "./ui";
 
 /**
  * THE STANDARD CARD FORMAT — every task and event on a white card uses it:
@@ -120,6 +120,13 @@ export function TaskCard({ task, showOwner }: { task: Task; showOwner?: boolean 
               <Button tone="dark" onClick={() => onWay(task.id)}>
                 <Icon name="car" size={14} /> On my way
               </Button>
+            ) : showOwner ? (
+              // On the shared iPad the day is dealt into dense columns, and a
+              // filled black "Done" on every card turns the screen into a wall
+              // of ink slabs that drowns the one lemon shout. The quiet
+              // check-circle — the shopping list's own grammar — keeps the
+              // affordance and hands the ink back to the accent.
+              <Check done={task.done} onClick={() => toggleTask(task.id)} />
             ) : (
               <Button tone={task.done ? "outline" : "dark"} onClick={() => toggleTask(task.id)}>
                 <Icon name={task.done ? "undo" : "check"} size={14} /> {task.done ? "Undo" : "Done"}
@@ -182,7 +189,9 @@ export function EventCard({ event, showOwner }: { event: HouseEvent; showOwner?:
               </span>
             ) : (
               <Button tone="outline" onClick={() => remindForEvent(event.id)}>
-                <Icon name="bell" size={14} /> Remind me
+                {/* "Remind" on the shared iPad — the columns are tight and the
+                    "me" is noise there; the phone keeps the first-person promise. */}
+                <Icon name="bell" size={14} /> {showOwner ? "Remind" : "Remind me"}
               </Button>
             )}
           </>
