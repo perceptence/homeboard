@@ -17,6 +17,20 @@ import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
  *  usual ink ring. */
 const FOCUS = "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink";
 
+const DAY_PARTS = ["Morning", "Afternoon", "Evening"] as const;
+
+/** Which third of the day a thing sits in — a clock time by its hour (noon and
+ *  5pm the seams), a word-label ("After school", "Evening") by its word, and
+ *  anything timeless ("Any time", "all day") framing the morning. */
+const partOfDay = (when: string): 0 | 1 | 2 => {
+  const min = timeMinutes(when);
+  if (min >= 0) return min < 720 ? 0 : min < 1020 ? 1 : 2;
+  const w = when.toLowerCase();
+  if (/even|night|dinner/.test(w)) return 2;
+  if (/afternoon|school|lunch/.test(w)) return 1;
+  return 0;
+};
+
 /** A shopping category's own glyph — food for Groceries, a box for Supplies. */
 const catIcon = (cat: string): IconName => {
   const c = cat.toLowerCase();
@@ -91,32 +105,32 @@ export function IpadToday() {
     });
   }
 
-  /* HAPPENING TODAY — the whole household's day on one timeline, tasks and
-     events alike, in the order they happen.
+  /* HAPPENING TODAY, SPLIT IN THREE — the whole household's day dealt into
+     Morning / Afternoon / Evening columns so a full day spreads sideways
+     instead of towering down one rail.
 
-     The time sort waits for mount: demo events are seeded relative to NOW at
-     module import, and the server and client import moments apart — so the
-     minutes can differ across the hydration boundary and FLIP the merge order
-     (suppressHydrationWarning can absolve drifting text, but not a reordered
-     tree). First paint uses the stable key order both sides agree on; the
-     true time order lands with the first effect, invisible under the
-     entrance fade. */
+     Rendered only once mounted: demo events are seeded relative to NOW at
+     module import, and server/client import moments apart, so a time can drift
+     across the hydration boundary and land an item in a different column
+     (suppressHydrationWarning absolves drifting text, not a moved subtree).
+     Pre-mount both sides render nothing under the entrance fade; the columns
+     fill on the first effect. */
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-  const happening = [
-    ...today.map((t) => ({ key: `t${t.id}`, at: timeMinutes(t.when), el: <TaskCard task={t} showOwner /> })),
+  const dayItems = [
+    ...today.map((t) => ({ key: `t${t.id}`, when: t.when, part: partOfDay(t.when), el: <TaskCard task={t} showOwner /> })),
     ...s.events
       .filter((e) => isToday(e.due) && !e.done)
-      .map((e) => ({ key: `e${e.id}`, at: timeMinutes(e.time), el: <EventCard event={e} showOwner /> })),
-  ].sort((a, b) => (mounted ? a.at - b.at : 0) || a.key.localeCompare(b.key));
+      .map((e) => ({ key: `e${e.id}`, when: e.time, part: partOfDay(e.time), el: <EventCard event={e} showOwner /> })),
+  ];
+  const buckets = [0, 1, 2].map((p) =>
+    dayItems.filter((it) => it.part === p).sort((a, b) => timeMinutes(a.when) - timeMinutes(b.when) || a.key.localeCompare(b.key)),
+  );
 
-  /* UP NEXT — the earliest open thing today, for the hero's glance. Its own
-     small data pull (the happening list carries React nodes, not fields);
-     rendered only after mount, so the time-order drift never hits SSR. */
-  const nextUp = [
-    ...today.map((t) => ({ at: timeMinutes(t.when), title: t.title, whoId: holder(t), when: t.when })),
-    ...s.events.filter((e) => isToday(e.due) && !e.done).map((e) => ({ at: timeMinutes(e.time), title: e.title, whoId: e.who as string | null, when: e.time })),
-  ].sort((a, b) => a.at - b.at)[0];
+  // A warm, honest line under the faces — wfh counts as "around" (they're
+  // home); only out/away is elsewhere.
+  const out = doers(s).filter((m) => { const p = m.availability?.presence ?? "here"; return p === "out" || p === "away"; });
+  const familyLine = out.length === 0 ? "everyone’s around today" : `${out.map((m) => m.name).join(", ")} out today`;
 
   /* THE SHARED LIST — grouped the way you'd walk the shop. */
   const list = shoppingList(s);
@@ -125,13 +139,13 @@ export function IpadToday() {
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-x-3 gap-y-4 pb-2">
-      {/* THE HERO BAND — a full-width frame that opens the day: a big, warm
-          greeting and the house's count on the left; the family and the very
-          next thing on the right, walled off by a hairline. The frame you'd
-          screenshot. */}
+      {/* THE HERO BAND — the day, opened. The greeting and the family on the
+          left; on the right, a white panel of what actually needs someone —
+          "Worth a look" — so the hero carries a decision, not just a mood.
+          "Up next" moved out: it's the head of the day-columns below. */}
       <motion.div variants={listItem} className="col-span-4">
-        <Card tone="lemon" className="flex min-h-[300px] flex-col gap-8 lg:flex-row">
-          {/* Left — the greeting moment. */}
+        <Card tone="lemon" className="flex min-h-[300px] flex-col gap-6 lg:flex-row lg:gap-8">
+          {/* Left — the greeting and the family. */}
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex items-center gap-3">
               <IconTile name="feed" tone="onTint" />
@@ -141,78 +155,71 @@ export function IpadToday() {
               <h1 className="font-tight text-[56px] font-medium leading-[0.95] tracking-[-0.02em]">
                 <span suppressHydrationWarning>{greeting()}</span>.
               </h1>
-              <Sentence className="mt-3 max-w-[26ch]">
+              <Sentence className="mt-3 max-w-[24ch]">
                 <Em>{s.householdName}</Em> has <Em>{today.length}</Em>{" "}
                 {today.length === 1 ? "thing" : "things"} on today
                 {doneCount > 0 ? <>, <Em>{doneCount}</Em> already done</> : null}.
               </Sentence>
+              <div className="mt-6 flex items-center gap-3">
+                <span className="flex -space-x-2">
+                  {people.slice(0, 5).map((id) => (
+                    <span key={id} className="ring-2 ring-lemon">
+                      <Avatar member={s.members[id]} size={40} />
+                    </span>
+                  ))}
+                </span>
+                <span className="text-caption font-medium text-ink/50">{familyLine}</span>
+              </div>
             </div>
           </div>
 
-          {/* Right — the family, and what's next. */}
-          <div className="flex shrink-0 flex-col justify-between gap-6 border-ink/10 lg:w-[300px] lg:border-l lg:pl-8">
-            <div>
-              <Eyebrow className="!text-ink/50">The family</Eyebrow>
-              <div className="mt-3 flex -space-x-2">
-                {people.slice(0, 5).map((id) => (
-                  <span key={id} className="ring-2 ring-lemon">
-                    <Avatar member={s.members[id]} size={44} />
-                  </span>
-                ))}
-              </div>
+          {/* Right — Worth a look, a white worklist panel sitting on the lemon. */}
+          <div className="flex shrink-0 flex-col overflow-hidden rounded-card bg-card text-ink shadow-e1 lg:w-[360px]">
+            <div className="flex items-center gap-2.5 px-card-pad pt-card-pad">
+              <IconTile name="spark" size="sm" />
+              <b className="text-h2">Worth a look</b>
             </div>
-            {mounted && nextUp && (
-              <div className="rounded-card bg-ink/[.06] p-4">
-                <Eyebrow className="!text-ink/50">Up next</Eyebrow>
-                <div className="mt-2.5 flex items-center gap-3">
-                  <Avatar member={nextUp.whoId ? s.members[nextUp.whoId] : undefined} size={34} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-bodysm font-medium">{nextUp.title}</div>
-                    <div className="truncate text-caption text-ink/55">
-                      {nextUp.when || "Any time"}{nextUp.whoId ? ` · ${s.members[nextUp.whoId]?.name}` : ""}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-card-pad pb-2 pt-2">
+              {attention.map((a) => (
+                <Row
+                  key={a.key}
+                  lead={<IconTile name={a.icon} tone={a.tone} size="sm" />}
+                  title={a.title}
+                  meta={a.meta}
+                  actions={a.action}
+                />
+              ))}
+              {attention.length === 0 && (
+                <p className="py-8 text-center text-bodysm text-sub">Nothing needs a look. Rare — enjoy it.</p>
+              )}
+            </div>
           </div>
         </Card>
       </motion.div>
 
-      {/* HAPPENING TODAY — the day itself, whoever it belongs to. */}
-      <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
+      {/* HAPPENING TODAY — the whole day, dealt into three columns by when it
+          happens, so a busy day reads across, not down. */}
+      <motion.div variants={listItem} className="col-span-4 flex flex-col gap-tile">
         <Eyebrow tone="onDark">Happening today</Eyebrow>
-        {happening.map((c) => (
-          <div key={c.key}>{c.el}</div>
-        ))}
-        {happening.length === 0 && (
+        {dayItems.length === 0 ? (
           <Card tone="wash" pad="lg" className="text-center">
             <Sentence className="py-6 text-white">The house is caught up. <Em>Nothing on.</Em></Sentence>
           </Card>
-        )}
-      </motion.div>
-
-      {/* WORTH A LOOK — immediate attention, beside the day. Eyebrow on the ink
-          like Happening, so the two columns start level; the card then hugs
-          its rows instead of stretching to a blank the day's list left behind. */}
-      <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
-        <Eyebrow tone="onDark">Worth a look</Eyebrow>
-        <Card pad="none">
-          <List className="py-1.5">
-            {attention.map((a) => (
-              <Row
-                key={a.key}
-                lead={<IconTile name={a.icon} tone={a.tone} />}
-                title={a.title}
-                meta={a.meta}
-                actions={a.action}
-              />
+        ) : mounted ? (
+          <div className="grid grid-cols-3 items-start gap-3">
+            {DAY_PARTS.map((label, p) => (
+              <div key={label} className="flex flex-col gap-tile">
+                <div className="px-1 text-caption font-medium uppercase tracking-[0.08em] text-white/40">{label}</div>
+                {buckets[p].map((c) => (
+                  <div key={c.key}>{c.el}</div>
+                ))}
+                {buckets[p].length === 0 && (
+                  <div className="rounded-card border border-white/[.06] px-3 py-4 text-caption text-white/30">Nothing scheduled</div>
+                )}
+              </div>
             ))}
-            {attention.length === 0 && (
-              <p className="py-6 text-center text-bodysm text-sub">Nothing needs a look. Rare — enjoy it.</p>
-            )}
-          </List>
-        </Card>
+          </div>
+        ) : null}
       </motion.div>
 
       {/* THE SHARED LIST — today's errand, a wide shelf across the foot. */}
