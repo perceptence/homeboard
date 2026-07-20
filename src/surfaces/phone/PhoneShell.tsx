@@ -1041,7 +1041,15 @@ function PhoneToday() {
           <p className="mt-6 text-caption text-ink/55">Current tasks</p>
           <Sentence className="mt-1.5 !text-display">
             {mine.length === 0 ? (
-              <>You&rsquo;re all <Em>caught up</Em></>
+              // "Caught up" is a clear day — no tasks AND nothing on the
+              // calendar. With events still on (a double-booking, even), the day
+              // isn't clear; there's just nothing to TICK OFF. Claiming "caught
+              // up" while double-booked was the contradiction.
+              events.length === 0 ? (
+                <>You&rsquo;re all <Em>caught up</Em></>
+              ) : (
+                <>Nothing to <Em>tick off</Em><span className="block">for {dayWord}</span></>
+              )
             ) : (
               <>
                 You have <Em>{mine.length} {mine.length === 1 ? "task" : "tasks"}</Em>
@@ -1072,7 +1080,7 @@ function PhoneToday() {
               onClick={() => s.openSheet({ type: "reschedule", who: meId })}
               className="mt-3 flex items-center gap-1 text-caption font-medium text-danger"
             >
-              <Icon name="high" size={14} /> You&rsquo;re double-booked
+              You&rsquo;re double-booked <Icon name="high" size={14} />
             </button>
           )}
           {highCount > 0 && (
@@ -1086,7 +1094,10 @@ function PhoneToday() {
               }}
               className="mt-3 flex items-center gap-1 text-caption font-medium text-danger"
             >
-              <Icon name="high" size={14} /> {highCount} {highCount === 1 ? "is" : "are"} high
+              {/* Arrow trailing the words — the same "High ↗" shape the task
+                  cards wear, so the hero's urgent line and the card's read as
+                  one signal, not two conventions. */}
+              {highCount} {highCount === 1 ? "is" : "are"} high <Icon name="high" size={14} />
             </button>
           )}
         </Card>
