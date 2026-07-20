@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { MotionConfig } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icons";
 import { DeviceFrame } from "@/components/DeviceFrame";
@@ -49,6 +50,12 @@ export default function Page() {
   const clearToast = useCallback(() => useHousehold.getState().notify(null), []);
 
   return (
+    // reducedMotion="user" makes every framer animation in the app honor the
+    // OS "Reduce Motion" setting — transform/layout animations (slides, the
+    // nav's sliding fill, sheet travel, entrance y-shifts) collapse to instant
+    // while opacity fades stay, which is the accessible default. Drags and the
+    // DeviceFrame's CSS scale are untouched (neither is a framer animation).
+    <MotionConfig reducedMotion="user">
     <main
       className={clsx(
         "flex h-screen flex-col items-center overflow-hidden bg-room px-4 pb-2 pt-2",
@@ -111,6 +118,7 @@ export default function Page() {
 
       <DemoPanel />
     </main>
+    </MotionConfig>
   );
 }
 
