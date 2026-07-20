@@ -632,22 +632,14 @@ function CalendarPane({
     // tall enough to sit under the floating nav instead of clearing it. The
     // page scroll (not a second nested one) carries a long event list now.
     <Card className="flex flex-col @[1024px]:h-full">
-      {/* Header + a way to ADD to this day — the calendar could only be read
-          until now. The button carries the selected day into New event. */}
-      <div className="flex shrink-0 items-start justify-between gap-3">
-        <TitleBlock
-          size="card"
-          eyebrow={isToday(day) ? "Today" : d.toLocaleDateString("en-GB", { weekday: "long" })}
-          title={d.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
-        />
-        <button
-          onClick={() => s.openSheet({ type: "newEvent", due: day })}
-          aria-label="Add an event to this day"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-pill bg-ink text-white transition-colors hover:bg-ink/90"
-        >
-          <Icon name="plus" size={18} />
-        </button>
-      </div>
+      {/* Adding an event is the header's "+ Add" now (it makes an event on this
+          screen) — no second button here. */}
+      <TitleBlock
+        size="card"
+        className="shrink-0"
+        eyebrow={isToday(day) ? "Today" : d.toLocaleDateString("en-GB", { weekday: "long" })}
+        title={d.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
+      />
       <div className="no-scrollbar mt-stack -mx-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-1">
         {evs.map((e) => (
           <EventRow key={e.id} event={e} open={e.id === expandedId} onToggle={() => onToggle(e.id)} />

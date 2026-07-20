@@ -743,10 +743,14 @@ export function Toast({
             // alone let "Told Leo and Ada — Maps would open…" run past the glass.
             "pointer-events-none absolute bottom-[110px] left-1/2 z-[60] flex w-max items-center gap-2.5",
             "max-w-[calc(100%-32px)] whitespace-nowrap rounded-pill bg-card text-bodysm font-medium text-ink shadow-e3",
-            who ? "py-1.5 pl-1.5" : "h-touch pl-5",
-            // The undo affordance rides inside the pill; trim the trailing pad so
-            // the divider+button sit flush, else there's a dead gap after "Undo".
-            onUndo ? "pr-1.5" : who ? "pr-5" : "pr-5",
+            // An avatar OR an undo button rides inside a round thing that needs
+            // room top and bottom — give the pill vertical padding and let the
+            // control define its own height. A bare-text toast keeps the fixed
+            // 44px control height. (Before: the undo button self-stretched to a
+            // 44px h-touch pill with 0px breathing room and read as a jammed sliver.)
+            who || onUndo ? "py-1.5" : "h-touch",
+            who ? "pl-1.5" : "pl-5",
+            onUndo ? "pr-1.5" : "pr-5",
           )}
         >
           {who && (
@@ -766,9 +770,12 @@ export function Toast({
           {onUndo && (
             <button
               onClick={onUndo}
-              // The pill is pointer-events-none so it never eats a tap meant for the
-              // screen; the ONE interactive thing re-enables pointers on itself.
-              className="pointer-events-auto ml-1 flex shrink-0 items-center gap-1 self-stretch rounded-pill bg-ink/[.06] px-3.5 font-semibold text-ink transition-colors hover:bg-ink/10 active:bg-ink/[.14]"
+              // A defined, inset control — its own 36px height (not stretched to
+              // the pill), a solid ink fill so it reads clearly as THE action to
+              // take, and real breathing room from the pill edges. The pill is
+              // pointer-events-none so it never eats a tap meant for the screen;
+              // this one interactive thing re-enables pointers on itself.
+              className="pointer-events-auto ml-1 flex h-9 shrink-0 items-center gap-1.5 rounded-pill bg-ink px-4 font-semibold text-white transition-colors hover:bg-ink/90 active:bg-ink/80"
             >
               <Icon name="undo" size={14} />
               Undo
