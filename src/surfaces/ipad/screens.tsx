@@ -244,7 +244,7 @@ export function IpadToday() {
                 <IconTile name={catIcon(cat)} />
                 <TitleBlock size="card" title={cat} subtext={left ? `${left} to get` : "All bought"} />
               </div>
-              <List className="pb-2">
+              <List className="pt-3 pb-2">
                 {list.filter((x) => x.category === cat).map((i2) => (
                   <Row
                     key={i2.id}
