@@ -101,7 +101,11 @@ export function IpadShell() {
             tone="lemon"
             onClick={() => s.openSheet({ type: "newTask", draft: { title: "", owner: owner?.id ?? null, when: "Today", priority: "med" } })}
           >
-            <Icon name="plus" size={16} /> Add
+            {/* Lucide's plus is inset within its own 24×24 box, so its ink sits
+                further from the pill's left edge than "Add"'s ink sits from the
+                right — same padding, lopsided-looking result. Nudged left to
+                match, measured against the text's ink margin. */}
+            <Icon name="plus" size={16} className="-ml-[3px]" /> Add
           </Button>
         </div>
       </header>
