@@ -937,6 +937,9 @@ function PhoneToday() {
   const progress = readProgress(pct);
 
   const highCount = mine.filter((t) => t.priority === "high").length;
+  // Am I in two places at once today? A clash is a today thing, so it rides the
+  // hero only while the strip is on today — the same urgent register as "High".
+  const myClash = onSel ? conflicts(s, meId).find((c) => c.kind === "clash") : null;
   // "for today" on today; "for Saturday" on a day you've scrolled to.
   const dayWord = onSel ? "today" : selDate.toLocaleDateString("en-GB", { weekday: "long" });
 
@@ -1060,6 +1063,18 @@ function PhoneToday() {
               a year" under a headline about today, built from EVERY open task:
               "Twice a year" was the oven, due in 68 days. Deleted. With them gone
               the footer was a rule holding up one line.) */}
+          {/* A DOUBLE-BOOKING outranks a high task — you can't be in two places
+              at once — so it leads, in the same danger register as "High" (the
+              one urgent signal the day carries) and, like it, a DOOR: it opens
+              the reschedule flow to sort the clash, not just name it. */}
+          {myClash && (
+            <button
+              onClick={() => s.openSheet({ type: "reschedule", who: meId })}
+              className="mt-3 flex items-center gap-1 text-caption font-medium text-danger"
+            >
+              <Icon name="high" size={14} /> You&rsquo;re double-booked
+            </button>
+          )}
           {highCount > 0 && (
             /* A DOOR, not a label: the app's one urgent signal should take you
                to the urgent thing. Opens the day's first high task — with more

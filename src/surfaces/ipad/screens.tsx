@@ -141,6 +141,13 @@ export function IpadToday() {
   const buckets = [0, 1, 2].map((p) =>
     dayItems.filter((it) => it.part === p).sort((a, b) => timeMinutes(a.when) - timeMinutes(b.when) || a.key.localeCompare(b.key)),
   );
+  // Done items per part — the collapsed portrait snippet reports pending AND
+  // complete, not just the pending count, so a glance says how the block is
+  // going, not only what's left. (`buckets` above hold only the undone.)
+  const doneByPart = [0, 1, 2].map((p) =>
+    s.tasks.filter((t) => isToday(t.due) && t.done && partOfDay(t.when) === p).length +
+    s.events.filter((e) => isToday(e.due) && e.done && partOfDay(e.time) === p).length,
+  );
 
   // Portrait only (see the @[1024px]: gates below — landscape always shows
   // all three in full): the part of the day it actually is stays open, the
@@ -306,9 +313,11 @@ export function IpadToday() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={smooth}
-                            className="w-full rounded-card border border-white/[.06] bg-white/[.02] px-3 py-4 text-left text-caption text-white/40"
+                            className="flex w-full items-center gap-2 rounded-card border border-white/[.06] bg-white/[.02] px-3 py-4 text-left text-caption text-white/40"
                           >
-                            {buckets[p].length} {buckets[p].length === 1 ? "thing" : "things"}
+                            <span className="font-medium text-white/60">{buckets[p].length} to do</span>
+                            <span className="text-white/20">·</span>
+                            <span>{doneByPart[p]} done</span>
                           </motion.button>
                         )}
                       </AnimatePresence>
