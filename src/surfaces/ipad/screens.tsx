@@ -308,11 +308,12 @@ export function IpadToday() {
       </motion.div>
 
       {/* THE SHARED LIST — today's errand, a wide shelf across the foot.
-          Portrait carries extra clearance above it (mt-section, 32px) — the
-          grid gap it inherited by default was the same as every other
-          section seam, and this one needed to read as a bigger break, coming
-          right off a tall stack of day-columns. */}
-      <motion.div variants={listItem} className="col-span-4 flex flex-col gap-tile mt-section @[1024px]:mt-0">
+          Portrait carries a bit of extra clearance above it (mt-inner, 24px
+          — mt-section's 32px read as too much) — the grid gap it inherited
+          by default was the same as every other section seam, and this one
+          needed to read as a slightly bigger break, coming right off a tall
+          stack of day-columns. */}
+      <motion.div variants={listItem} className="col-span-4 flex flex-col gap-tile mt-inner @[1024px]:mt-0">
         <Eyebrow tone="onDark">Shopping</Eyebrow>
         {/* Lavender ONLY when the AI actually did something — the accent is
             earned by the act, not standing furniture. */}
@@ -516,7 +517,14 @@ export function IpadCalendar() {
       <div className="flex flex-col gap-card-pad @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:flex-row">
         <div className="flex min-w-0 flex-col @[1024px]:min-h-0 @[1024px]:flex-1">
           {view === "Week" ? (
-            <motion.div variants={listItem} className="grid max-h-[55vh] grid-cols-7 gap-2 overflow-y-auto @[1024px]:h-full @[1024px]:max-h-none @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:auto-rows-fr @[1024px]:overflow-visible">
+            // `vh` measures the REAL browser window, not the device frame's
+            // own scaled box — a max-h-[55vh] cap computed against the wrong
+            // thing and let the pane grow tall enough to collide with the
+            // floating nav. The page already scrolls in portrait (this whole
+            // screen dropped its viewport-lock for that reason), so there's
+            // no need for a second, nested scroll region here — just let the
+            // grid grow to fit its content.
+            <motion.div variants={listItem} className="grid grid-cols-7 gap-2 @[1024px]:h-full @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:auto-rows-fr">
               {weekDays(anchor).map((day) => dayCell(day, "week"))}
             </motion.div>
           ) : (
@@ -562,7 +570,11 @@ function CalendarPane({
   const d = parse(day);
 
   return (
-    <Card className="flex max-h-[50vh] flex-col @[1024px]:h-full @[1024px]:max-h-none">
+    // No portrait height cap, same reasoning as the week grid above it — a
+    // `vh` cap here computed against the real browser window, grew the pane
+    // tall enough to sit under the floating nav instead of clearing it. The
+    // page scroll (not a second nested one) carries a long event list now.
+    <Card className="flex flex-col @[1024px]:h-full">
       <TitleBlock
         size="card"
         className="shrink-0"
