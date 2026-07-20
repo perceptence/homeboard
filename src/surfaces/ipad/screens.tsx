@@ -9,7 +9,7 @@ import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Se
 import { Step } from "@/components/Period";
 import { addDays, clockLabel, isCurrentPeriod, iso, isToday, parse, periodLabel, relative, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
-import { billTasks, doers, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
+import { billTasks, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
 import type { HouseEvent, Member, Role } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 
@@ -505,13 +505,24 @@ const ASSETS: [string, string, string][] = [
   ["Lawn mower", "Warranty ends Oct", "Service due"],
 ];
 
-/** One figure + its label in the wide insights card — ink on the lemon. */
-function Stat({ figure, label }: { figure: React.ReactNode; label: string }) {
-  return (
-    <div className="min-w-0">
+/** One figure + its label in the wide insights card — ink on the lemon. With
+ *  `onClick` it becomes a door (the balance stat opens the rebalance sheet),
+ *  its label carrying a small arrow to say so. */
+function Stat({ figure, label, onClick }: { figure: React.ReactNode; label: string; onClick?: () => void }) {
+  const body = (
+    <>
       <div className="truncate text-h1 font-medium leading-none tabular-nums">{figure}</div>
-      <div className="mt-1 truncate text-caption font-medium text-ink/55">{label}</div>
-    </div>
+      <div className={clsx("mt-1 flex items-center gap-0.5 truncate text-caption font-medium", onClick ? "text-ink/70" : "text-ink/55")}>
+        {label}{onClick && <Icon name="arrow" size={12} />}
+      </div>
+    </>
+  );
+  return onClick ? (
+    <button onClick={onClick} className={clsx("-mx-1 min-w-0 rounded-sm px-1 py-0.5 text-left transition-colors hover:bg-ink/[.06]", FOCUS)}>
+      {body}
+    </button>
+  ) : (
+    <div className="min-w-0">{body}</div>
   );
 }
 
@@ -637,10 +648,12 @@ export function IpadHousehold() {
   const total = Math.max(1, loads.reduce((sum, l) => sum + l.load, 0));
   const autoOn = s.automations.filter((a) => a.on).length;
   const upkeep = s.maint.filter((m) => m.status === "over" || m.status === "due").length;
-  // Balance as a word, from how far apart the biggest and smallest loads sit.
-  const shares = loads.map((l) => Math.round((l.load / total) * 100));
-  const spread = shares.length ? Math.max(...shares) - Math.min(...shares) : 0;
-  const balanceLabel = spread <= 20 ? "Even" : spread <= 40 ? "Fair" : "Lopsided";
+  // Balance is the ENGINE's call, not a re-derived spread: previewRebalance
+  // returns a worthwhile move only when the load can actually be evened (it
+  // already knows who's barred from what), so "Even" means as-even-as-it-gets,
+  // not literally equal. When there IS a move, the stat becomes the door to it.
+  const move = previewRebalance(s);
+  const balanceLabel = move ? "Uneven" : "Even";
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
@@ -659,15 +672,16 @@ export function IpadHousehold() {
         </Sentence>
       </motion.div>
 
-      {/* SHARE OF THE WORK — beside the people, where Rooms used to sit. The one
-          place the fairness engine surfaces: member-coloured load bars and the
-          lavender "even it out" when someone's carrying too much. */}
+      {/* SHARE OF THE WORK — beside the people, where Rooms used to sit. The
+          phone card grammar: icon, space, title, then the data. Rebalancing
+          moved to the Last-30 card's balance stat, so no action lives here. */}
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
-          <TitleBlock size="card" tone="onDark" title="Share of the work" />
+          <IconTile name="scale" tone="onDark" />
+          <Eyebrow tone="onDark" className="mt-5">Share of the work</Eyebrow>
           {/* Caps at ~four rows and scrolls past that — a big family stays a
               tidy card beside the pulse instead of stretching the row. */}
-          <div className="no-scrollbar mt-stack max-h-[164px] flex-1 overflow-y-auto">
+          <div className="no-scrollbar mt-3 max-h-[164px] flex-1 overflow-y-auto">
             {loads.map(({ m, load }) => {
               const share = Math.round((load / total) * 100);
               return (
@@ -690,15 +704,6 @@ export function IpadHousehold() {
               );
             })}
           </div>
-          <Card tone="lavender" pad="md" className="mt-stack">
-            <div className="flex items-center gap-4">
-              <Icon name="spark" size={18} />
-              <div className="flex-1 text-bodysm font-medium leading-snug">
-                Someone&rsquo;s doing more than their share.
-              </div>
-              <Button size="touch" onClick={s.rebalance}>Even it out</Button>
-            </div>
-          </Card>
         </Card>
       </motion.div>
 
@@ -712,24 +717,29 @@ export function IpadHousehold() {
           screen's one lemon shout: a headline finish-rate plus the numbers
           behind it. Household voice throughout — never "you're". */}
       <motion.div variants={listItem} className="col-span-4">
+        {/* Phone card grammar: icon, space, title, data. */}
         <Card tone="lemon" className="flex flex-col">
-          <div className="flex items-start gap-6">
+          <IconTile name="trend" />
+          <div className="mt-6 flex items-end gap-4">
             <div className="min-w-0 flex-1">
               <Eyebrow>Last 30 days</Eyebrow>
-              <Sentence className="mt-2 max-w-[26ch]">
+              <Sentence className="mt-1 max-w-[24ch]">
                 The house is finishing <Em>most</Em>{" "}of what it&rsquo;s asked.
               </Sentence>
             </div>
-            <div className="shrink-0 text-right">
-              <div className="text-[56px] font-medium leading-none tabular-nums tracking-tighter">{pct}%</div>
-              <div className="mt-1 text-caption font-medium text-ink/55">finished</div>
-            </div>
+            <span className="shrink-0 font-tight text-[56px] font-medium leading-none tabular-nums tracking-tighter">{pct}%</span>
           </div>
           <div className="mt-6 grid grid-cols-4 gap-4 border-t border-ink/10 pt-5">
             <Stat figure={done} label={done === 1 ? "thing done" : "things done"} />
             <Stat figure={autoOn} label={autoOn === 1 ? "running on autopilot" : "on autopilot"} />
             <Stat figure={upkeep} label="upkeep due" />
-            <Stat figure={balanceLabel} label="the balance" />
+            {/* The balance is the door to rebalancing — only when there's a
+                worthwhile move; otherwise it's a plain, honest "Even". */}
+            <Stat
+              figure={balanceLabel}
+              label={move ? "even it out" : "the balance"}
+              onClick={move ? () => s.openSheet({ type: "rebalance" }) : undefined}
+            />
           </div>
         </Card>
       </motion.div>
