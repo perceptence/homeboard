@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
-import { Avatar, AvatarStack, Button, Card, Check, Choice, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
+import { Avatar, AvatarStack, Button, Card, Check, Choice, DateBadge, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
 import { smooth } from "@/lib/motion";
 import { addDays, ago, badge, clockLabel, dayLabel, iso, isToday, relative, startOfWeek, todayIso } from "@/lib/dates";
 import { taskGlyph } from "@/lib/glyphs";
@@ -432,27 +432,33 @@ function RescheduleSheet({ who }: { who?: MemberId }) {
       </span>
       <p className="mt-1.5 text-bodysm text-sub">{m.name} can&rsquo;t do both. Which one gives?</p>
 
-      {/* Pick the one to move. */}
+      {/* Pick the one to move. The SAME card as everywhere a task/event shows
+          (ItemCard: DateBadge stadium + TitleBlock) — a selectable ring is the
+          only thing added, so a clash reads as the two things you already know
+          from the calendar, not a bespoke picker. */}
       <div className="mt-4 space-y-2">
         {pair.map((it, i) => {
           const on = pickIdx === i;
+          const b = badge(todayIso());
+          const eyebrow = it.eventId
+            ? "Calendar"
+            : (it.taskId != null ? (s.tasks.find((t) => t.id === it.taskId)?.source ?? "Task") : "");
           return (
             <button
               key={i}
               onClick={() => { setPickIdx(i as 0 | 1); setCopied(false); }}
               className={clsx(
-                "flex w-full items-center gap-3 rounded-card p-3 text-left transition-shadow",
-                on ? "bg-card shadow-e2 ring-2 ring-inset ring-ink" : "bg-card/70 hover:bg-card",
+                "w-full rounded-card bg-card p-card-pad text-left transition-shadow",
+                on ? "shadow-e2 ring-2 ring-inset ring-ink" : "shadow-e1 hover:shadow-e2",
               )}
             >
-              <span className="grid w-[52px] shrink-0 place-items-center self-stretch rounded-pill bg-ink text-caption font-semibold text-white">
-                {it.time.replace(/\s?(AM|PM)/i, "")}
-              </span>
-              <div className="min-w-0 flex-1">
-                <b className="block truncate text-bodysm">{it.title}</b>
-                <span className="text-caption text-sub">{it.time}</span>
+              <div className="flex items-stretch gap-4">
+                <DateBadge day={b.day} weekday={b.weekday} />
+                <div className="min-w-0 flex-1 self-center">
+                  <TitleBlock size="card" oneLine eyebrow={eyebrow} title={it.title} subtext={it.time} />
+                </div>
+                {on && <Icon name="check" size={16} className="shrink-0 self-center text-ink" />}
               </div>
-              {on && <Icon name="check" size={16} className="shrink-0 text-ink" />}
             </button>
           );
         })}
