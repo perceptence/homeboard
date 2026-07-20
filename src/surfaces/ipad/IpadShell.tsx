@@ -101,17 +101,14 @@ export function IpadShell() {
             // burned the evidence before the sheet could render.
             onClick={() => s.openSheet({ type: "activity" })}
           />
-          {/* tone="lemon" — the app's one primary-action color. Context-aware:
-              on the Calendar it adds an EVENT (the thing that screen is made of);
-              everywhere else, a task. One Add button, the right kind each time —
-              so the calendar day-pane doesn't need its own. */}
+          {/* tone="lemon" — the app's one primary-action color. ONE door, every
+              route: New task is the whole add flow now — the app itself decides
+              whether what you typed is a booked slot (an event, can't be handed
+              off) or household work (a task, can), so there's nothing here to
+              route on. See `inferFixed` in lib/parse.ts. */}
           <Button
             tone="lemon"
-            onClick={() =>
-              route === "calendar"
-                ? s.openSheet({ type: "newEvent" })
-                : s.openSheet({ type: "newTask", draft: { title: "", owner: owner?.id ?? null, when: "Today", priority: "med" } })
-            }
+            onClick={() => s.openSheet({ type: "newTask", draft: { title: "", owner: owner?.id ?? null, when: "Today", priority: "med" } })}
           >
             {/* Lucide's plus is inset within its own 24×24 box, so its ink sits
                 further from the pill's left edge than "Add"'s ink sits from the

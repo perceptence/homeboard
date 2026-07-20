@@ -8,7 +8,7 @@ import { Avatar, AvatarStack, Button, Card, Check, Choice, Eyebrow, IconTile, Mi
 import { smooth } from "@/lib/motion";
 import { addDays, ago, badge, clockLabel, dayLabel, iso, isToday, relative, startOfWeek, todayIso } from "@/lib/dates";
 import { taskGlyph } from "@/lib/glyphs";
-import { parseAutomation, parseTask } from "@/lib/parse";
+import { inferFixed, parseAutomation, parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
 import { autoThenTitle, autoWhenPhrase, clashPair, currentMember, doers, pendingFor, previewCoverAway, previewRebalance, recall, shoppingList, strandedByAway, suggestTaker, useHousehold, whyNot } from "@/lib/store";
 import type { AutoThen, AutoWhen, HouseEvent, Member, MemberId, MemberKind, Priority, Role, ShopCategory, ShopItem, StockStatus, Task } from "@/lib/types";
@@ -78,7 +78,6 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
             one. Until now only tasks had a sheet, and the other two silently
             refused the tap — same affordance, different behaviour. */}
         {sheet?.type === "event" && <EventSheet id={sheet.id as string} />}
-        {sheet?.type === "newEvent" && <NewEventSheet due={sheet.due} />}
         {sheet?.type === "maint" && <MaintSheet id={sheet.id as string} />}
         {sheet?.type === "assign" && <AssignSheet id={sheet.id as number} />}
         {sheet?.type === "handoff" && <HandoffSheet id={sheet.id as number | undefined} />}
@@ -1643,85 +1642,6 @@ function EventSheet({ id }: { id: string }) {
   );
 }
 
-/**
- * NEW EVENT — the calendar could only be read; this is the create it was
- * missing. Opened from a day you tapped (its date rides in `due`), so the one
- * decision already made is filled: you name it, say who and when, and it lands
- * on that day. Whose event and what time reuse the app's own pickers.
- */
-function NewEventSheet({ due }: { due?: string }) {
-  const s = useHousehold();
-  const people = doers(s);
-  const [title, setTitle] = useState("");
-  const [who, setWho] = useState<MemberId>(people[0]?.id);
-  const [day, setDay] = useState(due ?? todayIso());
-  const [time, setTime] = useState("9:00 AM");
-  const [open, setOpen] = useState<"date" | "time" | null>(null);
-
-  const add = () => {
-    if (!title.trim()) return;
-    s.addEvent({ title: title.trim(), who, due: day, time });
-  };
-
-  return (
-    <>
-      <span className="flex items-center gap-3">
-        <IconTile name="cal" tone="lemon" />
-        <h2 className="min-w-0 font-tight text-h1">New event</h2>
-      </span>
-
-      <input
-        autoFocus
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") add(); }}
-        placeholder="What's happening?"
-        className="mt-5 w-full rounded-card border border-ink/[.12] bg-transparent px-4 py-3 text-body text-ink outline-none placeholder:text-sub focus:border-ink/30"
-      />
-
-      {/* WHO — the household's faces; tap to pick. */}
-      <div className="mt-4">
-        <span className="text-caption font-medium uppercase tracking-wide text-sub">Whose</span>
-        <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto">
-          {people.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setWho(m.id)}
-              className={clsx(
-                "flex shrink-0 items-center gap-2 rounded-pill border py-1 pl-1 pr-3 transition-colors",
-                who === m.id ? "border-ink bg-ink text-white" : "border-ink/[.12] text-ink hover:border-ink/30",
-              )}
-            >
-              <Avatar member={m} size={26} />
-              <span className="text-bodysm font-medium">{m.name}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* WHEN — the app's own date and time pickers, one open at a time. */}
-      <div className="mt-4 flex gap-2">
-        <PickerChip kind="date" open={open === "date"} active onToggle={() => setOpen(open === "date" ? null : "date")}>
-          {relative(day)}
-        </PickerChip>
-        <PickerChip kind="time" open={open === "time"} active onToggle={() => setOpen(open === "time" ? null : "time")}>
-          {time}
-        </PickerChip>
-      </div>
-      <PickerPanel open={open === "date"}>
-        <MiniCalendar value={day} onPick={(d) => { setDay(d); setOpen(null); }} />
-      </PickerPanel>
-      <PickerPanel open={open === "time"}>
-        <MiniClock value={time} onPick={(t) => setTime(t)} />
-      </PickerPanel>
-
-      <Button tone="lemon" size="lg" className="mt-5 w-full" disabled={!title.trim()} onClick={add}>
-        <Icon name="plus" size={16} /> Add event
-      </Button>
-    </>
-  );
-}
-
 /** Upkeep's detail. Its action is to SCHEDULE it — turning a standing obligation
  *  into a dated job someone holds. */
 function MaintSheet({ id }: { id: string }) {
@@ -2081,6 +2001,10 @@ function NewTaskSheet({
   const [recurring, setRecurring] = useState<string | null>(null);
   const [dateOpen, setDateOpen] = useState(false);
   const [timeOpen, setTimeOpen] = useState(false);
+  // Undefined = go with the app's own read of the sentence; set only once you
+  // correct it. See `inferFixed` — this is the one question that used to be a
+  // "Task or Event?" picker.
+  const [fixedPick, setFixedPick] = useState<boolean | undefined>(undefined);
 
   // The sheet stays mounted so it can animate out — so it must forget the last
   // task when it opens again, or you'd reopen onto someone else's sentence.
@@ -2095,6 +2019,7 @@ function NewTaskSheet({
     setRecurring(null);
     setDateOpen(false);
     setTimeOpen(false);
+    setFixedPick(undefined);
   }, [open]);
 
   const people = doers(s);
@@ -2208,10 +2133,25 @@ function NewTaskSheet({
     : assignee && assignee === nominee?.id ? nominee.reason
     : null;
   const dateLabel = DATE_CHIPS.find((c) => c.due() === due)?.label ?? relative(due);
+  // CAN SOMEONE ELSE DO THIS? Money never is — a bill is an obligation to pay,
+  // not a booked slot with a body in it, whatever the sentence sounds like.
+  const fixed = parsed.amount != null ? false : fixedPick ?? inferFixed(title);
   // `requires` rides along: the gate the suggestion respected must also land on
   // the task, or a nomination refused here could be hand-assigned there.
-  const commit = () =>
-    ready && s.addTask({ title, owner: assignee, when, due, priority, requires, minAge, source, said, recurring: recurring ?? undefined, amount: parsed.amount });
+  //
+  // ONE composer, two shapes underneath — the person never picks between them.
+  // "Fixed" work is a booked slot tied to whoever's going (an event: no owner/
+  // coveredBy, can't be handed off); everything else is a task the household
+  // can redistribute. Same sentence, same form; the app decides which kind of
+  // thing it just heard.
+  const commit = () => {
+    if (!ready) return;
+    if (fixed) {
+      s.addEvent({ title, who: assignee ?? people[0]?.id, due, time: when, recurring: recurring ?? undefined });
+    } else {
+      s.addTask({ title, owner: assignee, when, due, priority, requires, minAge, source, said, recurring: recurring ?? undefined, amount: parsed.amount });
+    }
+  };
 
   return (
     <Sheet
@@ -2308,12 +2248,28 @@ function NewTaskSheet({
                 nobody is eligible at all we say THAT, rather than "Anyone",
                 which sounded like a choice and meant nobody. */}
             · <span className="text-ink">{assignee ? s.members[assignee].name : "Needs an owner"}</span>
-            {priority !== "med" && <>· <span className="text-ink">{PRIORITY_LABEL[priority]}</span></>}
+            {/* Priority is a WORK concept — a booked slot doesn't triage. */}
+            {!fixed && priority !== "med" && <>· <span className="text-ink">{PRIORITY_LABEL[priority]}</span></>}
           </div>
           {/* WHY. The app filled a person in from its own memory, so it has to
               show its working — "Leo usually does this" is checkable; a name
               appearing on its own is just the app being confident at you. */}
           {why && <p className="mt-1 text-caption text-sub">{why}.</p>}
+          {/* THE ONE FACT WORTH SURFACING WITHOUT OPENING ADJUST: whether this
+              can be handed off. Silent when it can (the common case — most
+              household work doesn't care who does it); named when it can't, so
+              "why isn't there a Cover/Hand-off option on this one" never has to
+              be asked. */}
+          {fixed && (
+            <p className="mt-1 flex items-center gap-1 text-caption text-sub">
+              <Icon name="pin" size={12} />
+              {/* {" "} forces the space between the expression and the literal
+                  text that follows it — adjacent to an interpolated value, each
+                  becomes its own text-node child of this flex row, and a plain
+                  leading space on the second one collapses at its own edge. */}
+              Just {assignee ? s.members[assignee].name : "them"}{" "}— this one can&rsquo;t be handed off.
+            </p>
+          )}
           <button
             onClick={() => setAdjusting(!adjusting)}
             aria-expanded={adjusting}
@@ -2408,6 +2364,24 @@ function NewTaskSheet({
               </PickerPanel>
             </div>
 
+            {/* CAN SOMEONE ELSE DO THIS? — the fact `inferFixed` guessed, correctable
+                in one tap. This used to be a "Task or Event?" choice the person had
+                to understand the app's own internals to answer; now it's a plain
+                question about the thing itself, decided by default and overridden
+                only when the guess is wrong. Hidden for money — a bill is never a
+                booked slot, whatever the sentence sounds like. */}
+            {parsed.amount == null && (
+              <div className="mt-4">
+                <span className="text-caption font-medium uppercase tracking-wide text-sub">Who can do it</span>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Choice selected={!fixed} onClick={() => setFixedPick(false)}>Anyone in the house</Choice>
+                  <Choice selected={fixed} onClick={() => setFixedPick(true)}>
+                    Just {assignee ? s.members[assignee].name : "them"}
+                  </Choice>
+                </div>
+              </div>
+            )}
+
             <div className="mt-4">
               <span className="text-caption font-medium uppercase tracking-wide text-sub">Assign to</span>
               {/* Shows who is ACTUALLY getting it — including the Balancer's pick,
@@ -2452,20 +2426,23 @@ function NewTaskSheet({
               )}
             </div>
 
-            <div className="mt-4">
-              <span className="text-caption font-medium uppercase tracking-wide text-sub">Priority</span>
-              {/* Hug, like every other pill on this sheet. `flex-1` stretched these
-                  three to fill the row, so one control group sat to a different
-                  rhythm than the four above it for no reason. */}
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {(["low", "med", "high"] as Priority[]).map((p) => (
-                  <Choice key={p} className="!gap-1" selected={priority === p} onClick={() => setPickedPri(p)}>
-                    {PRIORITY_LABEL[p]}
-                    {p === "high" && <Icon name="high" size={12} className={priority === p ? "" : "text-danger"} />}
-                  </Choice>
-                ))}
+            {/* Priority is a WORK concept — a booked slot doesn't triage. */}
+            {!fixed && (
+              <div className="mt-4">
+                <span className="text-caption font-medium uppercase tracking-wide text-sub">Priority</span>
+                {/* Hug, like every other pill on this sheet. `flex-1` stretched these
+                    three to fill the row, so one control group sat to a different
+                    rhythm than the four above it for no reason. */}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {(["low", "med", "high"] as Priority[]).map((p) => (
+                    <Choice key={p} className="!gap-1" selected={priority === p} onClick={() => setPickedPri(p)}>
+                      {PRIORITY_LABEL[p]}
+                      {p === "high" && <Icon name="high" size={12} className={priority === p ? "" : "text-danger"} />}
+                    </Choice>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* REPEAT — a repeating task is a routine; the house keeps the clock. */}
             <div className="mt-4">

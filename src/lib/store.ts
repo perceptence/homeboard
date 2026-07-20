@@ -16,13 +16,14 @@ import {
 import { addDays, iso, isToday, relative, relativeInline, timeMinutes, todayIso } from "./dates";
 
 export interface Sheet {
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newEvent" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock" | "cover" | "reschedule";
+  // No separate "newEvent" — New task is the ONE add flow for both; the app
+  // decides task vs event from what was typed (see `inferFixed` in parse.ts)
+  // so the person is never asked to understand the app's own internal split.
+  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock" | "cover" | "reschedule";
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;
   draft?: { title: string; owner: MemberId | null; when: string; priority: Priority };
-  /** Pre-fills New event with the day you tapped on the calendar. */
-  due?: string;
   /** The person a Cover / Reschedule sheet is resolving a conflict for. */
   who?: MemberId;
   /** Seed text for the automation builder — the sentence someone typed into New

@@ -253,6 +253,28 @@ export function parseTask(input: string, people: { id: string; name: string }[] 
 }
 
 /**
+ * CAN SOMEONE ELSE DO THIS? — the one question that used to be a type picker
+ * ("Task" vs "Event") the person had to answer themselves. They shouldn't have
+ * to know the app keeps two shapes of thing internally; they should just say
+ * what needs doing, and the app should know a dentist appointment can't be
+ * handed off the way watering the plants can.
+ *
+ * Two honest signals, both about PRESENCE rather than effort: some things need
+ * a specific body in a specific chair (medical, personal grooming, a booked
+ * slot with a name attached), and some things are made of a plan shared with
+ * someone in particular ("with Marco") — you can't send a substitute to your
+ * own plans. Everything else defaults to flexible, because most household
+ * work — trash, plants, groceries, laundry — genuinely doesn't care who does
+ * it. Wrong guesses are a tap away to fix, never a blocker.
+ */
+const PERSONAL_COMMITMENT = /\b(dentist|doctor|dr\.?\s|physician|appointment|check-?up|therapy|therapist|counsell?ing|haircut|salon|barber|manicure|pedicure|interview|exam|surgery|hearing|court date|graduation|wedding|funeral|rehearsal|lesson|flight|game|match|recital)\b/i;
+const SHARED_PLAN = /\bwith\s+[A-Z][\w'’-]*/;
+
+export function inferFixed(title: string): boolean {
+  return PERSONAL_COMMITMENT.test(title) || SHARED_PLAN.test(title);
+}
+
+/**
  * Lifting words out of the middle of a sentence leaves debris at the ends:
  * "water the plants on July 23rd" -> "water the plants on", and
  * "water plants may be tomorrow" -> "water plants may be". Both are the app
