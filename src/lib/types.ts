@@ -621,12 +621,12 @@ export interface ActivityEntry {
 export type Persona = "ipad" | MemberId;
 /**
  * The iPad mirrors the phone's axis, minus the personal tab (the iPad is
- * never a person): today = what's on now · ahead = the period lens ·
+ * never a person): today = what's on now · calendar = the week on the wall ·
  * household = the people and the things around the house. The last four are
  * Household's sub-screens (doors, not tabs) — the nav keeps Household lit.
  */
 export type IpadRoute =
-  | "today" | "ahead" | "household"
+  | "today" | "calendar" | "household"
   | "inventory" | "maint" | "autos" | "settings";
 /**
  * The phone has THREE tabs, on one axis: now -> later -> me.

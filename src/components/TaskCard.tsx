@@ -155,7 +155,11 @@ export function EventCard({ event, showOwner }: { event: HouseEvent; showOwner?:
         onOpen={() => openSheet({ type: "event", id: event.id })}
         subtitle={
           <>
-            {clockLabel(event.time)}
+            {/* Demo events are seeded relative to NOW at module import, and the
+                server's module cache makes its copy minutes stale against the
+                client's fresh import — the time is drifting text, same
+                carve-out as todayLabel()/timeOfDay(). */}
+            <span suppressHydrationWarning>{clockLabel(event.time)}</span>
             {event.recurring && (
               <>
                 <Icon name="repeat" size={14} />

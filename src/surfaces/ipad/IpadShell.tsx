@@ -9,7 +9,7 @@ import { press, smooth, spring } from "@/lib/motion";
 import { doers, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
 import type { IpadRoute } from "@/lib/types";
-import { IpadAhead, IpadHousehold, IpadToday } from "./screens";
+import { IpadCalendar, IpadHousehold, IpadToday } from "./screens";
 import { IpadAutomations, IpadInventory, IpadMaint, IpadSettings } from "./more";
 import { SearchResults } from "./Search";
 
@@ -17,7 +17,7 @@ import { SearchResults } from "./Search";
 function RouteView({ route }: { route: IpadRoute }) {
   switch (route) {
     case "today": return <IpadToday />;
-    case "ahead": return <IpadAhead />;
+    case "calendar": return <IpadCalendar />;
     case "household": return <IpadHousehold />;
     case "inventory": return <IpadInventory />;
     case "maint": return <IpadMaint />;
@@ -30,7 +30,7 @@ function RouteView({ route }: { route: IpadRoute }) {
 /** Three tabs, the phone's axis minus the personal one: now → later → us. */
 const NAV: { route: IpadRoute; icon: IconName; label: string }[] = [
   { route: "today", icon: "feed", label: "Today" },
-  { route: "ahead", icon: "cal", label: "Ahead" },
+  { route: "calendar", icon: "cal", label: "Calendar" },
   { route: "household", icon: "people", label: "Household" },
 ];
 

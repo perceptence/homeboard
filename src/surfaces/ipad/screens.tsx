@@ -1,19 +1,15 @@
 "use client";
 
 import clsx from "clsx";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
-import { EventCard, MaintCard, TaskCard } from "@/components/TaskCard";
-import { ScopePicker, Step, type Scope } from "@/components/Period";
+import { EventCard, TaskCard } from "@/components/TaskCard";
 import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TitleBlock, type TileTone } from "@/components/ui";
-import {
-  groupIsPast, inRange, isCurrentPeriod, isToday, monthKey, monthLabel, parse,
-  periodRange, relative, shiftPeriod, timeMinutes, timeOfDay, today as todayLabel, weekKey, weekLabel,
-} from "@/lib/dates";
+import { addDays, iso, isToday, relative, startOfWeek, timeMinutes, timeOfDay, today as todayLabel } from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
 import { billTasks, doers, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
-import type { HouseEvent, MaintItem, Member, Role, Task } from "@/lib/types";
+import type { Member, Role } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 
 /** Focus ring for raw buttons on a LIGHT surface (inside a Card) — the app's
@@ -86,13 +82,23 @@ export function IpadToday() {
   }
 
   /* HAPPENING TODAY — the whole household's day on one timeline, tasks and
-     events alike, in the order they happen. */
+     events alike, in the order they happen.
+
+     The time sort waits for mount: demo events are seeded relative to NOW at
+     module import, and the server and client import moments apart — so the
+     minutes can differ across the hydration boundary and FLIP the merge order
+     (suppressHydrationWarning can absolve drifting text, but not a reordered
+     tree). First paint uses the stable key order both sides agree on; the
+     true time order lands with the first effect, invisible under the
+     entrance fade. */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const happening = [
     ...today.map((t) => ({ key: `t${t.id}`, at: timeMinutes(t.when), el: <TaskCard task={t} showOwner /> })),
     ...s.events
       .filter((e) => isToday(e.due) && !e.done)
       .map((e) => ({ key: `e${e.id}`, at: timeMinutes(e.time), el: <EventCard event={e} showOwner /> })),
-  ].sort((a, b) => a.at - b.at);
+  ].sort((a, b) => (mounted ? a.at - b.at : 0) || a.key.localeCompare(b.key));
 
   /* THE SHARED LIST — grouped the way you'd walk the shop. */
   const list = shoppingList(s);
@@ -204,179 +210,72 @@ export function IpadToday() {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   AHEAD — the phone's period lens, in the household voice: everyone's tasks,
-   events and upkeep on one dated timeline, at Week / Month / Quarter / Year.
+   CALENDAR — the week on the wall: today's list beside the pulse, then the
+   real Mon–Sun in the dark idiom, member-coloured chips, lemon = today.
    ════════════════════════════════════════════════════════════════════════════ */
 
-/** One row in the Ahead list — a task, an event or an upkeep item, all dated. */
-type Item =
-  | { kind: "task"; due: string; task: Task }
-  | { kind: "event"; due: string; event: HouseEvent }
-  | { kind: "maint"; due: string; item: MaintItem };
+/** The real Mon–Sun of the week you're in — not a hardcoded row of numbers. */
+const weekDays = () =>
+  Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(new Date()), i));
 
-const isDone = (i: Item) => i.kind === "task" && i.task.done;
-
-/**
- * The phone's `aheadFor`, minus the member filter — the iPad is the household,
- * so EVERYTHING dated is on its horizon (unowned tasks included: work nobody
- * owns is still the house's). No query branches either: the iPad's search is
- * the global overlay in the header.
- */
-function aheadForHouse(
-  s: ReturnType<typeof useHousehold.getState>,
-  scope: Scope,
-  anchor: Date,
-) {
-  const range = periodRange(scope, anchor);
-
-  const items: Item[] = [
-    ...s.tasks
-      .filter((t) => inRange(t.due, range))
-      .map((task): Item => ({ kind: "task", due: task.due, task })),
-    ...s.events
-      .filter((e) => inRange(e.due, range))
-      .map((event): Item => ({ kind: "event", due: event.due, event })),
-    // Upkeep only shows once you're looking past the current week — same rule
-    // as the phone: a Week view is about the days, not the season.
-    ...(scope === "Week"
-      ? []
-      : s.maint
-          .filter((m) => inRange(m.due, range))
-          .map((item): Item => ({ kind: "maint", due: item.due, item }))),
-  ].sort((a, b) => a.due.localeCompare(b.due) || Number(isDone(a)) - Number(isDone(b)));
-
-  /* Group at the rung BELOW the scope — grouping a month by month is one
-     group, which is no grouping at all. */
-  const by = scope === "Week" ? null : scope === "Month" ? "week" : "month";
-  const keyOf = (due: string) => (by === "week" ? weekKey(due) : monthKey(due));
-
-  const groups = !by
-    ? [{ key: "", label: "", items, past: false }]
-    : [...new Set(items.map((i) => keyOf(i.due)))].sort().map((key) => ({
-        key,
-        label: by === "week" ? weekLabel(key) : monthLabel(key),
-        items: items.filter((i) => keyOf(i.due) === key),
-        past: groupIsPast(key),
-      }));
-
-  return {
-    groups,
-    /** Zooming a group means "show me that period" — a week key needs Week scope. */
-    zoomScope: (by === "week" ? "Week" : "Month") as Scope,
-    count: items.filter((i) => !isDone(i)).length,
-  };
-}
-
-export function IpadAhead() {
+export function IpadCalendar() {
   const s = useHousehold();
-  const [scope, setScope] = useState<Scope>("Week");
-  const [anchor, setAnchor] = useState<Date>(() => new Date());
-  const [scopeOpen, setScopeOpen] = useState(false);
-  const ahead = aheadForHouse(s, scope, anchor);
-
-  const setScopeAt = (next: Scope) => {
-    // Changing scope always re-centres on today; you meant "this month", not
-    // "the month around whatever you happened to be reading".
-    setScope(next);
-    setAnchor(new Date());
-  };
-  /** Zoom a group: same data, tighter lens. A week group needs Week scope. */
-  const zoomTo = (key: string) => {
-    setAnchor(parse(key.length === 7 ? `${key}-01` : key));
-    setScope(ahead.zoomScope);
-  };
-  const step = (dir: -1 | 1) => setAnchor((a) => shiftPeriod(scope, a, dir));
 
   return (
-    <motion.div variants={listStagger} initial="hidden" animate="show">
-      {/* Page voice on the ink — the same control cluster the phone's Ahead
-          header carries: ‹ period › with the label AS the scope picker. */}
-      <motion.div variants={listItem} className="px-1.5">
-        <TitleBlock
-          size="page"
-          tone="onDark"
-          eyebrow={
-            <span className="-ml-1 flex items-center gap-0.5">
-              <Step dir={-1} onClick={() => step(-1)} />
-              <ScopePicker
-                scope={scope} anchor={anchor}
-                open={scopeOpen} setOpen={setScopeOpen}
-                onPick={setScopeAt}
-              />
-              <Step dir={1} onClick={() => step(1)} />
-              {!isCurrentPeriod(scope, anchor) && (
-                <button
-                  onClick={() => setAnchor(new Date())}
-                  className="ml-1 rounded-pill bg-white/10 px-2 py-0.5 text-caption normal-case tracking-normal text-white/70 transition-colors hover:bg-white/20 hover:text-white"
-                >
-                  Today
-                </button>
-              )}
-            </span>
-          }
-          title="What’s ahead"
-          subtext={`${ahead.count} ${ahead.count === 1 ? "thing" : "things"} this ${scope.toLowerCase()}`}
-        />
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
+      {/* Pulse on the ink. */}
+      <motion.div variants={listItem} className="col-span-2 flex min-h-[200px] flex-col px-1.5 py-1">
+        <Eyebrow tone="onDark">Calendar</Eyebrow>
+        <Sentence className="mt-auto max-w-[18ch] text-white">
+          <Em>{s.events.length}</Em> things on the calendar this week.
+        </Sentence>
       </motion.div>
 
-      {/* Swipe/drag left or right to step a period — we only read the gesture's
-          DIRECTION; dragSnapToOrigin puts the list back. */}
-      <motion.div
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.12}
-        dragSnapToOrigin
-        onDragEnd={(_, info) => {
-          if (Math.abs(info.offset.x) > 60) step(info.offset.x < 0 ? 1 : -1);
-        }}
-        className="mt-stack flex flex-col gap-tile"
-      >
-        {ahead.groups.map((g) => (
-          <div key={g.key || "flat"} className="flex flex-col gap-tile">
-            {/* A group heading is a DOOR: tap it to narrow the screen onto that
-                period — and the affordance names where it lands. */}
-            {g.key && (
-              <motion.button
-                variants={listItem}
-                onClick={() => zoomTo(g.key)}
-                className={clsx("group flex items-center gap-2 px-1.5 pb-1 pt-3 text-left", FOCUS_DARK)}
-              >
-                <Eyebrow tone="onDark" className={clsx(g.past && "text-white/25")}>{g.label}</Eyebrow>
-                <span className="text-caption text-white/30">{g.items.length}</span>
-                <span className="ml-auto flex items-center gap-0.5 whitespace-nowrap text-micro
-                                 uppercase tracking-[.14em] text-white/30 transition-colors
-                                 group-hover:text-white/70">
-                  Open {ahead.zoomScope.toLowerCase()}
-                  <Icon name="fwd" size={12} />
-                </span>
-              </motion.button>
-            )}
-            {/* Two columns — the cards are compact stadiums, and a 900px single
-                column reads as a ribbon in a hallway. */}
-            <div className="grid grid-cols-2 gap-tile">
-              {g.items.map((i) => (
-                <motion.div
-                  key={`${i.kind}-${i.kind === "task" ? i.task.id : i.kind === "event" ? i.event.id : i.item.id}`}
-                  variants={listItem}
-                  // What's behind you is still there, just quieter.
-                  className={clsx(g.past && "opacity-60")}
-                >
-                  {i.kind === "task" && <TaskCard task={i.task} showOwner />}
-                  {i.kind === "event" && <EventCard event={i.event} showOwner />}
-                  {i.kind === "maint" && <MaintCard item={i.item} />}
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        ))}
+      <motion.div variants={listItem} className="col-span-2">
+        <Card pad="none" className="h-full">
+          <TitleBlock size="card" className="px-card-pad pt-card-pad" title="Today" />
+          <List className="pb-2">
+            {s.events.filter((e) => isToday(e.due)).map((e) => (
+              <Row key={e.id} lead={<Avatar member={s.members[e.who]} size={32} />} title={e.title}
+                meta={`${e.time} · ${s.members[e.who]?.name}`} />
+            ))}
+          </List>
+        </Card>
+      </motion.div>
 
-        {ahead.count === 0 && (
-          <motion.div variants={listItem}>
-            <Card tone="wash" pad="lg" className="text-center">
-              <Sentence className="py-6 text-white">Nothing on this {scope.toLowerCase()} — <Em>enjoy!</Em></Sentence>
+      {/* The week, in the dark idiom — same as the phone's own calendar cells
+          (washes, lemon = today). Seven opaque columns was a wall of white;
+          the member-coloured event chips read BETTER against the wash. */}
+      <motion.div variants={listItem} className="col-span-4 grid grid-cols-7 gap-3">
+        {weekDays().map((day) => {
+          const isTodayCell = isToday(iso(day));
+          return (
+            <Card
+              key={iso(day)}
+              // The lemon card is TODAY — which is a date test, not "the first column".
+              tone={isTodayCell ? "lemon" : "wash"}
+              pad="md"
+              className="min-h-[200px]"
+            >
+              <div className="flex items-baseline justify-between">
+                <span className={clsx("text-caption font-medium uppercase", isTodayCell ? "opacity-50" : "text-white/45")}>
+                  {day.toLocaleDateString("en-GB", { weekday: "short" })}
+                </span>
+                <span className="text-h2 tabular-nums">{day.getDate()}</span>
+              </div>
+              {s.events.filter((e) => e.due === iso(day)).map((e) => (
+                <div
+                  key={e.id}
+                  style={{ background: s.members[e.who].color }}
+                  className="mt-2 rounded-sm px-2 py-1.5 text-micro font-medium leading-tight text-white"
+                >
+                  <div className="opacity-75">{e.time}</div>
+                  {e.title}
+                </div>
+              ))}
             </Card>
-          </motion.div>
-        )}
+          );
+        })}
       </motion.div>
     </motion.div>
   );

@@ -1333,7 +1333,9 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 12: the iPad collapsed to three tabs — IpadRoute lost home/tasks/shopping/
   //     calendar/insights/more/bills; a persisted stale route would render
   //     nothing. Re-seed.
-  version: 12,
+  // 13: the middle tab is Calendar again ("ahead" is no longer a route) — a
+  //     persisted "ahead" would leave the collapsed nav pill EMPTY. Re-seed.
+  version: 13,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.
@@ -1790,8 +1792,7 @@ export const searchAll = (s: HouseholdState, raw: string): SearchHit[] => {
   });
   s.events.forEach((e) => {
     if (!e.title.toLowerCase().includes(q)) return;
-    // Events are dated things — the Ahead lens is where a date lives.
-    hits.push({ key: `e${e.id}`, icon: "cal", title: e.title, meta: `Calendar · ${e.time}`, route: "ahead" });
+    hits.push({ key: `e${e.id}`, icon: "cal", title: e.title, meta: `Calendar · ${e.time}`, route: "calendar" });
   });
   Object.values(s.members).forEach((m) => {
     if (!m.name.toLowerCase().includes(q)) return;
