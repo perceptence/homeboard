@@ -235,16 +235,14 @@ export function IpadToday() {
           </Card>
         )}
         <div className="grid grid-cols-3 gap-3">
-          {cats.map((cat) => (
+          {cats.map((cat) => {
+            const left = list.filter((x) => x.category === cat && !x.done).length;
+            return (
             <Card key={cat} pad="none" className="self-start">
-              <div className="px-card-pad pt-card-pad">
+              {/* Icon beside the title, the count riding the title's subtext. */}
+              <div className="flex items-center gap-3 px-card-pad pt-card-pad">
                 <IconTile name={catIcon(cat)} />
-                <div className="mt-4 flex items-center">
-                  <TitleBlock size="card" title={cat} />
-                  <span className="ml-auto text-caption font-medium text-sub">
-                    {list.filter((x) => x.category === cat && !x.done).length}
-                  </span>
-                </div>
+                <TitleBlock size="card" title={cat} subtext={left ? `${left} to get` : "All bought"} />
               </div>
               <List className="pb-2">
                 {list.filter((x) => x.category === cat).map((i2) => (
@@ -258,7 +256,8 @@ export function IpadToday() {
                 ))}
               </List>
             </Card>
-          ))}
+            );
+          })}
         </div>
       </motion.div>
     </motion.div>
