@@ -495,7 +495,12 @@ export function IpadCalendar() {
       <motion.div variants={listItem} className="flex shrink-0 items-end gap-3 px-1.5">
         <div className="min-w-0">
           <Eyebrow tone="onDark">Calendar</Eyebrow>
-          <div className="mt-1 flex items-center gap-1">
+          {/* -ml-2.5 hangs the leading chevron out to the left so its VISIBLE
+              ink lines up with the "Calendar" eyebrow's left edge, not its
+              tap-target box — the 24px Step centres a 16px glyph whose chevron
+              is itself drawn in the right of that box, leaving the arrow ~10px
+              indented otherwise. The extra tap area just bleeds into the gutter. */}
+          <div className="mt-1 -ml-2.5 flex items-center gap-1">
             {/* ‹ flanks the value on the left, › on the right — the period reads
                 as the thing you're stepping through, not a label with a pair of
                 arrows tacked after it. */}
