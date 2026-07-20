@@ -7,7 +7,7 @@ import { Icon, type IconName } from "@/components/Icons";
 import { EventCard, TaskCard } from "@/components/TaskCard";
 import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TabToggle, TitleBlock, type TileTone } from "@/components/ui";
 import { Step } from "@/components/Period";
-import { addDays, clockLabel, isCurrentPeriod, iso, isToday, parse, periodLabel, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
+import { addDays, clockLabel, greeting, isCurrentPeriod, iso, isToday, parse, periodLabel, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
 import { billTasks, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
 import type { HouseEvent, Member, Role } from "@/lib/types";
@@ -110,6 +110,14 @@ export function IpadToday() {
       .map((e) => ({ key: `e${e.id}`, at: timeMinutes(e.time), el: <EventCard event={e} showOwner /> })),
   ].sort((a, b) => (mounted ? a.at - b.at : 0) || a.key.localeCompare(b.key));
 
+  /* UP NEXT — the earliest open thing today, for the hero's glance. Its own
+     small data pull (the happening list carries React nodes, not fields);
+     rendered only after mount, so the time-order drift never hits SSR. */
+  const nextUp = [
+    ...today.map((t) => ({ at: timeMinutes(t.when), title: t.title, whoId: holder(t), when: t.when })),
+    ...s.events.filter((e) => isToday(e.due) && !e.done).map((e) => ({ at: timeMinutes(e.time), title: e.title, whoId: e.who as string | null, when: e.time })),
+  ].sort((a, b) => a.at - b.at)[0];
+
   /* THE SHARED LIST — grouped the way you'd walk the shop. */
   const list = shoppingList(s);
   const autoAdded = list.filter((i) => i.low && !i.done);
@@ -117,35 +125,74 @@ export function IpadToday() {
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
-      {/* HERO — the day, said out loud, in the HOUSE's voice. Card grammar:
-          icon (feed, the Today mark) + the faces, then the space, then the
-          date title and the day itself. */}
-      <motion.div variants={listItem} className="col-span-2">
-        <Card tone="lemon" className="flex h-full min-h-[240px] flex-col">
-          <div className="flex items-center">
-            <IconTile name="feed" tone="onTint" />
-            <span className="ml-auto flex -space-x-2">
-              {people.slice(0, 4).map((id) => (
-                <span key={id} className="ring-2 ring-lemon">
-                  <Avatar member={s.members[id]} size={30} />
-                </span>
-              ))}
-            </span>
-          </div>
-          <div className="mt-auto">
-            <Eyebrow><span suppressHydrationWarning>{todayLabel()}</span></Eyebrow>
-            <Sentence className="mt-1 max-w-[20ch]">
-              <span suppressHydrationWarning>{timeOfDay()}</span>. <Em>{s.householdName}</Em> has{" "}
-              <Em>{today.length}</Em> {today.length === 1 ? "thing" : "things"} on today.
-            </Sentence>
-            <div className="mt-4 flex items-center gap-2">
-              <Pill tone="tag">{doneCount} already done</Pill>
+      {/* THE HERO BAND — a full-width frame that opens the day: a big, warm
+          greeting and the house's count on the left; the family and the very
+          next thing on the right, walled off by a hairline. The frame you'd
+          screenshot. */}
+      <motion.div variants={listItem} className="col-span-4">
+        <Card tone="lemon" className="flex min-h-[300px] flex-col gap-8 lg:flex-row">
+          {/* Left — the greeting moment. */}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex items-center gap-3">
+              <IconTile name="feed" tone="onTint" />
+              <Eyebrow className="!text-ink/50"><span suppressHydrationWarning>{todayLabel()}</span></Eyebrow>
             </div>
+            <div className="mt-auto">
+              <h1 className="font-tight text-[56px] font-medium leading-[0.95] tracking-[-0.02em]">
+                <span suppressHydrationWarning>{greeting()}</span>.
+              </h1>
+              <Sentence className="mt-3 max-w-[26ch]">
+                <Em>{s.householdName}</Em> has <Em>{today.length}</Em>{" "}
+                {today.length === 1 ? "thing" : "things"} on today
+                {doneCount > 0 ? <>, <Em>{doneCount}</Em> already done</> : null}.
+              </Sentence>
+            </div>
+          </div>
+
+          {/* Right — the family, and what's next. */}
+          <div className="flex shrink-0 flex-col justify-between gap-6 border-ink/10 lg:w-[300px] lg:border-l lg:pl-8">
+            <div>
+              <Eyebrow className="!text-ink/50">The family</Eyebrow>
+              <div className="mt-3 flex -space-x-2">
+                {people.slice(0, 5).map((id) => (
+                  <span key={id} className="ring-2 ring-lemon">
+                    <Avatar member={s.members[id]} size={44} />
+                  </span>
+                ))}
+              </div>
+            </div>
+            {mounted && nextUp && (
+              <div className="rounded-card bg-ink/[.06] p-4">
+                <Eyebrow className="!text-ink/50">Up next</Eyebrow>
+                <div className="mt-2.5 flex items-center gap-3">
+                  <Avatar member={nextUp.whoId ? s.members[nextUp.whoId] : undefined} size={34} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-bodysm font-medium">{nextUp.title}</div>
+                    <div className="truncate text-caption text-ink/55">
+                      {nextUp.when || "Any time"}{nextUp.whoId ? ` · ${s.members[nextUp.whoId]?.name}` : ""}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </Card>
       </motion.div>
 
-      {/* WORTH A LOOK — immediate attention, top of the page. */}
+      {/* HAPPENING TODAY — the day itself, whoever it belongs to. */}
+      <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
+        <Eyebrow tone="onDark">Happening today</Eyebrow>
+        {happening.map((c) => (
+          <div key={c.key}>{c.el}</div>
+        ))}
+        {happening.length === 0 && (
+          <Card tone="wash" pad="lg" className="text-center">
+            <Sentence className="py-6 text-white">The house is caught up. <Em>Nothing on.</Em></Sentence>
+          </Card>
+        )}
+      </motion.div>
+
+      {/* WORTH A LOOK — immediate attention, beside the day. */}
       <motion.div variants={listItem} className="col-span-2">
         <Card pad="none" className="flex h-full flex-col">
           <div className="px-card-pad pt-card-pad">
@@ -169,58 +216,51 @@ export function IpadToday() {
         </Card>
       </motion.div>
 
-      {/* HAPPENING TODAY — the day itself, whoever it belongs to. */}
-      <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
-        <Eyebrow tone="onDark">Happening today</Eyebrow>
-        {happening.map((c) => (
-          <div key={c.key}>{c.el}</div>
-        ))}
-        {happening.length === 0 && (
-          <Card tone="wash" pad="lg" className="text-center">
-            <Sentence className="py-6 text-white">The house is caught up. <Em>Nothing on.</Em></Sentence>
-          </Card>
-        )}
-      </motion.div>
-
-      {/* THE SHARED LIST — today's errand, on today's page. */}
-      <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
+      {/* THE SHARED LIST — today's errand, a wide shelf across the foot. */}
+      <motion.div variants={listItem} className="col-span-4 flex flex-col gap-tile">
         <Eyebrow tone="onDark">Shopping</Eyebrow>
         {/* Lavender ONLY when the AI actually did something — the accent is
             earned by the act, not standing furniture. */}
         {autoAdded.length > 0 && (
           <Card tone="lavender">
-            <IconTile name="spark" tone="lemon" />
-            <Eyebrow className="mt-4">Auto-added</Eyebrow>
-            <div className="mt-1 text-bodysm font-medium leading-snug">
-              <Em>{autoAdded.length}</Em> things that were running low, straight onto the list:{" "}
-              {autoAdded.map((i) => i.title).join(", ")}.
+            <div className="flex items-center gap-4">
+              <IconTile name="spark" tone="lemon" />
+              <div className="min-w-0">
+                <Eyebrow>Auto-added</Eyebrow>
+                <div className="mt-0.5 text-bodysm font-medium leading-snug">
+                  <Em>{autoAdded.length}</Em> things that were running low, straight onto the list:{" "}
+                  {autoAdded.map((i) => i.title).join(", ")}.
+                </div>
+              </div>
             </div>
           </Card>
         )}
-        {cats.map((cat) => (
-          <Card key={cat} pad="none">
-            <div className="px-card-pad pt-card-pad">
-              <IconTile name={catIcon(cat)} />
-              <div className="mt-4 flex items-center">
-                <TitleBlock size="card" title={cat} />
-                <span className="ml-auto text-caption font-medium text-sub">
-                  {list.filter((x) => x.category === cat && !x.done).length}
-                </span>
+        <div className="grid grid-cols-3 gap-card-pad">
+          {cats.map((cat) => (
+            <Card key={cat} pad="none" className="self-start">
+              <div className="px-card-pad pt-card-pad">
+                <IconTile name={catIcon(cat)} />
+                <div className="mt-4 flex items-center">
+                  <TitleBlock size="card" title={cat} />
+                  <span className="ml-auto text-caption font-medium text-sub">
+                    {list.filter((x) => x.category === cat && !x.done).length}
+                  </span>
+                </div>
               </div>
-            </div>
-            <List className="pb-2">
-              {list.filter((x) => x.category === cat).map((i2) => (
-                <Row
-                  key={i2.id}
-                  lead={<Check done={i2.done} onClick={() => s.toggleShopItem(i2.id)} />}
-                  title={<span className={i2.done ? "text-sub line-through" : ""}>{i2.title}</span>}
-                  meta={i2.note}
-                  actions={i2.low && !i2.done ? <Pill tone="lavender">Low</Pill> : undefined}
-                />
-              ))}
-            </List>
-          </Card>
-        ))}
+              <List className="pb-2">
+                {list.filter((x) => x.category === cat).map((i2) => (
+                  <Row
+                    key={i2.id}
+                    lead={<Check done={i2.done} onClick={() => s.toggleShopItem(i2.id)} />}
+                    title={<span className={i2.done ? "text-sub line-through" : ""}>{i2.title}</span>}
+                    meta={i2.note}
+                    actions={i2.low && !i2.done ? <Pill tone="lavender">Low</Pill> : undefined}
+                  />
+                ))}
+              </List>
+            </Card>
+          ))}
+        </div>
       </motion.div>
     </motion.div>
   );
