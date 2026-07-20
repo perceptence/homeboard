@@ -515,7 +515,21 @@ export function IpadCalendar() {
           filling the remaining height. Portrait: the pane drops below,
           full width, and the page scrolls past whichever one runs long. */}
       <div className="flex flex-col gap-card-pad @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:flex-row">
-        <div className="flex min-w-0 flex-col @[1024px]:min-h-0 @[1024px]:flex-1">
+        {/* Swipe left/right over the grid to step a week/month — the same
+            gesture the phone's Ahead screen uses. `dragSnapToOrigin` puts it
+            straight back; only the gesture's DIRECTION is read, the grid
+            itself never actually relocates. Day cells underneath stay
+            tappable — framer only treats it as a drag past the threshold. */}
+        <motion.div
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.12}
+          dragSnapToOrigin
+          onDragEnd={(_, info) => {
+            if (Math.abs(info.offset.x) > 60) step(info.offset.x < 0 ? 1 : -1);
+          }}
+          className="flex min-w-0 flex-col @[1024px]:min-h-0 @[1024px]:flex-1"
+        >
           {view === "Week" ? (
             // `vh` measures the REAL browser window, not the device frame's
             // own scaled box — a max-h-[55vh] cap computed against the wrong
@@ -539,7 +553,7 @@ export function IpadCalendar() {
               </div>
             </motion.div>
           )}
-        </div>
+        </motion.div>
 
         {/* THE PANE — the selected day's events, each expandable in place. Full
             height, white: the screen's one worklist surface against the grid. */}
