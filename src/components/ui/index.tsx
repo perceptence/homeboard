@@ -630,15 +630,15 @@ export function Sheet({
           />
           <motion.div
             role="dialog"
-            // iPad: a gentle rise, NOT scale — and centring is done with
-            // inset-x-0 + mx-auto, never -translate-x-1/2. Framer writes the
-            // transform for the animation and would clobber a translate-based
-            // centre, dropping the sheet's corner at mid-screen (that's the
-            // "renders anywhere" bug). Margin-centring is transform-free, so
-            // the two never fight.
-            initial={phone ? { y: "100%" } : { opacity: 0, y: 20 }}
-            animate={phone ? { y: 0 } : { opacity: 1, y: 0 }}
-            exit={phone ? { y: "100%" } : { opacity: 0, y: 20 }}
+            // Both surfaces roll UP from the bottom — the phone flush to the
+            // edge, the iPad as a 60%-wide panel on the floor. y is the only
+            // transform; the horizontal centre is done with inset-x-0 + mx-auto
+            // (margin, transform-free), so the slide can't clobber the centring
+            // the way a -translate-x-1/2 would (that was the "renders anywhere"
+            // bug — framer owns the transform and wiped the translate-centre).
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
             transition={spring}
             className={clsx(
               // flex column + overflow-hidden: only the MIDDLE scrolls.
