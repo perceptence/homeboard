@@ -630,16 +630,24 @@ export function Sheet({
           />
           <motion.div
             role="dialog"
-            initial={phone ? { y: "100%" } : { opacity: 0, scale: 0.96 }}
-            animate={phone ? { y: 0 } : { opacity: 1, scale: 1 }}
-            exit={phone ? { y: "100%" } : { opacity: 0, scale: 0.96 }}
+            // iPad: a gentle rise, NOT scale — and centring is done with
+            // inset-x-0 + mx-auto, never -translate-x-1/2. Framer writes the
+            // transform for the animation and would clobber a translate-based
+            // centre, dropping the sheet's corner at mid-screen (that's the
+            // "renders anywhere" bug). Margin-centring is transform-free, so
+            // the two never fight.
+            initial={phone ? { y: "100%" } : { opacity: 0, y: 20 }}
+            animate={phone ? { y: 0 } : { opacity: 1, y: 0 }}
+            exit={phone ? { y: "100%" } : { opacity: 0, y: 20 }}
             transition={spring}
             className={clsx(
               // flex column + overflow-hidden: only the MIDDLE scrolls.
               "absolute z-50 flex flex-col overflow-hidden bg-surface text-ink shadow-e3",
               phone
                 ? "inset-x-0 bottom-0 max-h-[88%] rounded-t-card"
-                : "left-1/2 top-1/2 max-h-[84%] w-[min(460px,90%)] -translate-x-1/2 -translate-y-1/2 rounded-card",
+                // Centre-bottom of the view, ~60% wide — a wide panel that
+                // sits on the floor, not a small box floating mid-canvas.
+                : "inset-x-0 bottom-6 mx-auto max-h-[84%] w-[60%] rounded-card",
             )}
           >
             {/* The grabber rides the sheet's own edge — 12px, not 28. */}
