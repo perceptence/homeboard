@@ -410,8 +410,12 @@ export function IpadCalendar() {
   // straight on the details.
   const pickEvent = (id: string, due: string) => { setSelDay(due); setSelEvent(id); };
   const toggleEvent = (id: string) => setSelEvent((cur) => (cur === id ? null : id));
+  // Which way the grid slides when the period changes — forward slides the new
+  // period in from the right, back from the left. Fed by both the steppers and
+  // the swipe, so a walked period actually MOVES instead of blinking to new dates.
+  const [slideDir, setSlideDir] = useState<-1 | 1>(1);
   // Step by the unit you're looking at — a week in Week, a month in Month.
-  const step = (dir: -1 | 1) => setAnchor((a) => shiftPeriod(view, a, dir));
+  const step = (dir: -1 | 1) => { setSlideDir(dir); setAnchor((a) => shiftPeriod(view, a, dir)); };
 
   const { month, days } = monthDays(anchor);
 
@@ -478,12 +482,14 @@ export function IpadCalendar() {
   };
 
   return (
-    // Landscape: fixed height, not page scroll — Week fills the screen (tall
-    // day columns + full-height pane); Month scrolls its own grid if it runs
-    // long. Portrait: the grid can't share a fixed viewport with a full pane
-    // AND stay a real 7-wide week, so it drops the lock and lets the page
-    // scroll instead, same as every other iPad screen.
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="flex flex-col gap-card-pad @[1024px]:h-full @[1024px]:min-h-0">
+    // Landscape WEEK fills the screen (tall day columns + full-height pane),
+    // viewport-locked, no page scroll. Landscape MONTH does NOT lock: six rows
+    // of a month don't fit a fixed viewport, and clipping the last week off is
+    // worse than letting the grid run its full height and page-scroll — the
+    // floating nav just sits on top of the bottom rows. Portrait always
+    // page-scrolls (a real 7-wide week can't share a fixed viewport with a
+    // full pane).
+    <motion.div variants={listStagger} initial="hidden" animate="show" className={clsx("flex flex-col gap-card-pad", view === "Week" && "@[1024px]:h-full @[1024px]:min-h-0")}>
       {/* HEADER — the period, with steppers to walk weeks/months, and the view
           toggle. */}
       <motion.div variants={listItem} className="flex shrink-0 items-end gap-3 px-1.5">
@@ -498,7 +504,7 @@ export function IpadCalendar() {
             <Step dir={1} onClick={() => step(1)} />
             {!isCurrentPeriod(view, anchor) && (
               <button
-                onClick={() => setAnchor(new Date())}
+                onClick={() => { const now = new Date(); setSlideDir(now >= anchor ? 1 : -1); setAnchor(now); }}
                 className="ml-1 rounded-pill bg-white/10 px-2.5 py-1 text-caption font-medium text-white/70 transition-colors hover:bg-white/20 hover:text-white"
               >
                 Today
@@ -511,10 +517,11 @@ export function IpadCalendar() {
         </span>
       </motion.div>
 
-      {/* BODY — the calendar and the pane. Landscape: side by side, both
-          filling the remaining height. Portrait: the pane drops below,
-          full width, and the page scrolls past whichever one runs long. */}
-      <div className="flex flex-col gap-card-pad @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:flex-row">
+      {/* BODY — the calendar and the pane. Landscape: side by side (Week fills
+          the remaining height; Month runs its natural height). Portrait: the
+          pane drops below, full width, and the page scrolls past whichever one
+          runs long. */}
+      <div className={clsx("flex flex-col gap-card-pad @[1024px]:flex-row", view === "Week" && "@[1024px]:min-h-0 @[1024px]:flex-1")}>
         {/* Swipe left/right over the grid to step a week/month — the same
             gesture the phone's Ahead screen uses. `dragSnapToOrigin` puts it
             straight back; only the gesture's DIRECTION is read, the grid
@@ -530,29 +537,39 @@ export function IpadCalendar() {
           }}
           className="flex min-w-0 flex-col @[1024px]:min-h-0 @[1024px]:flex-1"
         >
-          {view === "Week" ? (
-            // `vh` measures the REAL browser window, not the device frame's
-            // own scaled box — a max-h-[55vh] cap computed against the wrong
-            // thing and let the pane grow tall enough to collide with the
-            // floating nav. The page already scrolls in portrait (this whole
-            // screen dropped its viewport-lock for that reason), so there's
-            // no need for a second, nested scroll region here — just let the
-            // grid grow to fit its content.
-            <motion.div variants={listItem} className="grid grid-cols-7 gap-2 @[1024px]:h-full @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:auto-rows-fr">
-              {weekDays(anchor).map((day) => dayCell(day, "week"))}
-            </motion.div>
-          ) : (
-            <motion.div variants={listItem} className="flex flex-col @[1024px]:min-h-0 @[1024px]:flex-1">
-              <div className="mb-2 grid shrink-0 grid-cols-7 gap-2 px-1">
-                {WEEKDAY_LABELS.map((w) => (
-                  <div key={w} className="text-caption font-medium uppercase text-white/40">{w}</div>
-                ))}
+          {/* The grid remounts on every period change (keyed by view+anchor)
+              and slides in from the side you're heading — so a stepped or
+              swiped period actually MOVES instead of blinking to new dates. */}
+          <motion.div
+            key={`${view}:${iso(anchor)}`}
+            initial={{ opacity: 0, x: slideDir * 28 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={smooth}
+            className="flex min-h-0 flex-col @[1024px]:flex-1"
+          >
+            {view === "Week" ? (
+              // No max-height/internal scroll — the week grid fills the locked
+              // viewport in landscape (auto-rows-fr) and its natural height in
+              // portrait, the page carrying anything past the fold.
+              <div className="grid grid-cols-7 gap-2 @[1024px]:h-full @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:auto-rows-fr">
+                {weekDays(anchor).map((day) => dayCell(day, "week"))}
               </div>
-              <div className="no-scrollbar grid auto-rows-min grid-cols-7 gap-2 @[1024px]:min-h-0 @[1024px]:flex-1 @[1024px]:overflow-y-auto">
-                {days.map((day) => dayCell(day, "month", day.getMonth() !== month))}
+            ) : (
+              // Month renders ALL its rows at natural height — no flex-1/
+              // overflow that would clip the last week. The page scrolls; the
+              // floating nav sits on top of the bottom rows.
+              <div className="flex flex-col">
+                <div className="mb-2 grid shrink-0 grid-cols-7 gap-2 px-1">
+                  {WEEKDAY_LABELS.map((w) => (
+                    <div key={w} className="text-caption font-medium uppercase text-white/40">{w}</div>
+                  ))}
+                </div>
+                <div className="no-scrollbar grid auto-rows-min grid-cols-7 gap-2">
+                  {days.map((day) => dayCell(day, "month", day.getMonth() !== month))}
+                </div>
               </div>
-            </motion.div>
-          )}
+            )}
+          </motion.div>
         </motion.div>
 
         {/* THE PANE — the selected day's events, each expandable in place. Full
