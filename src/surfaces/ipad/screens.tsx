@@ -6,10 +6,11 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { EventCard, TaskCard } from "@/components/TaskCard";
 import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TabToggle, TitleBlock, type TileTone } from "@/components/ui";
-import { addDays, clockLabel, iso, isToday, parse, periodLabel, relative, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
+import { Step } from "@/components/Period";
+import { addDays, clockLabel, isCurrentPeriod, iso, isToday, parse, periodLabel, relative, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
 import { billTasks, doers, holder, pendingFor, shoppingList, useHousehold } from "@/lib/store";
-import type { Member, Role } from "@/lib/types";
+import type { HouseEvent, Member, Role } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 
 /** Focus ring for raw buttons on a LIGHT surface (inside a Card) — the app's
@@ -218,25 +219,24 @@ const CAL_VIEWS = ["Week", "Month"] as const;
 type CalView = (typeof CAL_VIEWS)[number];
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/** The real Mon–Sun of the week you're in — not a hardcoded row of numbers. */
-const weekDays = () =>
-  Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(new Date()), i));
+/** The real Mon–Sun of the week `anchor` sits in. */
+const weekDays = (anchor: Date) =>
+  Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(anchor), i));
 
 /**
- * The whole current month as a rectangle of weeks: from the Monday on/before
- * the 1st to the Sunday on/after the last, so every row is a full week. Days
- * from the neighbouring months come along (dimmed) — that's what makes it a
- * calendar and not a ragged list.
+ * The whole of `anchor`'s month as a rectangle of weeks: from the Monday
+ * on/before the 1st to the Sunday on/after the last, so every row is a full
+ * week. Days from the neighbouring months come along (dimmed) — that's what
+ * makes it a calendar and not a ragged list.
  */
-const monthDays = () => {
-  const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+const monthDays = (anchor: Date) => {
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
   const gridStart = startOfWeek(first);
   const gridEnd = addDays(startOfWeek(last), 7); // exclusive: end of the last week
   const count = Math.round((+gridEnd - +gridStart) / 86_400_000);
   return {
-    month: now.getMonth(),
+    month: anchor.getMonth(),
     days: Array.from({ length: count }, (_, i) => addDays(gridStart, i)),
   };
 };
@@ -244,39 +244,29 @@ const monthDays = () => {
 export function IpadCalendar() {
   const s = useHousehold();
   const [view, setView] = useState<CalView>("Week");
-  // The right pane is driven by a selected DAY (its event list) and optionally a
-  // selected EVENT (its details). Day defaults to today — the pane absorbs the
-  // old standalone "Today" card, but interactive.
+  // `anchor` is which week/month is on screen — step it to browse others.
+  const [anchor, setAnchor] = useState<Date>(() => new Date());
+  // The right pane reads a selected DAY (its event list); one event in that
+  // list can be EXPANDED (selEvent) to show its details in place.
   const [selDay, setSelDay] = useState<string>(() => todayIso());
   const [selEvent, setSelEvent] = useState<string | null>(null);
 
   const pickDay = (di: string) => { setSelDay(di); setSelEvent(null); };
-  // Picking an event also moves the day under it, so "back" returns to the
-  // right list.
-  const pickEvent = (e: { id: string; due: string }) => { setSelDay(e.due); setSelEvent(e.id); };
+  // A chip opens its event's day AND expands it, so a tap on the grid lands
+  // straight on the details.
+  const pickEvent = (id: string, due: string) => { setSelDay(due); setSelEvent(id); };
+  const toggleEvent = (id: string) => setSelEvent((cur) => (cur === id ? null : id));
+  // Step by the unit you're looking at — a week in Week, a month in Month.
+  const step = (dir: -1 | 1) => setAnchor((a) => shiftPeriod(view, a, dir));
 
-  const { month, days } = monthDays();
+  const { month, days } = monthDays(anchor);
 
-  /** One event chip inside a grid cell — clickable straight through to its
-   *  details, stopping the cell's own day-select. */
-  const Chip = ({ id, who, title, time, dim }: { id: string; who: string; title: string; time?: string; dim?: boolean }) => (
-    <button
-      onClick={(ev) => { ev.stopPropagation(); pickEvent({ id, due: selDayForChip(id) }); }}
-      style={{ background: s.members[who]?.color }}
-      className={clsx("block w-full truncate rounded-sm px-2 py-1 text-left text-micro font-medium leading-tight text-white", dim && "opacity-40", FOCUS)}
-    >
-      {time && <span suppressHydrationWarning className="block opacity-75">{time}</span>}
-      {title}
-    </button>
-  );
-  // A chip knows its own event's day (so pickEvent lands the pane on it).
-  const selDayForChip = (id: string) => s.events.find((e) => e.id === id)?.due ?? selDay;
-
-  const dayCell = (day: Date, opts: { compact?: boolean; dim?: boolean }) => {
+  const dayCell = (day: Date, mode: "week" | "month", dim?: boolean) => {
     const di = iso(day);
     const isTodayCell = isToday(di);
     const isSel = di === selDay;
     const evs = s.events.filter((e) => e.due === di);
+    const week = mode === "week";
     return (
       <div
         key={di}
@@ -285,12 +275,13 @@ export function IpadCalendar() {
         onClick={() => pickDay(di)}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickDay(di); } }}
         className={clsx(
-          "flex cursor-pointer flex-col rounded-card p-3 text-left transition-colors",
-          opts.compact ? "min-h-[104px] gap-1 rounded-md p-2" : "min-h-[220px]",
+          "flex cursor-pointer flex-col text-left transition-colors",
+          // Week cells fill the column's full height; month cells stay compact.
+          week ? "h-full min-h-0 rounded-card p-3" : "min-h-[104px] gap-1 rounded-md p-2",
           FOCUS_DARK,
           isTodayCell
             ? "bg-lemon text-ink"
-            : opts.dim
+            : dim
               ? "border border-white/[.04] bg-white/[.02] text-white/35"
               : "border border-white/10 bg-white/[.06] text-white hover:bg-white/[.09]",
           // The ring marks the day the pane is READING — kept distinct from the
@@ -300,18 +291,28 @@ export function IpadCalendar() {
         )}
       >
         <div className="flex items-baseline justify-between">
-          {!opts.compact && (
+          {week && (
             <span className={clsx("text-caption font-medium uppercase", isTodayCell ? "opacity-50" : "text-white/45")}>
               {day.toLocaleDateString("en-GB", { weekday: "short" })}
             </span>
           )}
-          <span className={clsx("tabular-nums", opts.compact ? "ml-auto text-bodysm font-medium" : "text-h2")}>{day.getDate()}</span>
+          <span className={clsx("tabular-nums", week ? "text-h2" : "ml-auto text-bodysm font-medium")}>{day.getDate()}</span>
         </div>
-        <div className={clsx("flex flex-col", opts.compact ? "mt-1 gap-1" : "mt-2 gap-1.5")}>
-          {(opts.compact ? evs.slice(0, 2) : evs).map((e) => (
-            <Chip key={e.id} id={e.id} who={e.who} title={e.title} time={opts.compact ? undefined : e.time} dim={opts.dim} />
+        {/* Week: the events fill the tall cell and scroll if a day is packed.
+            Month: two chips then a "+N more" so cells stay a tidy grid. */}
+        <div className={clsx("flex min-h-0 flex-col", week ? "mt-2 flex-1 gap-1.5 overflow-y-auto no-scrollbar" : "mt-1 gap-1")}>
+          {(week ? evs : evs.slice(0, 2)).map((e) => (
+            <button
+              key={e.id}
+              onClick={(ev) => { ev.stopPropagation(); pickEvent(e.id, e.due); }}
+              style={{ background: s.members[e.who]?.color }}
+              className={clsx("block w-full shrink-0 truncate rounded-sm px-2 py-1 text-left text-micro font-medium leading-tight text-white", dim && "opacity-40", FOCUS)}
+            >
+              {week && <span suppressHydrationWarning className="block opacity-75">{e.time}</span>}
+              {e.title}
+            </button>
           ))}
-          {opts.compact && evs.length > 2 && (
+          {!week && evs.length > 2 && (
             <span className="text-micro font-medium text-white/40">+{evs.length - 2} more</span>
           )}
         </div>
@@ -320,52 +321,70 @@ export function IpadCalendar() {
   };
 
   return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="flex items-start gap-card-pad">
-      {/* LEFT — the calendar, Week or Month. */}
-      <div className="flex min-w-0 flex-1 flex-col gap-card-pad">
-        <motion.div variants={listItem} className="flex items-end gap-3 px-1.5">
-          <div className="min-w-0">
-            <Eyebrow tone="onDark">Calendar</Eyebrow>
-            <div className="mt-1 font-tight text-h1 text-white">{periodLabel(view, new Date())}</div>
+    // Fixed height, not page scroll: Week fills the screen (tall day columns +
+    // full-height pane); Month scrolls its own grid if it runs long.
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="flex h-full min-h-0 flex-col gap-card-pad">
+      {/* HEADER — the period, with steppers to walk weeks/months, and the view
+          toggle. */}
+      <motion.div variants={listItem} className="flex shrink-0 items-end gap-3 px-1.5">
+        <div className="min-w-0">
+          <Eyebrow tone="onDark">Calendar</Eyebrow>
+          <div className="mt-1 flex items-center gap-1">
+            <div className="font-tight text-h1 tabular-nums text-white">{periodLabel(view, anchor)}</div>
+            <Step dir={-1} onClick={() => step(-1)} />
+            <Step dir={1} onClick={() => step(1)} />
+            {!isCurrentPeriod(view, anchor) && (
+              <button
+                onClick={() => setAnchor(new Date())}
+                className="ml-1 rounded-pill bg-white/10 px-2.5 py-1 text-caption font-medium text-white/70 transition-colors hover:bg-white/20 hover:text-white"
+              >
+                Today
+              </button>
+            )}
           </div>
-          <span className="ml-auto">
-            <TabToggle options={CAL_VIEWS} value={view} onChange={(v) => { setView(v); setSelEvent(null); }} layoutId="ipadCalView" />
-          </span>
-        </motion.div>
-
-        {view === "Week" ? (
-          <motion.div variants={listItem} className="grid grid-cols-7 gap-2">
-            {weekDays().map((day) => dayCell(day, {}))}
-          </motion.div>
-        ) : (
-          <motion.div variants={listItem}>
-            <div className="mb-2 grid grid-cols-7 gap-2 px-1">
-              {WEEKDAY_LABELS.map((w) => (
-                <div key={w} className="text-caption font-medium uppercase text-white/40">{w}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-2">
-              {days.map((day) => dayCell(day, { compact: true, dim: day.getMonth() !== month }))}
-            </div>
-          </motion.div>
-        )}
-      </div>
-
-      {/* RIGHT — the pane: a day's events, or one event's details. White, the
-          screen's one worklist surface, against the ambient dark grid. */}
-      <motion.div variants={listItem} className="w-[320px] shrink-0">
-        <CalendarPane day={selDay} eventId={selEvent} onPickEvent={setSelEvent} onBack={() => setSelEvent(null)} />
+        </div>
+        <span className="ml-auto self-center">
+          <TabToggle options={CAL_VIEWS} value={view} onChange={setView} layoutId="ipadCalView" />
+        </span>
       </motion.div>
+
+      {/* BODY — the calendar and the pane, both filling the remaining height. */}
+      <div className="flex min-h-0 flex-1 gap-card-pad">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {view === "Week" ? (
+            <motion.div variants={listItem} className="grid min-h-0 flex-1 auto-rows-fr grid-cols-7 gap-2">
+              {weekDays(anchor).map((day) => dayCell(day, "week"))}
+            </motion.div>
+          ) : (
+            <motion.div variants={listItem} className="flex min-h-0 flex-1 flex-col">
+              <div className="mb-2 grid shrink-0 grid-cols-7 gap-2 px-1">
+                {WEEKDAY_LABELS.map((w) => (
+                  <div key={w} className="text-caption font-medium uppercase text-white/40">{w}</div>
+                ))}
+              </div>
+              <div className="no-scrollbar grid min-h-0 flex-1 auto-rows-min grid-cols-7 gap-2 overflow-y-auto">
+                {days.map((day) => dayCell(day, "month", day.getMonth() !== month))}
+              </div>
+            </motion.div>
+          )}
+        </div>
+
+        {/* THE PANE — the selected day's events, each expandable in place. Full
+            height, white: the screen's one worklist surface against the grid. */}
+        <motion.div variants={listItem} className="min-h-0 w-[320px] shrink-0">
+          <CalendarPane day={selDay} expandedId={selEvent} onToggle={toggleEvent} />
+        </motion.div>
+      </div>
     </motion.div>
   );
 }
 
-/** The Calendar's right pane. Two states on one surface: the selected day's
- *  event list, and — once you tap one — that event's details with a way back. */
+/** The Calendar's right pane: the selected day's events. Tapping one expands
+ *  its details IN PLACE (no view-swap, no back button) and collapses again. */
 function CalendarPane({
-  day, eventId, onPickEvent, onBack,
+  day, expandedId, onToggle,
 }: {
-  day: string; eventId: string | null; onPickEvent: (id: string) => void; onBack: () => void;
+  day: string; expandedId: string | null; onToggle: (id: string) => void;
 }) {
   const s = useHousehold();
   // Seeded demo event times drift across the hydration boundary (see IpadToday);
@@ -373,107 +392,101 @@ function CalendarPane({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const event = eventId ? s.events.find((e) => e.id === eventId) : null;
-
-  if (event) {
-    const who = s.members[event.who];
-    return (
-      <Card className="flex flex-col">
-        <button
-          onClick={onBack}
-          className={clsx("-ml-1 mb-4 flex w-max items-center gap-1 rounded-sm py-0.5 pr-2 text-caption font-medium text-sub transition-colors hover:text-ink", FOCUS)}
-        >
-          <Icon name="back" size={16} /> Back to the day
-        </button>
-
-        <div className="flex items-center gap-3">
-          <IconTile name={event.icon ?? "cal"} tone="lemon" />
-          <h2 className="min-w-0 font-tight text-h2">{event.title}</h2>
-        </div>
-
-        <div className="mt-5 space-y-3 text-bodysm">
-          <div className="flex items-center gap-3">
-            <span className="w-14 shrink-0 text-caption text-sub">Who</span>
-            <span className="flex min-w-0 items-center gap-2 font-medium">
-              <Avatar member={who} size={22} /> <span className="truncate">{who?.name ?? "—"}</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="w-14 shrink-0 text-caption text-sub">Time</span>
-            <span suppressHydrationWarning className="font-medium">{clockLabel(event.time)}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="w-14 shrink-0 text-caption text-sub">{event.journey ? "Heading" : "Day"}</span>
-            <span className="min-w-0 truncate font-medium">{event.journey && event.where ? event.where : relative(event.due)}</span>
-          </div>
-        </div>
-
-        {event.recurring && (
-          <p className="mt-4 flex items-center gap-1.5 text-caption text-sub">
-            <Icon name="repeat" size={14} /> Repeats {event.recurring.toLowerCase()}
-          </p>
-        )}
-
-        {event.done ? (
-          <p className="mt-5 flex items-center justify-center gap-1.5 rounded-2xl bg-ink/[.05] py-3 text-bodysm font-medium text-sub">
-            <Icon name="check" size={16} /> Handled
-          </p>
-        ) : (
-          <div className="mt-5 flex flex-col gap-2">
-            {/* Same actions the event sheet offers — "On my way" only with
-                someone in `waiting` at the far end. */}
-            {!!event.waiting?.length && (
-              <Button tone="dark" size="lg" onClick={() => s.onWay(event.id)}>
-                <Icon name="car" size={16} /> On my way
-              </Button>
-            )}
-            <Button tone={event.waiting?.length ? "outline" : "dark"} size="lg" onClick={() => s.completeEvent(event.id)}>
-              <Icon name="check" size={16} /> Done
-            </Button>
-            <Button tone="outline" size="lg" onClick={() => s.remindForEvent(event.id)}>
-              <Icon name="bell" size={16} /> Remind me
-            </Button>
-          </div>
-        )}
-      </Card>
-    );
-  }
-
   const evs = s.events
     .filter((e) => e.due === day)
     .sort((a, b) => (mounted ? timeMinutes(a.time) - timeMinutes(b.time) : 0) || a.id.localeCompare(b.id));
   const d = parse(day);
 
   return (
-    <Card className="flex flex-col">
+    <Card className="flex h-full flex-col">
       <TitleBlock
         size="card"
+        className="shrink-0"
         eyebrow={isToday(day) ? "Today" : d.toLocaleDateString("en-GB", { weekday: "long" })}
         title={d.toLocaleDateString("en-GB", { day: "numeric", month: "long" })}
       />
-      <div className="mt-stack flex flex-col">
-        {evs.map((e) => {
-          const who = s.members[e.who];
-          return (
-            <button
-              key={e.id}
-              onClick={() => onPickEvent(e.id)}
-              className={clsx("-mx-2 flex items-center gap-3 rounded-sm px-2 py-2.5 text-left transition-colors hover:bg-surface", FOCUS)}
-            >
-              <Avatar member={who} size={32} />
-              <span className="min-w-0 flex-1">
-                <span className={clsx("block truncate text-bodysm font-medium", e.done && "text-sub line-through")}>{e.title}</span>
-                <span className="block truncate text-caption text-sub">{who?.name ?? "—"}</span>
-              </span>
-              <span suppressHydrationWarning className="shrink-0 text-caption text-sub">{e.time}</span>
-            </button>
-          );
-        })}
+      <div className="no-scrollbar mt-stack -mx-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-1">
+        {evs.map((e) => (
+          <EventRow key={e.id} event={e} open={e.id === expandedId} onToggle={() => onToggle(e.id)} />
+        ))}
         {evs.length === 0 && (
           <p className="py-8 text-center text-bodysm text-sub">Nothing on this day.</p>
         )}
       </div>
     </Card>
+  );
+}
+
+/** One row in the day pane: a summary line that expands to the event's details
+ *  and completion actions — the same ones the event sheet offers. */
+function EventRow({ event, open, onToggle }: { event: HouseEvent; open: boolean; onToggle: () => void }) {
+  const s = useHousehold();
+  const who = s.members[event.who];
+  return (
+    <div className="border-b border-ink/[.06] last:border-b-0">
+      <button
+        onClick={onToggle}
+        aria-expanded={open}
+        className={clsx("-mx-1 flex w-[calc(100%+0.5rem)] items-center gap-3 rounded-sm px-1 py-2.5 text-left transition-colors hover:bg-surface", FOCUS)}
+      >
+        <Avatar member={who} size={32} />
+        <span className="min-w-0 flex-1">
+          <span className={clsx("block truncate text-bodysm font-medium", event.done && "text-sub line-through")}>{event.title}</span>
+          <span className="block truncate text-caption text-sub">{who?.name ?? "—"}</span>
+        </span>
+        <span suppressHydrationWarning className="shrink-0 text-caption text-sub">{event.time}</span>
+        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex shrink-0 text-sub">
+          <Icon name="chevDown" size={16} />
+        </motion.span>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={smooth}
+            className="overflow-hidden"
+          >
+            <div className="pb-3.5 pl-[44px]">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-sub">
+                <span suppressHydrationWarning className="flex items-center gap-1">
+                  <Icon name="clock" size={13} /> {clockLabel(event.time)}
+                </span>
+                {event.journey && event.where && (
+                  <span className="flex items-center gap-1"><Icon name="pin" size={13} /> {event.where}</span>
+                )}
+                {event.recurring && (
+                  <span className="flex items-center gap-1"><Icon name="repeat" size={13} /> {event.recurring.toLowerCase()}</span>
+                )}
+              </div>
+
+              {event.done ? (
+                <p className="mt-3 flex items-center gap-1.5 text-caption font-medium text-sub">
+                  <Icon name="check" size={14} /> Handled
+                </p>
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {/* "On my way" only with someone in `waiting` at the far end. */}
+                  {!!event.waiting?.length && (
+                    <Button size="touch" tone="dark" onClick={() => s.onWay(event.id)}>
+                      <Icon name="car" size={14} /> On my way
+                    </Button>
+                  )}
+                  <Button size="touch" tone={event.waiting?.length ? "outline" : "dark"} onClick={() => s.completeEvent(event.id)}>
+                    <Icon name="check" size={14} /> Done
+                  </Button>
+                  <Button size="touch" tone="outline" onClick={() => s.remindForEvent(event.id)}>
+                    <Icon name="bell" size={14} /> Remind me
+                  </Button>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -649,7 +662,9 @@ export function IpadHousehold() {
       <motion.div variants={listItem} className="col-span-2">
         <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
           <TitleBlock size="card" tone="onDark" title="Share of the work" />
-          <div className="mt-stack flex-1">
+          {/* Caps at ~four rows and scrolls past that — a big family stays a
+              tidy card beside the pulse instead of stretching the row. */}
+          <div className="no-scrollbar mt-stack max-h-[164px] flex-1 overflow-y-auto">
             {loads.map(({ m, load }) => {
               const share = Math.round((load / total) * 100);
               return (
