@@ -180,9 +180,12 @@ export function IpadToday() {
           <IconTile name="spark" tone="onDark" />
           <Eyebrow tone="onDark" className="mt-6">Worth a look</Eyebrow>
           {attention.length > 0 ? (
-            <div className="mt-4 grid grid-cols-3 gap-3">
+            // Three fill the row; a fourth doesn't wrap to a lonely second line —
+            // it rides off the right edge and the row scrolls sideways. Each item
+            // is pinned to a third of the visible width so the rhythm holds.
+            <div className="no-scrollbar mt-4 flex gap-3 overflow-x-auto">
               {attention.map((a) => (
-                <div key={a.key} className="flex items-center gap-3 rounded-card border border-white/[.08] bg-white/[.04] p-4">
+                <div key={a.key} className="flex w-[calc((100%-1.5rem)/3)] shrink-0 items-center gap-3 rounded-card border border-white/[.08] bg-white/[.04] p-4">
                   <IconTile name={a.icon} tone="onDark" size="sm" />
                   <div className="min-w-0 flex-1">
                     <div className="text-bodysm font-medium leading-snug text-white">{a.title}</div>
