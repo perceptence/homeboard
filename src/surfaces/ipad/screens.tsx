@@ -707,11 +707,19 @@ export function IpadHousehold() {
         </Card>
       </motion.div>
 
-      {everyone.map((m) => (
-        <motion.div key={m.id} variants={listItem}>
-          <PersonCard member={m} />
-        </motion.div>
-      ))}
+      {/* The people run in ONE row that scrolls sideways — a big family never
+          wraps onto a second line and shoves everything below out of rhythm.
+          The row's height is auto, so an open role picker just grows it rather
+          than being clipped. */}
+      <motion.div variants={listItem} className="col-span-4">
+        <div className="no-scrollbar flex items-start gap-card-pad overflow-x-auto">
+          {everyone.map((m) => (
+            <div key={m.id} className="w-[264px] shrink-0">
+              <PersonCard member={m} />
+            </div>
+          ))}
+        </div>
+      </motion.div>
 
       {/* HOW IT'S GOING — the household's month at a glance, full width and the
           screen's one lemon shout: a headline finish-rate plus the numbers
