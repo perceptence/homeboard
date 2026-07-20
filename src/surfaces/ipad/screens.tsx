@@ -124,7 +124,7 @@ export function IpadToday() {
   const cats = Array.from(new Set(list.map((i) => i.category)));
 
   return (
-    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-card-pad pb-2">
+    <motion.div variants={listStagger} initial="hidden" animate="show" className="grid grid-cols-4 gap-x-3 gap-y-4 pb-2">
       {/* THE HERO BAND — a full-width frame that opens the day: a big, warm
           greeting and the house's count on the left; the family and the very
           next thing on the right, walled off by a hairline. The frame you'd
@@ -192,14 +192,13 @@ export function IpadToday() {
         )}
       </motion.div>
 
-      {/* WORTH A LOOK — immediate attention, beside the day. */}
-      <motion.div variants={listItem} className="col-span-2">
-        <Card pad="none" className="flex h-full flex-col">
-          <div className="px-card-pad pt-card-pad">
-            <IconTile name="spark" />
-            <TitleBlock size="card" className="mt-4" title="Worth a look" />
-          </div>
-          <List className="pb-2">
+      {/* WORTH A LOOK — immediate attention, beside the day. Eyebrow on the ink
+          like Happening, so the two columns start level; the card then hugs
+          its rows instead of stretching to a blank the day's list left behind. */}
+      <motion.div variants={listItem} className="col-span-2 flex flex-col gap-tile">
+        <Eyebrow tone="onDark">Worth a look</Eyebrow>
+        <Card pad="none">
+          <List className="py-1.5">
             {attention.map((a) => (
               <Row
                 key={a.key}
@@ -235,7 +234,7 @@ export function IpadToday() {
             </div>
           </Card>
         )}
-        <div className="grid grid-cols-3 gap-card-pad">
+        <div className="grid grid-cols-3 gap-3">
           {cats.map((cat) => (
             <Card key={cat} pad="none" className="self-start">
               <div className="px-card-pad pt-card-pad">
