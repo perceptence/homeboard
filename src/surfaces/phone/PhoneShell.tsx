@@ -13,7 +13,7 @@ import {
   addDays, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
   periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel, type Period,
 } from "@/lib/dates";
-import { awayOn, billTasks, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
+import { awayOn, billTasks, conflicts, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
 import type { HouseEvent, MaintItem, MemberId, PhoneRoute, Presence, Task } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
@@ -581,21 +581,39 @@ function PhoneHouse() {
   const traveler = tripTask?.owner ? s.members[tripTask.owner] : null;
 
   /* WORTH DOING NOW — the one thing the house would hand you, with its verb.
-     Priorities: work nobody owns, then money running late, then a lopsided
-     week. When none apply, it says so — a quiet win is still information. */
+     Priorities: a broken plan the app SPOTTED (a clash, someone away with work
+     still on them), then work nobody owns, then money running late, then a
+     lopsided week. When none apply, it says so — a quiet win is information. */
+  const topConflict = conflicts(s)[0];
   const unowned = s.tasks.find((t) => !t.done && !t.owner);
   const nominee = unowned?.suggest ? s.members[unowned.suggest] : null;
   const lateBill = billTasks(s)
     .filter((t) => !t.done && t.due < todayIso())
     .sort((a, b) => a.due.localeCompare(b.due))[0];
-  const insight = unowned
+  const insight = topConflict
     ? {
+        // The app noticed, so the eyebrow says so — "Heads up", not "Worth
+        // doing now", because a clash between two events has no button to
+        // press (nothing has a duration to reschedule); it's still worth
+        // knowing. Away and task-clashes DO carry a verb.
+        eyebrow: "Heads up",
+        line: <>{topConflict.title} — {topConflict.detail}.</>,
+        verb: topConflict.kind === "away" ? "Find cover" : topConflict.taskId != null ? "Move one" : null,
+        act: () => {
+          if (topConflict.kind === "away") s.coverAway(topConflict.who);
+          else if (topConflict.taskId != null) s.openSheet({ type: "assign", id: topConflict.taskId });
+        },
+      }
+    : unowned
+    ? {
+        eyebrow: "Worth doing now",
         line: <>&ldquo;{unowned.title}&rdquo; has no owner{nominee && <> — {nominee.name} is the right hands</>}.</>,
         verb: nominee ? `Give it to ${nominee.name}` : "Pick someone",
         act: () => (nominee ? s.acceptSuggestion(unowned.id) : s.openSheet({ type: "assign", id: unowned.id })),
       }
     : lateBill
     ? {
+        eyebrow: "Worth doing now",
         line: <>&ldquo;{lateBill.title}&rdquo; (${lateBill.amount}) slipped past its due date.</>,
         verb: `Pay $${lateBill.amount}`,
         act: () => {
@@ -605,11 +623,13 @@ function PhoneHouse() {
       }
     : move
     ? {
+        eyebrow: "Worth doing now",
         line: <>{move.from.name} is carrying the most — &ldquo;{move.task.title}&rdquo; could go to {move.to.name}.</>,
         verb: "Even it out",
         act: () => s.openSheet({ type: "rebalance" }),
       }
     : {
+        eyebrow: "Worth doing now",
         line: <>Nothing needs a decision — {doneWeek} {doneWeek === 1 ? "thing" : "things"} finished this week.</>,
         verb: null as string | null,
         act: () => {},
@@ -650,7 +670,7 @@ function PhoneHouse() {
           <div className="flex items-start gap-3">
             <IconTile name="spark" />
             <div className="min-w-0 flex-1">
-              <Eyebrow className="!text-ink/50">Worth doing now</Eyebrow>
+              <Eyebrow className="!text-ink/50">{insight.eyebrow}</Eyebrow>
               <p className="mt-1 text-h2">{insight.line}</p>
             </div>
           </div>
