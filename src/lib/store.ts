@@ -16,11 +16,13 @@ import {
 import { addDays, iso, isToday, relative, relativeInline, timeMinutes, todayIso } from "./dates";
 
 export interface Sheet {
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock";
+  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newEvent" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock";
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;
   draft?: { title: string; owner: MemberId | null; when: string; priority: Priority };
+  /** Pre-fills New event with the day you tapped on the calendar. */
+  due?: string;
   /** Seed text for the automation builder — the sentence someone typed into New
    *  Task that turned out to be a routine. Present only when launched from that
    *  nudge, which is also the signal to CLOSE (not return to Manage) on save. */
@@ -295,6 +297,10 @@ interface HouseholdState {
 
   toggleTask: (id: number) => void;
   addTask: (t: { title: string; owner: MemberId | null; when: string; due: string; priority: Priority; requires?: Role; minAge?: number; source?: string; said?: string; recurring?: string; amount?: number }) => void;
+  /** Remove a task / event entirely. Both close their sheet and offer an undo. */
+  deleteTask: (id: number) => void;
+  addEvent: (e: { title: string; who: MemberId; due: string; time: string; recurring?: string }) => void;
+  deleteEvent: (id: string) => void;
 
   /* --- creating the things the phone could only view (owner/permitted) --- */
   addAutomation: (a: { when: AutoWhen; then: AutoThen }) => void;
@@ -743,6 +749,59 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         sheet: null,
         toast: `Task added${forWho}`,
         ...logged(s, `Added “${title}”${forWho}`, owner ?? undefined),
+      };
+    }),
+
+  // Delete, with a real undo — the deleted thing rides in the toast's reversal
+  // closure and slots back at its old index, so a mis-tap costs one more tap,
+  // not the task. Closes the sheet it was opened from.
+  deleteTask: (id) =>
+    set((s) => {
+      const idx = s.tasks.findIndex((t) => t.id === id);
+      if (idx < 0) return {};
+      const removed = s.tasks[idx];
+      return {
+        tasks: s.tasks.filter((t) => t.id !== id),
+        sheet: s.sheet?.type === "task" ? null : s.sheet,
+        toast: `Deleted “${removed.title}”`,
+        toastWho: null,
+        toastUndo: () =>
+          set((s2) => ({
+            tasks: [...s2.tasks.slice(0, idx), removed, ...s2.tasks.slice(idx)],
+            toast: `“${removed.title}” restored`,
+            toastUndo: null,
+          })),
+      };
+    }),
+
+  addEvent: ({ title, who, due, time, recurring }) =>
+    set((s) => {
+      const event: HouseEvent = { id: `e${++nextId}`, title, who, due, time, recurring, done: false };
+      return {
+        events: [...s.events, event],
+        sheet: null,
+        toast: "Event added",
+        toastWho: who,
+        ...logged(s, `Added “${title}” to the calendar`, who),
+      };
+    }),
+
+  deleteEvent: (id) =>
+    set((s) => {
+      const idx = s.events.findIndex((e) => e.id === id);
+      if (idx < 0) return {};
+      const removed = s.events[idx];
+      return {
+        events: s.events.filter((e) => e.id !== id),
+        sheet: s.sheet?.type === "event" ? null : s.sheet,
+        toast: `Deleted “${removed.title}”`,
+        toastWho: null,
+        toastUndo: () =>
+          set((s2) => ({
+            events: [...s2.events.slice(0, idx), removed, ...s2.events.slice(idx)],
+            toast: `“${removed.title}” restored`,
+            toastUndo: null,
+          })),
       };
     }),
 

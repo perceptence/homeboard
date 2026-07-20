@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { Avatar, AvatarStack, Button, Card, Check, Choice, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerChip, PickerPanel, Pill, PRIORITY_LABEL, PriorityPill, Sheet, TitleBlock } from "@/components/ui";
 import { smooth } from "@/lib/motion";
-import { addDays, ago, badge, clockLabel, dayLabel, iso, relative, startOfWeek, todayIso } from "@/lib/dates";
+import { addDays, ago, badge, clockLabel, dayLabel, iso, isToday, relative, startOfWeek, todayIso } from "@/lib/dates";
 import { taskGlyph } from "@/lib/glyphs";
 import { parseAutomation, parseTask } from "@/lib/parse";
 import { useDictation } from "@/lib/useDictation";
@@ -21,6 +21,33 @@ const inferCat = (t: string): ShopCategory =>
   /dog|cat|pet|litter|kibble|chew|juno/i.test(t) ? "Pet"
   : /soap|towel|paper|deterg|clean|spray|sponge|foil|batter|bulb|bin|bag|tissue|shampoo|toothpaste|brush|wipe|polish/i.test(t) ? "Supplies"
   : "Groceries";
+
+/**
+ * DELETE, TWO-STEP — a destructive verb should never be one careless tap. At
+ * rest it's a quiet grey line, easy to ignore; armed, it names the stakes
+ * ("Delete for good?") and puts the red button beside a way out. Red is the one
+ * place this palette earns an alarm colour: a real, irreversible destroy.
+ */
+function DeleteControl({ label, onDelete }: { label: string; onDelete: () => void }) {
+  const [armed, setArmed] = useState(false);
+  if (!armed) {
+    return (
+      <button
+        onClick={() => setArmed(true)}
+        className="mt-4 flex w-full items-center justify-center gap-1.5 py-1.5 text-caption font-medium text-sub transition-colors hover:text-danger"
+      >
+        <Icon name="trash" size={14} /> Delete {label}
+      </button>
+    );
+  }
+  return (
+    <div className="mt-4 flex items-center justify-center gap-2 text-caption font-medium">
+      <span className="text-sub">Delete for good?</span>
+      <button onClick={() => setArmed(false)} className="rounded-pill px-3 py-1.5 text-ink transition-colors hover:bg-ink/[.05]">Keep it</button>
+      <button onClick={onDelete} className="rounded-pill bg-danger px-3 py-1.5 text-white transition-[filter] hover:brightness-95">Delete</button>
+    </div>
+  );
+}
 
 /** All sheets for both surfaces. Phone gets a bottom sheet; iPad gets a centred modal. */
 export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
@@ -51,6 +78,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
             one. Until now only tasks had a sheet, and the other two silently
             refused the tap — same affordance, different behaviour. */}
         {sheet?.type === "event" && <EventSheet id={sheet.id as string} />}
+        {sheet?.type === "newEvent" && <NewEventSheet due={sheet.due} />}
         {sheet?.type === "maint" && <MaintSheet id={sheet.id as string} />}
         {sheet?.type === "assign" && <AssignSheet id={sheet.id as number} />}
         {sheet?.type === "handoff" && <HandoffSheet id={sheet.id as number | undefined} />}
@@ -191,6 +219,7 @@ function TaskSheet({ id }: { id: number }) {
           </Button>
         </>
       )}
+      <DeleteControl label="task" onDelete={() => s.deleteTask(id)} />
     </>
   );
 }
@@ -1403,6 +1432,86 @@ function EventSheet({ id }: { id: string }) {
           </Button>
         </>
       )}
+      <DeleteControl label="event" onDelete={() => s.deleteEvent(e.id)} />
+    </>
+  );
+}
+
+/**
+ * NEW EVENT — the calendar could only be read; this is the create it was
+ * missing. Opened from a day you tapped (its date rides in `due`), so the one
+ * decision already made is filled: you name it, say who and when, and it lands
+ * on that day. Whose event and what time reuse the app's own pickers.
+ */
+function NewEventSheet({ due }: { due?: string }) {
+  const s = useHousehold();
+  const people = doers(s);
+  const [title, setTitle] = useState("");
+  const [who, setWho] = useState<MemberId>(people[0]?.id);
+  const [day, setDay] = useState(due ?? todayIso());
+  const [time, setTime] = useState("9:00 AM");
+  const [open, setOpen] = useState<"date" | "time" | null>(null);
+
+  const add = () => {
+    if (!title.trim()) return;
+    s.addEvent({ title: title.trim(), who, due: day, time });
+  };
+
+  return (
+    <>
+      <span className="flex items-center gap-3">
+        <IconTile name="cal" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">New event</h2>
+      </span>
+
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") add(); }}
+        placeholder="What's happening?"
+        className="mt-5 w-full rounded-card border border-ink/[.12] bg-transparent px-4 py-3 text-body text-ink outline-none placeholder:text-sub focus:border-ink/30"
+      />
+
+      {/* WHO — the household's faces; tap to pick. */}
+      <div className="mt-4">
+        <span className="text-caption font-medium uppercase tracking-wide text-sub">Whose</span>
+        <div className="no-scrollbar mt-2 flex gap-2 overflow-x-auto">
+          {people.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setWho(m.id)}
+              className={clsx(
+                "flex shrink-0 items-center gap-2 rounded-pill border py-1 pl-1 pr-3 transition-colors",
+                who === m.id ? "border-ink bg-ink text-white" : "border-ink/[.12] text-ink hover:border-ink/30",
+              )}
+            >
+              <Avatar member={m} size={26} />
+              <span className="text-bodysm font-medium">{m.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* WHEN — the app's own date and time pickers, one open at a time. */}
+      <div className="mt-4 flex gap-2">
+        <PickerChip kind="date" open={open === "date"} active onToggle={() => setOpen(open === "date" ? null : "date")}>
+          {relative(day)}
+        </PickerChip>
+        <PickerChip kind="time" open={open === "time"} active onToggle={() => setOpen(open === "time" ? null : "time")}>
+          {time}
+        </PickerChip>
+      </div>
+      <PickerPanel open={open === "date"}>
+        <MiniCalendar value={day} onPick={(d) => { setDay(d); setOpen(null); }} />
+      </PickerPanel>
+      <PickerPanel open={open === "time"}>
+        <MiniClock value={time} onPick={(t) => setTime(t)} />
+      </PickerPanel>
+
+      <Button tone="lemon" size="lg" className="mt-5 w-full" disabled={!title.trim()} onClick={add}>
+        <Icon name="plus" size={16} /> Add event
+      </Button>
     </>
   );
 }
