@@ -13,7 +13,7 @@ import { taskGlyph } from "./glyphs";
 import {
   seedAutomations, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
 } from "./seed";
-import { addDays, iso, isToday, relative, relativeInline, todayIso } from "./dates";
+import { addDays, iso, isToday, relative, relativeInline, timeMinutes, todayIso } from "./dates";
 
 export interface Sheet {
   type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock";
@@ -1458,6 +1458,83 @@ export const doers = (s: HouseholdState) =>
 /** The money among the tasks — a bill is a task with an amount on it. */
 export const billTasks = (s: HouseholdState) =>
   s.tasks.filter((t) => typeof t.amount === "number");
+
+/**
+ * WHERE THE DAY COLLIDES — the Anticipator/Conflict Resolver made visible: the
+ * two ways a plan is quietly broken before anyone flags it.
+ *
+ *   • away  — someone is AWAY today but still HOLDS work dated today (owned,
+ *             undone, not yet covered). The work can't happen; resolve with
+ *             `coverAway()`, the same engine the phone's "Find cover" uses.
+ *   • clash — the same person has two TIMED things today whose start times fall
+ *             within CLASH_MINS of each other. Nothing here has a duration, so
+ *             "too close to do both" is the honest signal, not a hard overlap.
+ *             There's no reschedule flow yet, so a task in the pair offers a
+ *             reassign; otherwise it's a heads-up the app raised on its own.
+ *
+ * Household-wide — this is the shared iPad's lens. `for` a member scopes it to
+ * the conflicts that person is actually in (the phone's lens).
+ */
+export interface Conflict {
+  kind: "away" | "clash";
+  key: string;
+  who: MemberId;
+  title: string;
+  detail: string;
+  /** A task that can be reassigned to relieve a clash, when the app can't fix it itself. */
+  taskId?: number;
+}
+
+const CLASH_MINS = 45;
+
+export const conflicts = (s: HouseholdState, forMember?: MemberId): Conflict[] => {
+  const out: Conflict[] = [];
+  const people = forMember ? doers(s).filter((m) => m.id === forMember) : doers(s);
+
+  for (const m of people) {
+    // AWAY — work dated within their away span that's still theirs to do.
+    if (m.availability?.presence === "away") {
+      const stranded = s.tasks.filter(
+        (t) => t.owner === m.id && !t.done && !t.coveredBy && awayOn(m, t.due),
+      );
+      if (stranded.length) {
+        out.push({
+          kind: "away",
+          key: `away-${m.id}`,
+          who: m.id,
+          title: `${m.name} is away today`,
+          detail: `${stranded.length} ${stranded.length === 1 ? "task" : "tasks"} still on them — ${stranded.map((t) => t.title).join(", ")}`,
+        });
+      }
+    }
+
+    // CLASH — timed things today this person is on, sorted, first tight gap wins.
+    const timed = [
+      ...s.tasks
+        .filter((t) => holder(t) === m.id && !t.done && isToday(t.due) && timeMinutes(t.when) >= 0)
+        .map((t) => ({ at: timeMinutes(t.when), label: t.title, taskId: t.id as number | undefined })),
+      ...s.events
+        .filter((e) => e.who === m.id && !e.done && isToday(e.due) && timeMinutes(e.time) >= 0)
+        .map((e) => ({ at: timeMinutes(e.time), label: e.title, taskId: undefined as number | undefined })),
+    ].sort((a, b) => a.at - b.at);
+
+    for (let i = 1; i < timed.length; i++) {
+      const a = timed[i - 1], b = timed[i];
+      if (b.at - a.at <= CLASH_MINS) {
+        out.push({
+          kind: "clash",
+          key: `clash-${m.id}`,
+          who: m.id,
+          title: `${m.name} is double-booked`,
+          detail: `${a.label} and ${b.label}, ${b.at - a.at} min apart`,
+          taskId: a.taskId ?? b.taskId,
+        });
+        break; // one flag per person is enough — the point is made
+      }
+    }
+  }
+  return out;
+};
 
 /* ─────────────── automations: the rule, said out loud ─────────────── */
 

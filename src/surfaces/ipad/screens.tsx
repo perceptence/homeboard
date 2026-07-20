@@ -9,7 +9,7 @@ import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Se
 import { Step } from "@/components/Period";
 import { addDays, clockLabel, greeting, isCurrentPeriod, iso, isToday, parse, periodLabel, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
-import { billTasks, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
+import { billTasks, conflicts, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
 import type { HouseEvent, Member, Role } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 
@@ -59,6 +59,27 @@ export function IpadToday() {
   /* WORTH A LOOK — the things that would go wrong quietly: money running
      late, upkeep gone overdue, supplies out, work nobody owns. */
   const attention: { key: string; icon: IconName; tone: TileTone; title: string; meta: string; action: React.ReactNode }[] = [];
+
+  /* CONFLICTS LEAD — what the app NOTICED on its own: someone away with work
+     still on them, someone double-booked. These sit at the very top of the
+     row because a broken plan outranks an errand. Resolve buttons stay white/
+     outline, not lemon — the day's one lemon is spent on the hero and Pay. */
+  conflicts(s).forEach((c) =>
+    attention.push({
+      key: c.key,
+      icon: c.kind === "away" ? "pin" : "clock",
+      tone: "neutral",
+      title: c.title,
+      meta: c.detail,
+      action:
+        c.kind === "away" ? (
+          <Button size="touch" tone="light" onClick={() => s.coverAway(c.who)}>Find cover</Button>
+        ) : c.taskId != null ? (
+          <Button size="touch" tone="outlineDark" onClick={() => s.openSheet({ type: "assign", id: c.taskId! })}>Move one</Button>
+        ) : undefined,
+    }),
+  );
+
   if (billDue) {
     attention.push({
       key: String(billDue.id), icon: billDue.source?.startsWith("Email") ? "mail" : "bill", tone: "neutral",
