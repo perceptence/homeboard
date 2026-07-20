@@ -1,5 +1,5 @@
 import type {
-  Automation, HouseEvent, InventoryItem, MaintItem, Member, MemberId, ShopItem, Task,
+  Automation, HouseEvent, InventoryItem, MaintItem, Member, MemberId, Priority, ShopItem, Task,
 } from "./types";
 import { addDays, iso } from "./dates";
 
@@ -54,7 +54,7 @@ export const seedMembers: Record<MemberId, Member> = {
   juno: { id: "juno", name: "Juno", kind: "pet", role: "guided", color: "var(--m-juno)" },
 };
 
-export const seedTasks: Task[] = [
+const baseTasks: Task[] = [
   /* ONE trash entry. It used to exist twice — this task AND a "Trash night"
      calendar event — which read as being asked to do the job twice. One thing,
      both provenances in the eyebrow. */
@@ -101,6 +101,68 @@ export const seedTasks: Task[] = [
   { id: 33, title: "Pay the water bill", owner: "maya", when: "Any time", due: d(-15), done: true, completedAt: doneAgo(15), priority: "med", requires: "full", source: "Email · City Water", amount: 64 },
   { id: 34, title: "Rent", owner: "maya", when: "Any time", due: d(14), done: false, priority: "high", recurring: "Monthly", requires: "full", source: "Bills", amount: 2400 },
 ];
+
+/**
+ * A GUARANTEED FULL TODAY. The demo should never open onto a thin day — so
+ * whatever the base list happens to schedule for today, top each person up to
+ * a floor: Maya and Sam carry the house (5 each), Leo and Ada their share (2).
+ * The fillers respect the model (kid-safe by minAge, no owner-only chores on a
+ * child) so the day still reads as real, not padding. Relative to now, like
+ * every other date here, so it's the CURRENT today that fills — not a frozen
+ * one. (Reopen days later without a re-seed and the dates are yesterday's;
+ * that's the same persistence caveat the whole seed carries.)
+ */
+const TODAY_FLOOR: Record<"maya" | "sam" | "leo" | "ada", number> = { maya: 5, sam: 5, leo: 2, ada: 2 };
+
+type Filler = { title: string; when: string; source: string; priority?: Priority; minAge?: number; requires?: "full" };
+const FILLERS: Record<"maya" | "sam" | "leo" | "ada", Filler[]> = {
+  maya: [
+    { title: "Plan the week’s meals", when: "Morning", source: "Meals" },
+    { title: "Wipe down the kitchen", when: "After dinner", source: "Kitchen" },
+    { title: "Sort the post", when: "Any time", source: "Bills", requires: "full" },
+    { title: "Prep the lunchboxes", when: "8:00 AM", source: "Meals" },
+    { title: "Defrost tomorrow’s dinner", when: "Evening", source: "Meals" },
+  ],
+  sam: [
+    { title: "Check the smoke alarms", when: "Morning", source: "Home maintenance", requires: "full" },
+    { title: "Tidy the garage", when: "Afternoon", source: "Garage" },
+    { title: "Water the garden", when: "Evening", source: "Garden" },
+    { title: "Put the bins out", when: "7:00 PM", source: "Home maintenance" },
+    { title: "Oil the gate hinge", when: "Any time", source: "Garage", requires: "full" },
+  ],
+  leo: [
+    { title: "Feed Juno", when: "8:00 AM", source: "Pets", minAge: 5 },
+    { title: "Walk Juno", when: "After school", source: "Pets", minAge: 8 },
+    { title: "Tidy your room", when: "Evening", source: "Leo’s room", minAge: 5 },
+  ],
+  ada: [
+    { title: "Pack your school bag", when: "Morning", source: "Ada’s room", minAge: 4 },
+    { title: "Tidy your toys", when: "Evening", source: "Ada’s room", minAge: 4 },
+    { title: "Put your shoes away", when: "Any time", source: "Ada’s room", minAge: 4 },
+  ],
+};
+
+function withTodayFloor(base: Task[]): Task[] {
+  const today = d(0);
+  const out = [...base];
+  let id = 100;
+  (Object.keys(TODAY_FLOOR) as (keyof typeof TODAY_FLOOR)[]).forEach((who) => {
+    const have = base.filter((t) => t.owner === who && t.due === today && !t.done).length;
+    const pool = FILLERS[who];
+    for (let i = have; i < TODAY_FLOOR[who]; i++) {
+      const f = pool[(i - have) % pool.length];
+      out.push({
+        id: id++, title: f.title, owner: who, when: f.when, due: today, done: false,
+        priority: f.priority ?? "low", source: f.source,
+        ...(f.minAge ? { minAge: f.minAge } : {}),
+        ...(f.requires ? { requires: f.requires } : {}),
+      });
+    }
+  });
+  return out;
+}
+
+export const seedTasks: Task[] = withTodayFloor(baseTasks);
 
 export const seedShopping: ShopItem[] = [
   /* `by` = whose want this is. The house's own asks arrive via `low` instead —
