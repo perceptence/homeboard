@@ -1735,7 +1735,13 @@ function MaintSheet({ id }: { id: string }) {
 function HandoffSheet({ id }: { id?: number }) {
   const s = useHousehold();
   const meId = s.persona !== "ipad" ? s.persona : doers(s)[0]?.id;
-  const mine = s.tasks.filter((t) => t.owner === meId && !t.done);
+  // TODAY + OVERDUE only — the load that's actually pressing. Hand-off is reached
+  // from the Today hero ("you have N today"), so listing every open task you own
+  // across the next two months made the sheet contradict the screen that opened
+  // it: 5 on Today, 12 here. A far-future maintenance job isn't what "someone
+  // cover for me" means. ISO dates sort as strings, so `<=` today is overdue-or-
+  // today. (Owner, not holder: you can only give away what's yours to give.)
+  const mine = s.tasks.filter((t) => t.owner === meId && !t.done && t.due <= todayIso());
 
   const [openId, setOpenId] = useState<number | undefined>(id);
   /** The dock's selection — starts on the suggestion when a card opens. */
@@ -1757,15 +1763,15 @@ function HandoffSheet({ id }: { id?: number }) {
         <IconTile name="handoff" tone="lemon" />
         <h2 className="min-w-0 font-tight text-h1">Hand off</h2>
       </span>
-      <p className="mt-1.5 text-bodysm text-sub">Which one should someone else take?</p>
+      <p className="mt-1.5 text-bodysm text-sub">Which of today&rsquo;s should someone else take?</p>
 
       {mine.length === 0 ? (
         <div className="mt-4 flex flex-col items-center gap-2 rounded-card bg-card px-6 py-10 text-center">
           <span className="grid h-12 w-12 place-items-center rounded-pill bg-lemon text-ink">
             <Icon name="check" size={22} />
           </span>
-          <p className="mt-1 text-bodysm font-medium">Nothing left to hand off</p>
-          <p className="text-caption text-sub">Everything of yours is where it should be.</p>
+          <p className="mt-1 text-bodysm font-medium">Nothing on today to hand off</p>
+          <p className="text-caption text-sub">Your plate&rsquo;s clear for now — nothing due today or overdue.</p>
         </div>
       ) : (
         <div className="mt-4 space-y-2">
@@ -1875,6 +1881,41 @@ function HandoffSheet({ id }: { id?: number }) {
                       exit={{ height: 0, opacity: 0 }}
                       transition={smooth}
                     >
+                      {/* A LITTLE MORE ABOUT IT before you give it away — the
+                          collapsed row is a one-liner (title · time · priority),
+                          which is thin to decide a hand-off on. Expanding adds
+                          what the row can't hold: the day it's due, whether it
+                          recurs, any money on it, and the verbatim words if the
+                          title was cleaned up from a spoken sentence. */}
+                      <div className="px-3 pb-1">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-sub">
+                          <span className="flex items-center gap-1">
+                            <Icon name="cal" size={12} /> {relative(t.due)}
+                          </span>
+                          {t.when && t.when !== "Any time" && (
+                            <span className="flex items-center gap-1">
+                              <Icon name="clock" size={12} /> {clockLabel(t.when)}
+                            </span>
+                          )}
+                          {t.recurring && (
+                            <span className="flex items-center gap-1">
+                              <Icon name="repeat" size={12} /> Repeats {t.recurring.toLowerCase()}
+                            </span>
+                          )}
+                          {typeof t.amount === "number" && (
+                            <span className="flex items-center gap-1">
+                              <Icon name="bill" size={12} /> ${t.amount}
+                            </span>
+                          )}
+                        </div>
+                        {t.said && (
+                          <p className="mt-1.5 flex items-start gap-1.5 text-caption text-sub">
+                            <Icon name="mic" size={12} className="mt-0.5 shrink-0" />
+                            <span className="italic">&ldquo;{t.said}&rdquo;</span>
+                          </p>
+                        )}
+                      </div>
+
                       {/* THE CARD'S OWN DOCK — a PICKER in the LIGHT palette:
                           a soft grey well, white face cells, an ink RING for the
                           pick, and a dark confirm. No black slab, no lemon — the
@@ -2210,7 +2251,20 @@ function NewTaskSheet({
    * the pick becomes the owner. `suggest` still exists — it's for tasks that lose
    * an owner later (a role change strands work; rebalance moves it).
    */
-  const assignee = owner ?? nominee?.id ?? null;
+  /**
+   * WHO THE ADD IS FOR, BY DEFAULT — the person who opened the composer.
+   *
+   * The + on a phone carries `draft.owner = me`; adding a task from your own
+   * phone should land it in YOUR list, not silently route it to whoever the
+   * Balancer thinks is lightest — that's the "I added a task and it vanished"
+   * bug. It sits BELOW every stronger signal (a name you typed, a name you
+   * tapped, a precedent) and ABOVE the Balancer, so naming or picking someone
+   * still wins, and the Best-fit badge still offers the Balancer's pick in one
+   * tap. The family iPad passes `owner: null` on purpose — a shared board has no
+   * "me", so there the Balancer still decides.
+   */
+  const draftOwner = sheet?.draft?.owner ?? null;
+  const assignee = owner ?? draftOwner ?? nominee?.id ?? null;
   /**
    * Only whoever supplied the answer may explain it — the readback line sits
    * under the assignee's name, so a reason about someone else would read as

@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { ActionButton, AppMark, Button } from "@/components/ui";
 import { press, spring } from "@/lib/motion";
-import { doers, useHousehold } from "@/lib/store";
+import { useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
 import type { IpadRoute } from "@/lib/types";
 import { IpadCalendar, IpadHousehold, IpadToday } from "./screens";
@@ -40,10 +40,6 @@ const UNDER_HOUSEHOLD: IpadRoute[] = ["inventory", "maint", "autos", "settings"]
 export function IpadShell() {
   const s = useHousehold();
   const route = s.ipadRoute;
-
-  // Whoever runs the home — never a hardcoded id, which broke for any
-  // onboarded household without a member literally named Maya.
-  const owner = doers(s).find((m) => m.role === "owner") ?? doers(s)[0];
 
   // Which NAV item is lit: a Household sub-screen keeps that tab active.
   const navRoute: IpadRoute = UNDER_HOUSEHOLD.includes(route) ? "household" : route;
@@ -106,9 +102,12 @@ export function IpadShell() {
               whether what you typed is a booked slot (an event, can't be handed
               off) or household work (a task, can), so there's nothing here to
               route on. See `inferFixed` in lib/parse.ts. */}
+          {/* owner: null — the family board has no "me". A task added here has no
+              adder to default to, so the Balancer decides who takes it (the
+              phone's + passes the viewer's id instead, defaulting to them). */}
           <Button
             tone="lemon"
-            onClick={() => s.openSheet({ type: "newTask", draft: { title: "", owner: owner?.id ?? null, when: "Today", priority: "med" } })}
+            onClick={() => s.openSheet({ type: "newTask", draft: { title: "", owner: null, when: "Today", priority: "med" } })}
           >
             {/* Lucide's plus is inset within its own 24×24 box, so its ink sits
                 further from the pill's left edge than "Add"'s ink sits from the
