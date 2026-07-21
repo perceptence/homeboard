@@ -9,7 +9,7 @@ import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Se
 import { Step } from "@/components/Period";
 import { addDays, clockLabel, greeting, inRange, isCurrentPeriod, iso, isToday, parse, periodLabel, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
-import { billTasks, conflicts, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold, weeklyTrend } from "@/lib/store";
+import { billTasks, conflicts, doers, holder, pendingFor, previewRebalance, shoppingList, trendSeries, useHousehold, weeklyTrend } from "@/lib/store";
 import { Trend } from "@/components/Trend";
 import type { HouseEvent, Member, Role } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
@@ -794,7 +794,7 @@ function PersonCard({ member: m }: { member: Member }) {
   const jobs = [...(m.responsibility?.domains ?? []), ...(m.responsibility?.spaces ?? [])];
 
   return (
-    <Card tone="wash" className="flex min-h-[200px] flex-col">
+    <Card tone="wash" className="flex h-full min-h-[200px] flex-col">
       <div className="flex items-start">
         <Avatar member={m} size={44} />
         {m.role === "guided" && m.kind === "person" && (
@@ -889,8 +889,17 @@ function PersonCard({ member: m }: { member: Member }) {
   );
 }
 
+/** The progress card's grain — same two words the phone's card uses. */
+const HH_SPAN = ["Weekly", "Monthly"] as const;
+
 export function IpadHousehold() {
   const s = useHousehold();
+  // The progress card's grain — the figure, the stats and the chart all follow
+  // it, so Week and Month are one honest window, never mixed. Defaults to
+  // Monthly: the household screen is a broad "how are we doing" overview, and a
+  // partial current week reads as a misleadingly low number to land on (the
+  // phone's personal card, which is about right-now, defaults to Weekly).
+  const [span, setSpan] = useState<"Weekly" | "Monthly">("Monthly");
   const everyone = Object.values(s.members);
   // People and pets — the only split identity actually makes. How many "adults"
   // vs "kids" live here was never a fact the app knew; it was a guess it made
@@ -901,17 +910,17 @@ export function IpadHousehold() {
   // The insights, baked in: how much gets finished, how it shares out, and the
   // machinery quietly carrying its own weight.
   //
-  // FINISH RATE, honestly windowed. This used to be done/total over ALL tasks
-  // ever — never date-filtered despite the "Last 30 days" label, and now that
-  // the seed carries weeks of completed history it would read as near-100%
-  // nonsense. Same windowed split PhoneToday uses: completed THIS MONTH over
-  // (completed + still-open-and-due) this month.
-  const month = periodRange("Month");
+  // FINISH RATE, honestly windowed to the chosen grain. This used to be
+  // done/total over ALL tasks ever — never date-filtered despite the "Last 30
+  // days" label, and with weeks of completed history it would read as near-100%
+  // nonsense. Same windowed split PhoneToday uses: completed IN THE WINDOW over
+  // (completed + still-open-and-due) in the window.
+  const range = periodRange(span === "Weekly" ? "Week" : "Month");
   const done = s.tasks.filter(
-    (t) => t.done && t.completedAt != null && t.completedAt >= +month.from && t.completedAt < +month.to,
+    (t) => t.done && t.completedAt != null && t.completedAt >= +range.from && t.completedAt < +range.to,
   ).length;
-  const openThisMonth = s.tasks.filter((t) => !t.done && inRange(t.due, month)).length;
-  const pct = Math.round((done / Math.max(1, done + openThisMonth)) * 100);
+  const openInRange = s.tasks.filter((t) => !t.done && inRange(t.due, range)).length;
+  const pct = Math.round((done / Math.max(1, done + openInRange)) * 100);
   // Share of the OPEN work — who's carrying the load right now. Open-only both
   // reads truer ("share of what's left") and sidesteps the completed history,
   // which would otherwise swamp the split with weeks of finished chores.
@@ -919,7 +928,8 @@ export function IpadHousehold() {
   const total = Math.max(1, loads.reduce((sum, l) => sum + l.load, 0));
   const autoOn = s.automations.filter((a) => a.on).length;
   const upkeep = s.maint.filter((m) => m.status === "over" || m.status === "due").length;
-  const trend = weeklyTrend(s);
+  // The chart follows the grain too: eight weeks, or five months.
+  const trend = span === "Weekly" ? weeklyTrend(s, 8) : trendSeries(s, "Month", 5);
 
   // The pulse's live half: everything open (unclaimed work is still the
   // house's), and who ISN'T simply around right now.
@@ -1005,12 +1015,14 @@ export function IpadHousehold() {
 
       {/* The people run in ONE row that scrolls sideways — a big family never
           wraps onto a second line and shoves everything below out of rhythm.
-          The row's height is auto, so an open role picker just grows it rather
-          than being clipped. */}
+          `items-stretch` makes every card the height of the tallest, so their
+          trend charts line up along one bottom edge (each card is h-full and
+          pins its chart to the bottom). Opening a role picker grows the whole
+          row together, which keeps that alignment rather than breaking it. */}
       <motion.div variants={listItem} className="@[1024px]:col-span-4">
-        <div className="no-scrollbar flex items-start gap-card-pad overflow-x-auto">
+        <div className="no-scrollbar flex items-stretch gap-card-pad overflow-x-auto">
           {everyone.map((m) => (
-            <div key={m.id} className="w-[264px] shrink-0">
+            <div key={m.id} className="flex w-[264px] shrink-0">
               <PersonCard member={m} />
             </div>
           ))}
@@ -1025,10 +1037,17 @@ export function IpadHousehold() {
             phone wears, so the two surfaces read as one app: trend well on
             lavender, then the space, the title, and the figure. */}
         <Card tone="lavender" className="flex flex-col">
-          <IconTile name="trend" tone="lemon" />
+          {/* The Week/Month toggle rides the header, same as the phone card —
+              the figure, the stats and the chart all follow it. */}
+          <div className="flex items-center">
+            <IconTile name="trend" tone="lemon" />
+            <span className="ml-auto">
+              <TabToggle options={HH_SPAN} value={span} onChange={setSpan} layoutId="ipadHhSpan" />
+            </span>
+          </div>
           <div className="mt-6 flex items-end gap-4">
             <div className="min-w-0 flex-1">
-              <Eyebrow>This month</Eyebrow>
+              <Eyebrow>{span === "Weekly" ? "This week" : "This month"}</Eyebrow>
               <Sentence className="mt-1 max-w-[24ch]">
                 The house is finishing <Em>most</Em>{" "}of what it&rsquo;s asked.
               </Sentence>
@@ -1047,12 +1066,14 @@ export function IpadHousehold() {
               onClick={move ? () => s.openSheet({ type: "rebalance" }) : undefined}
             />
           </div>
-          {/* THE TREND — eight weeks of finished work, so the figure above stops
-              being a number out of nowhere and becomes a trajectory. Last bar is
-              this week, lit lemon; the rest ink on the lavender. */}
+          {/* THE TREND — finished work over time, so the figure above stops being
+              a number out of nowhere and becomes a trajectory. Follows the grain
+              (eight weeks / five months); keyed by span so the bars re-grow on a
+              toggle. Last bar is the current period, ink on the lavender. */}
           <div className="mt-6 border-t border-ink/10 pt-5">
-            <Eyebrow>Finished, week by week</Eyebrow>
+            <Eyebrow>Finished, {span === "Weekly" ? "week by week" : "month by month"}</Eyebrow>
             <Trend
+              key={span}
               weeks={trend}
               height={56}
               className="mt-3"
