@@ -2116,7 +2116,10 @@ function NewTaskSheet({
   // not a re-fill on every keystroke the edit itself makes to the store.
   useEffect(() => {
     if (!open) return;
-    setAdjusting(false);
+    // EDIT opens straight into the form, already unfolded — you came here to
+    // change a field, not to compose a sentence. Add still starts folded, one
+    // readback line, "Adjust" only if you need it.
+    setAdjusting(editTaskId != null || editEventId != null);
     setDateOpen(false);
     setTimeOpen(false);
     if (editTaskId != null) {
@@ -2322,6 +2325,12 @@ function NewTaskSheet({
         </Button>
       }
     >
+      {/* THE ENTRY BOX IS FOR COMPOSING, NOT EDITING. Speak-or-type is how a
+          task is BORN from a blank; an edit already has a title (you rename it
+          in the readback below) and opens straight into the fields. So the whole
+          mic+field surface is add-only. */}
+      {!editing && (
+      <>
       {/* ONE input, two doors. The mic and the field used to be two unrelated
           boxes with a limp "…or type it" between them — the speaking half looked
           designed and the typing half looked like a fallback nobody wanted. They
@@ -2391,11 +2400,31 @@ function NewTaskSheet({
       </div>
 
       {dictation.error && <p className="mt-2 text-caption text-danger">{dictation.error}</p>}
+      </>
+      )}
 
-      {/* ONE line of readback. This is the whole form in the common case. */}
-      {ready && (
-        <div className="mt-4 rounded-card bg-card p-card-pad">
-          <b className="block text-body">{title}</b>
+      {/* ONE line of readback. This is the whole form in the common case — and in
+          EDIT, the title lives here as a plain field (the entry box is gone), so
+          it renders whenever there's something to read OR we're editing. */}
+      {(ready || editing) && (
+        <div className={clsx("rounded-card bg-card p-card-pad", !editing && "mt-4")}>
+          {editing ? (
+            <input
+              value={raw}
+              onChange={(e) => setRaw(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && commit()}
+              placeholder="Task name"
+              aria-label="Task name"
+              className="w-full bg-transparent text-body font-semibold text-ink outline-none placeholder:text-sub/60"
+            />
+          ) : (
+            <b className="block text-body">{title}</b>
+          )}
+          {/* The live summary — only once there's a title to summarise. In EDIT
+              the fields open below already say all this, but the line stays as
+              the card's at-a-glance header. */}
+          {ready && (
+          <>
           <div className="mt-1 flex flex-wrap items-center gap-1 text-caption text-sub">
             <Icon name="spark" size={12} className="text-ink" />
             <span className="text-ink">{dateLabel}</span>
@@ -2427,6 +2456,11 @@ function NewTaskSheet({
               Just {assignee ? s.members[assignee].name : "them"}{" "}— this one can&rsquo;t be handed off.
             </p>
           )}
+          </>
+          )}
+          {/* No Adjust toggle in EDIT — the form is already unfolded and stays
+              that way; there's no folded state to return to. */}
+          {!editing && (
           <button
             onClick={() => setAdjusting(!adjusting)}
             aria-expanded={adjusting}
@@ -2437,6 +2471,7 @@ function NewTaskSheet({
               <Icon name="chevDown" size={12} />
             </motion.span>
           </button>
+          )}
         </div>
       )}
 
@@ -2462,9 +2497,11 @@ function NewTaskSheet({
         </div>
       )}
 
-      {/* The old form, folded away. Here to CORRECT a guess, not to be filled in. */}
+      {/* The old form, folded away. Here to CORRECT a guess, not to be filled in.
+          In EDIT it's the whole point and stays open even if the title is briefly
+          empty, so a stray backspace can't fold the sheet shut under you. */}
       <AnimatePresence initial={false}>
-        {adjusting && ready && (
+        {adjusting && (ready || editing) && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
