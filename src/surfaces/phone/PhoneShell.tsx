@@ -7,13 +7,13 @@ import { Icon, type IconName } from "@/components/Icons";
 import { SAFE_TOP } from "@/components/DeviceFrame";
 import { EventCard, MaintCard, TaskCard } from "@/components/TaskCard";
 import { ScopePicker, Step, type Scope } from "@/components/Period";
-import { ActionButton, Avatar, Button, Card, Choice, Em, Eyebrow, IconTile, MiniCalendar, MiniClock, PickerPanel, Pill, Sentence, TabToggle, TitleBlock } from "@/components/ui";
+import { ActionButton, Avatar, Button, Card, Choice, Em, Eyebrow, IconTile, List, MiniCalendar, MiniClock, PickerPanel, Pill, Row, Sentence, TabToggle, TitleBlock } from "@/components/ui";
 import { listItem, listStagger, press, smooth, spring } from "@/lib/motion";
 import {
   addDays, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
   periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel, type Period,
 } from "@/lib/dates";
-import { awayOn, billTasks, conflicts, currentMember, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
+import { awayOn, billTasks, conflicts, currentMember, doers, holder, pendingFor, previewRebalance, searchAll, shoppingList, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
 import type { HouseEvent, MaintItem, MemberId, PhoneRoute, Presence, Task } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
@@ -47,6 +47,11 @@ export function PhoneShell() {
   const [scope, setScope] = useState<Scope>("Week");
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [query, setQuery] = useState("");
+  // Global, cross-domain search — its own overlay, distinct from Ahead's in-list
+  // text filter (`query` above). Whole-home search has no date to bucket by and
+  // reaches every domain + every person, so it can't live inside the personal,
+  // period-scoped Ahead list; it takes over the screen instead.
+  const [searchOpen, setSearchOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
   const [scrolled, setScrolled] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
@@ -182,6 +187,35 @@ export function PhoneShell() {
             route === "ahead" ? "pb-2" : "pb-4",
           )}
         >
+          {searchOpen ? (
+            // WHOLE-HOME SEARCH — takes over the header. A full-width field the
+            // width of the screen, and a Cancel that both closes the overlay and
+            // clears the query (goPhone clears it too, so a tab tap also exits).
+            <div className="flex items-center gap-2">
+              <label className="flex h-touch flex-1 items-center gap-2 rounded-pill border border-white/10 bg-white/[.06] px-3.5 text-white/45 focus-within:border-white/25">
+                <Icon name="search" size={16} className="shrink-0" />
+                <input
+                  autoFocus
+                  value={s.query}
+                  onChange={(e) => s.setQuery(e.target.value)}
+                  placeholder="Search your whole home…"
+                  className="w-full bg-transparent text-bodysm text-white outline-none placeholder:text-white/30"
+                />
+                {s.query && (
+                  <button onClick={() => s.setQuery("")} aria-label="Clear search" className="shrink-0 hover:text-white">
+                    <Icon name="x" size={14} />
+                  </button>
+                )}
+              </label>
+              <button
+                onClick={() => { setSearchOpen(false); s.setQuery(""); }}
+                className="shrink-0 px-1 text-bodysm font-medium text-white/70 transition-colors hover:text-white"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+          <>
           <div className="flex items-start justify-between">
           {/* Eyebrow + Title — the same pair every card uses, and it says something
               different on every screen. The greeting is TODAY's alone: elsewhere it
@@ -268,6 +302,17 @@ export function PhoneShell() {
                 <Icon name="gear" size={24} />
               </button>
             )}
+            {/* Whole-home search — every tab, beside the bell. Personal chrome
+                stops at the greeting; this reaches the whole house (every domain,
+                every person), so it opens its own overlay rather than filtering
+                the tab you're on. */}
+            <button
+              onClick={() => setSearchOpen(true)}
+              aria-label="Search"
+              className="grid h-touch w-touch place-items-center rounded-pill text-white/70 transition-colors hover:text-white"
+            >
+              <Icon name="search" size={23} />
+            </button>
             {/* The household view grew into its own TAB — no door in the
                 chrome; it sits in the nav beside Today/Ahead/You. */}
             {/* Just the bell. The shopping cart used to sit here and it was
@@ -377,15 +422,21 @@ export function PhoneShell() {
               </motion.div>
             </div>
           )}
+          </>
+          )}
         </header>
 
         <motion.div
-          key={s.navTick}
+          key={searchOpen ? "search" : s.navTick}
           variants={listStagger}
           initial="hidden"
           animate="show"
           className="flex flex-col gap-tile px-screen pb-[140px] pt-1"
         >
+          {searchOpen ? (
+            <PhoneSearchResults onPick={() => { setSearchOpen(false); s.setQuery(""); }} />
+          ) : (
+          <>
           {route === "today" && <PhoneToday />}
           {route === "ahead" && (
             <PhoneAhead
@@ -396,6 +447,8 @@ export function PhoneShell() {
           )}
           {route === "house" && <PhoneHouse />}
           {route === "you" && <PhoneYou />}
+          </>
+          )}
         </motion.div>
       </motion.div>
 
@@ -455,6 +508,7 @@ export function PhoneShell() {
                   if (!navOpen) return setNavOpen(true);
                   s.goPhone(n.route);
                   setNavOpen(false);
+                  setSearchOpen(false);
                 }}
                 // Open = four labelled items in one 393px pill: the tighter
                 // padding is what lets the fourth fit. Collapsed keeps the
@@ -517,6 +571,75 @@ export function PhoneShell() {
         </motion.nav>
       </div>
     </div>
+  );
+}
+
+/**
+ * WHOLE-HOME SEARCH RESULTS — one query across every domain and every person,
+ * mirroring the iPad's SearchResults but phone-chrome'd. A hit on someone else's
+ * task still names them (searchAll's `meta` carries the owner), so a personal
+ * phone can still find "Sam's dentist" without pretending it's yours.
+ */
+function PhoneSearchResults({ onPick }: { onPick: () => void }) {
+  const s = useHousehold();
+  const q = s.query.trim();
+  const hits = searchAll(s, s.query);
+
+  // Land on the THING itself. searchAll's `route` is iPad-only, so we open the
+  // item's own sheet by its key prefix (t/e/m/s/i/p) — the sheet is the answer,
+  // the same behaviour the iPad search gives a task hit, generalised to every
+  // domain. Shopping/inventory have no per-item sheet (matches iPad), so they
+  // open the whole list; a person routes to the Household tab.
+  const open = (key: string, taskId?: number) => {
+    const id = key.slice(1);
+    onPick();
+    switch (key[0]) {
+      case "t": if (taskId != null) s.openSheet({ type: "task", id: taskId }); break;
+      case "e": s.openSheet({ type: "event", id }); break;
+      case "m": s.openSheet({ type: "maint", id }); break;
+      case "s": s.openSheet({ type: "shop" }); break;
+      case "i": s.openSheet({ type: "stock" }); break;
+      case "p": s.goPhone("house"); break;
+    }
+  };
+
+  if (!q) {
+    return (
+      <Card className="text-center">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-pill bg-surface text-sub">
+          <Icon name="search" size={22} />
+        </div>
+        <p className="mt-4 text-body font-semibold text-ink">Search your whole home</p>
+        <p className="mt-1 text-bodysm text-sub">
+          Tasks, events, shopping, bills, upkeep, people — everyone&rsquo;s, not just yours.
+        </p>
+      </Card>
+    );
+  }
+
+  return hits.length ? (
+    <Card pad="none">
+      <List>
+        {hits.map((h) => (
+          <Row
+            key={h.key}
+            lead={<IconTile name={h.icon} />}
+            title={h.title}
+            meta={h.meta}
+            onClick={() => open(h.key, h.taskId)}
+            actions={<Icon name="fwd" size={16} className="text-sub" />}
+          />
+        ))}
+      </List>
+    </Card>
+  ) : (
+    <Card className="text-center">
+      <div className="mx-auto grid h-12 w-12 place-items-center rounded-pill bg-surface text-sub">
+        <Icon name="search" size={22} />
+      </div>
+      <p className="mt-4 text-body font-semibold text-ink">Nothing matches &ldquo;{q}&rdquo;</p>
+      <p className="mt-1 text-bodysm text-sub">Try a person, a chore, a bill — search reaches everything.</p>
+    </Card>
   );
 }
 

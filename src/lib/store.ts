@@ -436,7 +436,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
 
   setPersona: (p) => set((s) => ({ persona: p, sheet: null, query: "", navTick: s.navTick + 1 })),
   goIpad: (r) => set((s) => ({ ipadRoute: r, query: "", navTick: s.navTick + 1 })),
-  goPhone: (r) => set((s) => ({ phoneRoute: r, navTick: s.navTick + 1 })),
+  goPhone: (r) => set((s) => ({ phoneRoute: r, query: "", navTick: s.navTick + 1 })),
   openSheet: (sheet) => set({ sheet }),
   closeSheet: () => set({ sheet: null }),
   notify: (toast) => set({ toast, toastWho: null, toastUndo: null }),
