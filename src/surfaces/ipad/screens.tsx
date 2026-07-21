@@ -7,9 +7,10 @@ import { Icon, type IconName } from "@/components/Icons";
 import { EventCard, TaskCard } from "@/components/TaskCard";
 import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TabToggle, TitleBlock, type TileTone } from "@/components/ui";
 import { Step } from "@/components/Period";
-import { addDays, clockLabel, greeting, isCurrentPeriod, iso, isToday, parse, periodLabel, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
+import { addDays, clockLabel, greeting, inRange, isCurrentPeriod, iso, isToday, parse, periodLabel, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
-import { billTasks, conflicts, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold } from "@/lib/store";
+import { billTasks, conflicts, doers, holder, pendingFor, previewRebalance, shoppingList, useHousehold, weeklyTrend } from "@/lib/store";
+import { Trend } from "@/components/Trend";
 import type { HouseEvent, Member, Role } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
 
@@ -869,6 +870,20 @@ function PersonCard({ member: m }: { member: Member }) {
             ))}
           </div>
         )}
+
+        {/* Their own eight-week trend — the household card's chart, one person's
+            slice. Pets hold no work, so no bars. Label-less by design: the card
+            is dense, and the shape reads on its own. */}
+        {m.kind === "person" && (
+          <Trend
+            weeks={weeklyTrend(s, 8, m.id)}
+            height={26}
+            className="mt-3"
+            barClass="bg-white/25"
+            trackClass="bg-white/[.05]"
+            lastBarClass="bg-lemon"
+          />
+        )}
       </div>
     </Card>
   );
@@ -885,12 +900,26 @@ export function IpadHousehold() {
 
   // The insights, baked in: how much gets finished, how it shares out, and the
   // machinery quietly carrying its own weight.
-  const done = s.tasks.filter((t) => t.done).length;
-  const pct = Math.round((done / Math.max(1, s.tasks.length)) * 100);
-  const loads = doers(s).map((m) => ({ m, load: s.tasks.filter((t) => holder(t) === m.id).length }));
+  //
+  // FINISH RATE, honestly windowed. This used to be done/total over ALL tasks
+  // ever — never date-filtered despite the "Last 30 days" label, and now that
+  // the seed carries weeks of completed history it would read as near-100%
+  // nonsense. Same windowed split PhoneToday uses: completed THIS MONTH over
+  // (completed + still-open-and-due) this month.
+  const month = periodRange("Month");
+  const done = s.tasks.filter(
+    (t) => t.done && t.completedAt != null && t.completedAt >= +month.from && t.completedAt < +month.to,
+  ).length;
+  const openThisMonth = s.tasks.filter((t) => !t.done && inRange(t.due, month)).length;
+  const pct = Math.round((done / Math.max(1, done + openThisMonth)) * 100);
+  // Share of the OPEN work — who's carrying the load right now. Open-only both
+  // reads truer ("share of what's left") and sidesteps the completed history,
+  // which would otherwise swamp the split with weeks of finished chores.
+  const loads = doers(s).map((m) => ({ m, load: s.tasks.filter((t) => holder(t) === m.id && !t.done).length }));
   const total = Math.max(1, loads.reduce((sum, l) => sum + l.load, 0));
   const autoOn = s.automations.filter((a) => a.on).length;
   const upkeep = s.maint.filter((m) => m.status === "over" || m.status === "due").length;
+  const trend = weeklyTrend(s);
 
   // The pulse's live half: everything open (unclaimed work is still the
   // house's), and who ISN'T simply around right now.
@@ -999,7 +1028,7 @@ export function IpadHousehold() {
           <IconTile name="trend" tone="lemon" />
           <div className="mt-6 flex items-end gap-4">
             <div className="min-w-0 flex-1">
-              <Eyebrow>Last 30 days</Eyebrow>
+              <Eyebrow>This month</Eyebrow>
               <Sentence className="mt-1 max-w-[24ch]">
                 The house is finishing <Em>most</Em>{" "}of what it&rsquo;s asked.
               </Sentence>
@@ -1016,6 +1045,20 @@ export function IpadHousehold() {
               figure={balanceLabel}
               label={move ? "even it out" : "the balance"}
               onClick={move ? () => s.openSheet({ type: "rebalance" }) : undefined}
+            />
+          </div>
+          {/* THE TREND — eight weeks of finished work, so the figure above stops
+              being a number out of nowhere and becomes a trajectory. Last bar is
+              this week, lit lemon; the rest ink on the lavender. */}
+          <div className="mt-6 border-t border-ink/10 pt-5">
+            <Eyebrow>Finished, week by week</Eyebrow>
+            <Trend
+              weeks={trend}
+              height={56}
+              className="mt-3"
+              barClass="bg-ink/25"
+              trackClass="bg-ink/[.06]"
+              lastBarClass="bg-ink"
             />
           </div>
         </Card>

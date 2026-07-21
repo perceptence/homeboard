@@ -1,7 +1,7 @@
 import type {
   Automation, Comment, HouseEvent, InventoryItem, MaintItem, Member, MemberId, Priority, ShopItem, Task,
 } from "./types";
-import { addDays, iso } from "./dates";
+import { addDays, iso, periodRange, shiftPeriod } from "./dates";
 
 /**
  * Dates are seeded RELATIVE to now, then materialised to ISO — so the demo is
@@ -162,7 +162,62 @@ function withTodayFloor(base: Task[]): Task[] {
   return out;
 }
 
-export const seedTasks: Task[] = withTodayFloor(baseTasks);
+/**
+ * SYNTHETIC HISTORY — completed tasks stretching back 8 weeks, so the trend
+ * chart has a real shape on first run instead of an empty box. Kept SEPARATE
+ * from `baseTasks` (this is demo backfill, not "today's" work) and all `done:
+ * true` with past `completedAt`/`due`: they never show in current lists, never
+ * inflate anyone's open-work count, and only exist to be counted per week.
+ *
+ * Counts are hand-picked per person per week (not random — a demo shouldn't
+ * reshuffle its own history on reload), varied and trending so the bars tell a
+ * small story: the adults steady/busy, the kids ramping up.
+ */
+const HIST_TITLES: Record<string, string[]> = {
+  maya: ["Cooked dinner", "Paid a bill", "Planned the meals", "Wiped the kitchen", "School run", "Did the laundry", "Grocery run", "Sorted the post"],
+  sam: ["Put the bins out", "Mowed the lawn", "Did the dishes", "Vacuumed", "Fixed a shelf", "Washed the car", "Swept the yard", "Watered the garden"],
+  leo: ["Fed Juno", "Tidied his room", "Did his homework", "Walked Juno", "Set the table"],
+  ada: ["Packed her bag", "Tidied her toys", "Put her shoes away", "Fed the fish"],
+};
+// counts[0] = eight weeks ago … counts[7] = last week
+const HIST_COUNTS: Record<string, number[]> = {
+  maya: [4, 5, 3, 6, 5, 7, 6, 8],
+  sam: [6, 5, 7, 4, 6, 5, 7, 6],
+  leo: [2, 3, 2, 4, 3, 3, 4, 5],
+  ada: [1, 2, 1, 2, 2, 3, 2, 3],
+};
+
+function buildHistory(): Task[] {
+  // Index 0 = this week, 1 = last week, … 8 = eight weeks ago. Real Monday-
+  // aligned windows, so a stamped `completedAt` lands in the week it's meant to.
+  const windows: { from: Date; to: Date }[] = [];
+  let anchor = new Date();
+  for (let i = 0; i <= 8; i++) { windows.push(periodRange("Week", anchor)); anchor = shiftPeriod("Week", anchor, -1); }
+
+  const out: Task[] = [];
+  let id = 500;
+  (Object.keys(HIST_COUNTS) as MemberId[]).forEach((who) => {
+    HIST_COUNTS[who].forEach((n, idx) => {
+      const win = windows[8 - idx];           // idx 0 → 8 weeks ago
+      const midMs = +win.from + 3 * 86_400_000; // Thursday-ish of that week
+      const titles = HIST_TITLES[who];
+      for (let k = 0; k < n; k++) {
+        out.push({
+          id: id++, title: titles[k % titles.length], owner: who,
+          when: "Any time", due: iso(new Date(midMs)), done: true,
+          completedAt: midMs + k * 3_600_000,  // spread through the day, still in-window
+          priority: "low", source: "History",
+        });
+      }
+    });
+  });
+  return out;
+}
+
+/** Demo-only backfill of finished work — see {@link buildHistory}. */
+export const historicalTasks: Task[] = buildHistory();
+
+export const seedTasks: Task[] = [...withTodayFloor(baseTasks), ...historicalTasks];
 
 export const seedShopping: ShopItem[] = [
   /* `by` = whose want this is. The house's own asks arrive via `low` instead —

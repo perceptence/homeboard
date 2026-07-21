@@ -13,7 +13,7 @@ import { taskGlyph } from "./glyphs";
 import {
   importedEvents, seedAutomations, seedComments, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
 } from "./seed";
-import { addDays, iso, isToday, relative, relativeInline, timeMinutes, todayIso } from "./dates";
+import { addDays, iso, isToday, periodRange, relative, relativeInline, shiftPeriod, timeMinutes, todayIso } from "./dates";
 
 export interface Sheet {
   // No separate "newEvent" — New task is the ONE add flow for both; the app
@@ -1578,7 +1578,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   //     Re-seed.
   // 16: comments on items — a new persisted `comments` array. Re-seed.
   // 17: calendar connection + imported-event `source`. Re-seed.
-  version: 17,
+  // 18: 8 weeks of synthetic completion history in the seed (trend chart). Re-seed.
+  version: 18,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.
@@ -2119,6 +2120,41 @@ export interface SearchHit {
   route: IpadRoute;
   taskId?: number;
 }
+
+export interface TrendWeek {
+  /** Monday-aligned window this bar covers. */
+  from: Date;
+  to: Date;
+  /** Tasks FINISHED in the window (real completions, not a fabricated rate). */
+  done: number;
+}
+
+/**
+ * How much got finished each week, over the last `weeks` weeks — the raw
+ * material of the trend chart. ONE implementation for both surfaces (iPad
+ * household + phone), so the two can't drift the way the "Last 30 days" card
+ * drifted from PhoneToday's honest windowed count.
+ *
+ * VOLUME, not a finish-rate: a rate needs a denominator of missed work, which
+ * would mean seeding undone past-due tasks that inflate everyone's open-work
+ * count. Counting real completions is honest and clutters nothing. Pass a
+ * `memberId` for one person's trend; omit it for the whole household.
+ */
+export const weeklyTrend = (s: HouseholdState, weeks = 8, memberId?: MemberId): TrendWeek[] => {
+  const out: TrendWeek[] = [];
+  let anchor = new Date();
+  for (let i = 0; i < weeks; i++) {
+    const { from, to } = periodRange("Week", anchor);
+    const done = s.tasks.filter(
+      (t) => t.done && t.completedAt != null && t.completedAt >= +from && t.completedAt < +to
+        && (memberId ? holder(t) === memberId : true),
+    ).length;
+    out.push({ from, to, done });
+    anchor = shiftPeriod("Week", anchor, -1);
+  }
+  // Oldest → newest, so the chart reads left-to-right into the present.
+  return out.reverse();
+};
 
 /** Search everything — one query across every domain in the home. */
 export const searchAll = (s: HouseholdState, raw: string): SearchHit[] => {
