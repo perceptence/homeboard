@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
-  ActivityEntry, Automation, AutoThen, AutoWhen, DraftPerson, HouseEvent, HouseholdAxes, HouseholdPreset,
+  ActivityEntry, Automation, AutoThen, AutoWhen, Comment, DraftPerson, HouseEvent, HouseholdAxes, HouseholdPreset,
   InventoryItem, IpadRoute, MaintItem, Member, MemberId, MemberKind, OnboardingDraft, Persona, PhoneRoute,
   Availability, IslandNote, Presence, Priority, Reminder, Role, ShopItem, Task,
 } from "./types";
@@ -11,7 +11,7 @@ import { ROLE_RANK, ROLE_SET } from "./types";
 import type { IconName } from "@/components/Icons";
 import { taskGlyph } from "./glyphs";
 import {
-  seedAutomations, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
+  seedAutomations, seedComments, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
 } from "./seed";
 import { addDays, iso, isToday, relative, relativeInline, timeMinutes, todayIso } from "./dates";
 
@@ -236,6 +236,8 @@ interface HouseholdState {
   events: HouseEvent[];
   automations: Automation[];
   activity: ActivityEntry[];
+  /** Back-and-forth ON items — one thread per task/event (see {@link Comment}). */
+  comments: Comment[];
 
   householdName: string;
   /** How this home works. Every surface branches on THIS, never on a preset —
@@ -303,6 +305,8 @@ interface HouseholdState {
   tick: () => void;
   setQuery: (q: string) => void;
   markRead: () => void;
+  /** Post a comment on a task or event — author is always the current viewer. */
+  addComment: (target: { taskId?: number; eventId?: string }, text: string) => void;
 
   toggleTask: (id: number) => void;
   addTask: (t: { title: string; owner: MemberId | null; when: string; due: string; priority: Priority; requires?: Role; minAge?: number; source?: string; said?: string; recurring?: string; amount?: number }) => void;
@@ -415,6 +419,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   events: seedEvents,
   automations: seedAutomations,
   activity: [],
+  comments: seedComments,
 
   householdName: "Rivera Home",
   axes: { money: "pooled", dependents: true },
@@ -710,6 +715,29 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   },
   setQuery: (query) => set({ query }),
   markRead: () => set({ unread: 0 }),
+
+  // Author is ALWAYS the current viewer, never a caller-supplied id — same rule
+  // as every actor in this store (a person can only speak as themselves). Also
+  // logs to Activity: every other write leaves a trace there, and a comment that
+  // didn't would be the one silent mutation. The log line says THAT a comment
+  // happened, not its contents — the thread itself holds the words.
+  addComment: (target, text) =>
+    set((s) => {
+      const body = text.trim();
+      if (!body) return {};
+      const meId = currentMember(s);
+      const title = target.taskId != null
+        ? s.tasks.find((t) => t.id === target.taskId)?.title
+        : s.events.find((e) => e.id === target.eventId)?.title;
+      const comment: Comment = {
+        id: `c${++nextId}`, taskId: target.taskId, eventId: target.eventId,
+        who: meId, text: body, at: Date.now(),
+      };
+      return {
+        comments: [...s.comments, comment],
+        ...logged(s, `commented on “${title ?? "an item"}”`, meId),
+      };
+    }),
 
   toggleTask: (id) =>
     set((s) => {
@@ -1437,6 +1465,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         inventory: [],
         maint: [],
         events: [],
+        comments: [],
         activity: [{ text: `${d.householdName.trim() || "Your home"} is set up`, at: Date.now() }],
         unread: 1,
         persona: "ipad",
@@ -1458,6 +1487,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       maint: seedMaint,
       events: seedEvents,
       automations: seedAutomations,
+      comments: seedComments,
       sheet: null,
       navTick: s.navTick + 1,
     })),
@@ -1487,7 +1517,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   //     demo never opens onto a thin day. Re-seed.
   // 15: every task has an owner now (Mow the lawn was the last unowned one).
   //     Re-seed.
-  version: 15,
+  // 16: comments on items — a new persisted `comments` array. Re-seed.
+  version: 16,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.
@@ -1503,7 +1534,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   partialize: (s) => ({
     members: s.members, tasks: s.tasks, shopping: s.shopping,
     inventory: s.inventory, maint: s.maint, events: s.events, automations: s.automations,
-    activity: s.activity, unread: s.unread, reminders: s.reminders,
+    activity: s.activity, comments: s.comments, unread: s.unread, reminders: s.reminders,
     householdName: s.householdName, axes: s.axes, setupComplete: s.setupComplete,
     persona: s.persona, phoneRoute: s.phoneRoute, ipadRoute: s.ipadRoute,
   }),

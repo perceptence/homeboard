@@ -1,5 +1,5 @@
 import type {
-  Automation, HouseEvent, InventoryItem, MaintItem, Member, MemberId, Priority, ShopItem, Task,
+  Automation, Comment, HouseEvent, InventoryItem, MaintItem, Member, MemberId, Priority, ShopItem, Task,
 } from "./types";
 import { addDays, iso } from "./dates";
 
@@ -232,4 +232,18 @@ export const seedAutomations: Automation[] = [
   { id: "a3", title: "Weekly rebalance", description: "Even out the week every Sunday at 9:00 AM", on: true, when: { kind: "weekday", day: "Sunday", time: "9:00 AM" }, then: { kind: "rebalance" } },
   { id: "a4", title: "Bill alerts", description: "When a bill is three days out, nudge Maya", on: true, when: { kind: "dueSoon" }, then: { kind: "nudge", who: "maya" } },
   { id: "a5", title: "Guest mode", description: "Prep when an event is tagged guests", on: false },
+];
+
+/** Minutes back, epoch ms — so a seeded thread reads as a recent conversation
+ *  ("14m", "2h") rather than everything landing at once. */
+const minsAgo = (mins: number) => Date.now() - mins * 60_000;
+
+/* A little back-and-forth already on two items, so the thread has something to
+   show on first run — a household coordinates by talking, and an empty thread
+   teaches nobody that it's there. One task, one event; two voices each. */
+export const seedComments: Comment[] = [
+  { id: "sc1", taskId: 1, who: "maya", text: "Bins go out tonight, not tomorrow — recycling week.", at: minsAgo(180) },
+  { id: "sc2", taskId: 1, who: "sam", text: "Got it, I’ll take them down after dinner.", at: minsAgo(142) },
+  { id: "sc3", eventId: "e1", who: "maya", text: "Leo’s dentist is at 4 — can you pick him up straight after?", at: minsAgo(96) },
+  { id: "sc4", eventId: "e1", who: "sam", text: "Yep, I’ll leave a bit early.", at: minsAgo(64) },
 ];
