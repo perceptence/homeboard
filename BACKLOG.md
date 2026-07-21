@@ -18,6 +18,15 @@ surface, or lower ROI for a portfolio build right now.
   reschedule flow (notify in-household / draft-to-copy for outside), unified
   add flow, hand-off scoped to today + overdue with expandable detail, add
   defaults to the adder.
+- [x] **Comms on items** — threaded comments on any task/event (author = the
+  viewer, logged to Activity). @mentions/reactions left as follow-ups.
+- [x] **Calendar import (mock connect)** — Google/Apple connect flow drops a
+  canned batch of provider-badged events; idempotent, disconnect-with-undo.
+  A *real* inbox/OAuth source is still deferred (see Integrations).
+- [x] **Full-domain phone search** — a header search on every phone tab, the
+  iPad's `searchAll` across all domains + people, tapping through to sheets.
+- [x] **Trends over time** — `weeklyTrend` + a bar chart, 8 weeks household +
+  per-person; fixed the mislabeled all-time "Last 30 days" figure.
 
 ## Deferred — revisit
 
@@ -39,26 +48,20 @@ surface, or lower ROI for a portfolio build right now.
   label today. Deliberately split out of the create/delete pass.
 
 ### Coordination
-- [ ] **Comms on items** — comments, person-to-person nudges, reactions,
-  lightweight notes on a task/event. Households coordinate by talking; the app
-  has handoff but no back-and-forth.
+- [ ] **@mentions / reactions on comments** — the thread ships; nudging a
+  specific person from it (and lightweight reactions) is the follow-up.
 
 ### Integrations
-- [ ] **Calendar import** (Google/Apple) and a **real email-for-bills** source.
-  The "bills from email" automation is UI-ready with no inbox behind it.
+- [ ] **Real email-for-bills + real calendar sync.** The "bills from email"
+  automation and the calendar connect are both mocks (UI-ready, canned data);
+  a genuine inbox/OAuth source behind them is future work.
 
 ### Polish / a11y
-- [ ] **VoiceOver labeling + Dynamic Type audit.** Reduced-motion is being wired
-  now; the rest of the a11y pass is separate.
-- [ ] **Full-domain search on phone.** Phone search is scoped to Ahead
-  (tasks+events); the iPad's `searchAll` spans every domain.
+- [ ] **VoiceOver labeling + Dynamic Type audit.** Reduced-motion is done; the
+  rest of the a11y pass is separate.
 
 ### Ambient / glanceability
 - [ ] **Standby / ambient mode** for the always-on family iPad; **home-screen
-  widgets** for phones — the natural surface for a household app (out of reach
-  in this stack, but part of the "complete experience" picture).
-
-### Insights
-- [ ] **Trends over time** — the app computes a 30-day finish rate and
-  contribution, but no history/trajectory that would make it feel like it *knows*
-  the household over months.
+  widgets** for phones — the natural surface for a household app. (Confirmed
+  not buildable as a *real* OS widget in this web stack; the iPad standby view
+  is buildable and deferred by choice this round.)
