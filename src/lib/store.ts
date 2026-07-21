@@ -11,7 +11,7 @@ import { ROLE_RANK, ROLE_SET } from "./types";
 import type { IconName } from "@/components/Icons";
 import { taskGlyph } from "./glyphs";
 import {
-  seedAutomations, seedComments, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
+  importedEvents, seedAutomations, seedComments, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
 } from "./seed";
 import { addDays, iso, isToday, relative, relativeInline, timeMinutes, todayIso } from "./dates";
 
@@ -19,7 +19,7 @@ export interface Sheet {
   // No separate "newEvent" — New task is the ONE add flow for both; the app
   // decides task vs event from what was typed (see `inferFixed` in parse.ts)
   // so the person is never asked to understand the app's own internal split.
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock" | "cover" | "reschedule";
+  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock" | "cover" | "reschedule" | "connectCalendar";
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;
@@ -238,6 +238,9 @@ interface HouseholdState {
   activity: ActivityEntry[];
   /** Back-and-forth ON items — one thread per task/event (see {@link Comment}). */
   comments: Comment[];
+  /** Outside-calendar connection. A mock (no OAuth/backend): connecting drops a
+   *  canned batch of imported events, badged with the provider. */
+  calendar: { connected: "google" | "apple" | null };
 
   householdName: string;
   /** How this home works. Every surface branches on THIS, never on a preset —
@@ -307,6 +310,11 @@ interface HouseholdState {
   markRead: () => void;
   /** Post a comment on a task or event — author is always the current viewer. */
   addComment: (target: { taskId?: number; eventId?: string }, text: string) => void;
+  /** Mock-connect an outside calendar: drops a canned batch of imported events,
+   *  badged with the provider. Reconnecting the same provider is a no-op. */
+  connectCalendar: (provider: "google" | "apple") => void;
+  /** Disconnect — removes the imported events, with an undo. */
+  disconnectCalendar: () => void;
 
   toggleTask: (id: number) => void;
   addTask: (t: { title: string; owner: MemberId | null; when: string; due: string; priority: Priority; requires?: Role; minAge?: number; source?: string; said?: string; recurring?: string; amount?: number }) => void;
@@ -420,6 +428,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   automations: seedAutomations,
   activity: [],
   comments: seedComments,
+  calendar: { connected: null },
 
   householdName: "Rivera Home",
   axes: { money: "pooled", dependents: true },
@@ -736,6 +745,54 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       return {
         comments: [...s.comments, comment],
         ...logged(s, `commented on “${title ?? "an item"}”`, meId),
+      };
+    }),
+
+  // MOCK connect — no OAuth, no network, always succeeds instantly (a fake
+  // spinner would be pretending to do work it isn't). Reconnecting the same
+  // provider is a no-op toast; switching provider re-badges the events already
+  // imported rather than duplicating them. A house-level log line (no `who`).
+  connectCalendar: (provider) =>
+    set((s) => {
+      const label = provider === "google" ? "Google" : "Apple";
+      if (s.calendar.connected === provider) return { toast: `Already connected to ${label}` };
+      if (s.calendar.connected) {
+        // Switching providers: re-badge the imported events in place.
+        return {
+          calendar: { connected: provider },
+          events: s.events.map((e) => (e.source ? { ...e, source: provider } : e)),
+          toast: `Switched to ${label} Calendar`,
+          ...logged(s, `switched the calendar to ${label}`),
+        };
+      }
+      const imported = importedEvents(provider);
+      return {
+        calendar: { connected: provider },
+        events: [...s.events, ...imported],
+        sheet: null,
+        toast: `${label} Calendar connected · ${imported.length} events`,
+        ...logged(s, `connected ${label} Calendar`),
+      };
+    }),
+
+  // Disconnect removes the imported events — a connection that leaves ghosts
+  // behind reads as broken. Undo restores them (and the connection) at a tap.
+  disconnectCalendar: () =>
+    set((s) => {
+      const removed = s.events.filter((e) => e.source);
+      const was = s.calendar.connected;
+      return {
+        calendar: { connected: null },
+        events: s.events.filter((e) => !e.source),
+        toast: removed.length ? `Calendar disconnected · ${removed.length} events removed` : "Calendar disconnected",
+        toastWho: null,
+        toastUndo: () =>
+          set((s2) => ({
+            calendar: { connected: was },
+            events: [...s2.events, ...removed],
+            toast: "Calendar reconnected",
+            toastUndo: null,
+          })),
       };
     }),
 
@@ -1466,6 +1523,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         maint: [],
         events: [],
         comments: [],
+        calendar: { connected: null },
         activity: [{ text: `${d.householdName.trim() || "Your home"} is set up`, at: Date.now() }],
         unread: 1,
         persona: "ipad",
@@ -1488,6 +1546,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       events: seedEvents,
       automations: seedAutomations,
       comments: seedComments,
+      calendar: { connected: null },
       sheet: null,
       navTick: s.navTick + 1,
     })),
@@ -1518,7 +1577,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 15: every task has an owner now (Mow the lawn was the last unowned one).
   //     Re-seed.
   // 16: comments on items — a new persisted `comments` array. Re-seed.
-  version: 16,
+  // 17: calendar connection + imported-event `source`. Re-seed.
+  version: 17,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.
@@ -1534,7 +1594,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   partialize: (s) => ({
     members: s.members, tasks: s.tasks, shopping: s.shopping,
     inventory: s.inventory, maint: s.maint, events: s.events, automations: s.automations,
-    activity: s.activity, comments: s.comments, unread: s.unread, reminders: s.reminders,
+    activity: s.activity, comments: s.comments, calendar: s.calendar, unread: s.unread, reminders: s.reminders,
     householdName: s.householdName, axes: s.axes, setupComplete: s.setupComplete,
     persona: s.persona, phoneRoute: s.phoneRoute, ipadRoute: s.ipadRoute,
   }),

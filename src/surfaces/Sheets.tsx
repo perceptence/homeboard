@@ -138,8 +138,8 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
   // Settings ⇄ Manage household is a PUSH within the same sheet: manage is one
   // level deeper, so it slides in from the right and back slides in from the
   // left. Tracked so "back" actually reads as back.
-  const subForm = type === "addPerson";
-  const depth = (t?: string) => (t === "addPerson" ? 2 : t === "manage" ? 1 : 0);
+  const subForm = type === "addPerson" || type === "connectCalendar";
+  const depth = (t?: string) => (t === "addPerson" || t === "connectCalendar" ? 2 : t === "manage" ? 1 : 0);
   const prevDepth = useRef(0);
   const dir = depth(type) >= prevDepth.current ? 1 : -1;
   useEffect(() => { prevDepth.current = depth(type); }, [type]);
@@ -176,6 +176,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
             {type === "settings" && <SettingsSheet />}
             {type === "manage" && <ManageHouseholdSheet />}
             {type === "addPerson" && <AddPersonSheet />}
+            {type === "connectCalendar" && <ConnectCalendarSheet />}
           </motion.div>
         )}
       </Sheet>
@@ -1159,6 +1160,25 @@ function ManageHouseholdSheet() {
         <Icon name="plus" size={16} /> Add person
       </button>
 
+      {/* CALENDAR — pull events in from an outside calendar. One row, its own
+          sub-sheet; the state reads back right here once connected. */}
+      <Eyebrow className="mt-6">Calendar</Eyebrow>
+      <button
+        onClick={() => s.openSheet({ type: "connectCalendar" })}
+        className={clsx("mt-2 flex w-full items-center gap-3 overflow-hidden rounded-card bg-card p-4 text-left shadow-e1 transition-colors hover:bg-surface", FOCUS)}
+      >
+        <IconTile name="cal" tone="neutral" />
+        <div className="min-w-0 flex-1">
+          <div className="text-bodysm font-medium">
+            {s.calendar.connected ? `Connected · ${s.calendar.connected === "google" ? "Google" : "Apple"}` : "Connect calendar"}
+          </div>
+          <div className="text-caption text-sub">
+            {s.calendar.connected ? "Imported events show on the calendar" : "Pull events in from Google or Apple"}
+          </div>
+        </div>
+        <Icon name="fwd" size={16} className="shrink-0 text-sub" />
+      </button>
+
       {/* AUTOMATIONS — the rules the house runs on its own. */}
       <Eyebrow className="mt-6">Automations</Eyebrow>
       <div className="mt-2 divide-y divide-ink/[.06] overflow-hidden rounded-card bg-card shadow-e1">
@@ -1285,6 +1305,73 @@ function AddPersonSheet() {
 }
 
 const FIELD_INPUT = "w-full bg-transparent text-bodysm font-medium outline-none placeholder:text-sub/70";
+
+/**
+ * CONNECT CALENDAR — a MOCK. No OAuth, no network: pick a provider and it
+ * "connects" instantly, dropping a canned batch of imported events (badged with
+ * the provider on their cards). A real spinner would be theatre for work that
+ * isn't happening. Reached from Manage household (phone) and iPad Automations —
+ * back returns whence it came (Manage on phone, closed on the iPad).
+ */
+function ConnectCalendarSheet() {
+  const s = useHousehold();
+  const connected = s.calendar.connected;
+  const [pick, setPick] = useState<"google" | "apple">(connected ?? "google");
+  const label = (p: "google" | "apple") => (p === "google" ? "Google" : "Apple");
+  // Cross-surface: on the shared iPad this sheet opens straight from Automations
+  // (no Manage stack to return to), so back/after-action just closes there.
+  const back = () => (s.persona === "ipad" ? s.closeSheet() : s.openSheet({ type: "manage" }));
+
+  return (
+    <>
+      <button
+        onClick={back}
+        className={clsx("-ml-1 mb-3 flex items-center gap-0.5 text-bodysm font-medium text-sub transition-colors hover:text-ink", FOCUS)}
+      >
+        <Icon name="back" size={18} /> Back
+      </button>
+      <span className="flex items-center gap-3">
+        <IconTile name="cal" tone="lemon" />
+        <h2 className="min-w-0 font-tight text-h1">Connect calendar</h2>
+      </span>
+      <p className="mt-2 text-bodysm text-sub">
+        Pull your events in so the whole home sees them. It&rsquo;s a one-way import — nothing leaves the app.
+      </p>
+
+      <Eyebrow className="mt-5">Provider</Eyebrow>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <Choice selected={pick === "google"} onClick={() => setPick("google")}>Google Calendar</Choice>
+        <Choice selected={pick === "apple"} onClick={() => setPick("apple")}>Apple Calendar</Choice>
+      </div>
+
+      {connected ? (
+        <>
+          <div className="mt-5 flex items-center gap-2 rounded-card bg-card p-4 text-bodysm shadow-e1">
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-pill bg-ink text-white">
+              <Icon name="check" size={14} />
+            </span>
+            Connected to {label(connected)} Calendar.
+          </div>
+          {pick !== connected && (
+            <Button tone="dark" size="lg" className="mt-3 w-full" onClick={() => s.connectCalendar(pick)}>
+              Switch to {label(pick)}
+            </Button>
+          )}
+          <button
+            onClick={() => { s.disconnectCalendar(); back(); }}
+            className={clsx("mt-3 w-full py-2 text-center text-caption font-medium text-sub transition-colors hover:text-danger", FOCUS)}
+          >
+            Disconnect calendar
+          </button>
+        </>
+      ) : (
+        <Button tone="lemon" size="lg" className="mt-6 w-full" onClick={() => { s.connectCalendar(pick); back(); }}>
+          Connect {label(pick)} Calendar
+        </Button>
+      )}
+    </>
+  );
+}
 
 /* ─────────────── the automation builder ─────────────── */
 

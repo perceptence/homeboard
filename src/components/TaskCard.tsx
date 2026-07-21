@@ -185,7 +185,7 @@ export function EventCard({ event, showOwner }: { event: HouseEvent; showOwner?:
       <ItemCard
         day={d.day}
         weekday={d.weekday}
-        source="Calendar"
+        source={event.source ? `Calendar · ${event.source === "google" ? "Google" : "Apple"}` : "Calendar"}
         title={event.title}
         done={event.done}
         onOpen={() => openSheet({ type: "event", id: event.id })}

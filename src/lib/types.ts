@@ -474,6 +474,10 @@ export interface HouseEvent {
    *  on the person who's tasked, so their own avatar tells them nothing — an
    *  icon for the thing (trash, a child, a plant) does. Falls back to a bell. */
   icon?: IconName;
+  /** Which outside calendar this rode in on — a small provider badge on the card,
+   *  the same idea as a bill-task's "Email · …" source. Absent on anything added
+   *  by hand. A closed union (not free text): the connect flow sets exactly one. */
+  source?: "google" | "apple";
 }
 
 /**

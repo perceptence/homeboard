@@ -234,6 +234,21 @@ export const seedAutomations: Automation[] = [
   { id: "a5", title: "Guest mode", description: "Prep when an event is tagged guests", on: false },
 ];
 
+/**
+ * The batch a mock calendar connect drops in — NOT part of `seedEvents`, since
+ * the whole point is the connect flow producing them at runtime. Spread across
+ * the coming fortnight at slots that don't collide with the hand-added seed
+ * events, and stamped with the provider so the card badges "Calendar · Google".
+ */
+export const importedEvents = (provider: "google" | "apple"): HouseEvent[] => [
+  { id: `imp1-${provider}`, due: d(0), title: "Standup", time: "9:30 AM", who: "sam", source: provider, icon: "cal" },
+  { id: `imp2-${provider}`, due: d(1), title: "1:1 with Priya", time: "2:00 PM", who: "maya", source: provider, icon: "cal" },
+  { id: `imp3-${provider}`, due: d(2), title: "Book club", time: "7:30 PM", who: "maya", source: provider, journey: true, where: "The library", icon: "cal" },
+  { id: `imp4-${provider}`, due: d(4), title: "Physio", time: "11:00 AM", who: "sam", source: provider, journey: true, where: "The clinic", icon: "cal" },
+  { id: `imp5-${provider}`, due: d(6), title: "Team offsite", time: "all day", who: "sam", source: provider, icon: "cal" },
+  { id: `imp6-${provider}`, due: d(9), title: "Flu shot", time: "4:30 PM", who: "leo", source: provider, journey: true, where: "The pharmacy", icon: "cal" },
+];
+
 /** Minutes back, epoch ms — so a seeded thread reads as a recent conversation
  *  ("14m", "2h") rather than everything landing at once. */
 const minsAgo = (mins: number) => Date.now() - mins * 60_000;

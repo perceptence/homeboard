@@ -154,7 +154,7 @@ export function IpadMaint() {
 /* ---------------- Automations ---------------- */
 
 export function IpadAutomations() {
-  const { automations, toggleAutomation, openSheet } = useHousehold();
+  const { automations, toggleAutomation, openSheet, calendar } = useHousehold();
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show">
       <Back title="Automations" />
@@ -179,6 +179,23 @@ export function IpadAutomations() {
                 actions={<DarkSwitch on={a.on} onToggle={() => toggleAutomation(a.id)} label={a.title} />}
               />
             ))}
+          </List>
+        </Card>
+      </motion.div>
+
+      {/* CONNECT — the same "outside comes in" idea as the email-bills rule
+          above, so it belongs on this screen too. Opens the shared connect sheet. */}
+      <motion.div variants={listItem} className="mt-stack">
+        <Card tone="wash" pad="none">
+          <List>
+            <Row
+              tone="dark"
+              lead={<IconTile name="cal" tone="onDark" />}
+              title={calendar.connected ? `Calendar · connected to ${calendar.connected === "google" ? "Google" : "Apple"}` : "Connect calendar"}
+              meta={calendar.connected ? "Imported events show on the calendar" : "Pull events in from Google or Apple"}
+              onClick={() => openSheet({ type: "connectCalendar" })}
+              actions={<Icon name="fwd" size={16} className="text-white/40" />}
+            />
           </List>
         </Card>
       </motion.div>
