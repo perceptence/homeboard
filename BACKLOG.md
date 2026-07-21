@@ -5,15 +5,19 @@ Gaps identified in the whole-app review (2026-07-20), to revisit. The three
 under **Deferred** is real but either foundational (needs infra), a larger design
 surface, or lower ROI for a portfolio build right now.
 
-## In progress (this pass)
+## Done (since the review)
 
-- [ ] **Reduced-motion** — honor `prefers-reduced-motion` across the framer-heavy
-  UI (`MotionConfig reducedMotion="user"`). Cheap credibility/a11y win.
-- [ ] **Conflict detection** (Kernel: Anticipator / Conflict Resolver) — surface
-  same-person time overlaps and work assigned to someone who's away, with a
-  resolve action. The product-thesis differentiator; currently unbuilt.
-- [ ] **Event create + delete** — close the most obvious CRUD holes. (`+ Add`
-  only makes tasks today; `EventSheet` is view-only; no delete on anything.)
+- [x] **Reduced-motion** — `MotionConfig reducedMotion="user"` wired across the UI.
+- [x] **Conflict detection** (Anticipator / Conflict Resolver) — same-person time
+  clashes + work stranded on someone away, each with a resolve action (cover /
+  reschedule).
+- [x] **Task + event CRUD, full.** `+ Add` is one composer that infers task vs
+  event; every task and event is editable (same composer, pre-filled) and
+  deletable with undo.
+- [x] **Adjacent wins not on the original list:** cover-while-away confirmation,
+  reschedule flow (notify in-household / draft-to-copy for outside), unified
+  add flow, hand-off scoped to today + overdue with expandable detail, add
+  defaults to the adder.
 
 ## Deferred — revisit
 
