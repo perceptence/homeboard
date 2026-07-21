@@ -12,6 +12,17 @@
 export type TimeOfDay = "Morning" | "Afternoon" | "Evening";
 export type Period = "Week" | "Month" | "Quarter" | "Year";
 
+/** When this household "joined" — a fixed mock origin so the trend chart has an
+ *  honest horizon ("since January 2026") and a first bar to mark as the start.
+ *  The seed backfills finished work from here to now; the chart never reaches
+ *  past it. */
+export const HOUSEHOLD_SINCE = new Date(2026, 0, 1); // 1 Jan 2026
+
+/** Whole calendar months from `since` up to and including the current month. */
+export function monthsSince(since: Date = HOUSEHOLD_SINCE, now: Date = new Date()): number {
+  return (now.getFullYear() - since.getFullYear()) * 12 + (now.getMonth() - since.getMonth()) + 1;
+}
+
 /* ---------------------------------------------------------------- greeting */
 
 export function timeOfDay(d: Date = new Date()): TimeOfDay {

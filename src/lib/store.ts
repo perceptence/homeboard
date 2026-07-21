@@ -1550,7 +1550,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 17: calendar connection + imported-event `source`. Re-seed.
   // 18: 8 weeks of synthetic completion history in the seed (trend chart). Re-seed.
   // 19: history extended to 20 weeks (monthly trend grain); comments removed. Re-seed.
-  version: 19,
+  // 20: history backfilled to the Jan-2026 start date (labelled trend). Re-seed.
+  version: 20,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.

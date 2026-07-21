@@ -7,7 +7,7 @@ import { Icon, type IconName } from "@/components/Icons";
 import { EventCard, TaskCard } from "@/components/TaskCard";
 import { Avatar, Button, Card, Check, Em, Eyebrow, IconTile, List, Pill, Row, Sentence, TabToggle, TitleBlock, type TileTone } from "@/components/ui";
 import { Step } from "@/components/Period";
-import { addDays, clockLabel, greeting, inRange, isCurrentPeriod, iso, isToday, parse, periodLabel, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
+import { addDays, clockLabel, greeting, inRange, isCurrentPeriod, iso, isToday, monthsSince, parse, periodLabel, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, timeOfDay, today as todayLabel, todayIso } from "@/lib/dates";
 import { listItem, listStagger, smooth } from "@/lib/motion";
 import { billTasks, conflicts, doers, holder, pendingFor, previewRebalance, shoppingList, trendSeries, useHousehold, weeklyTrend } from "@/lib/store";
 import { Trend } from "@/components/Trend";
@@ -871,17 +871,17 @@ function PersonCard({ member: m }: { member: Member }) {
           </div>
         )}
 
-        {/* Their own eight-week trend — the household card's chart, one person's
-            slice. Pets hold no work, so no bars. Label-less by design: the card
-            is dense, and the shape reads on its own. */}
+        {/* Their own eight-week trend — a bare sparkline (the labelled axis lives
+            on the household card below; here the shape and the lit current week
+            are enough on a dense card). Pets hold no work, so no bars. */}
         {m.kind === "person" && (
           <Trend
-            weeks={weeklyTrend(s, 8, m.id)}
+            points={weeklyTrend(s, 8, m.id)}
             height={26}
             className="mt-3"
             barClass="bg-white/25"
             trackClass="bg-white/[.05]"
-            lastBarClass="bg-lemon"
+            currentClass="bg-lemon"
           />
         )}
       </div>
@@ -928,8 +928,10 @@ export function IpadHousehold() {
   const total = Math.max(1, loads.reduce((sum, l) => sum + l.load, 0));
   const autoOn = s.automations.filter((a) => a.on).length;
   const upkeep = s.maint.filter((m) => m.status === "over" || m.status === "due").length;
-  // The chart follows the grain too: eight weeks, or five months.
-  const trend = span === "Weekly" ? weeklyTrend(s, 8) : trendSeries(s, "Month", 5);
+  // The chart follows the grain too. Weekly is a recent, legible window (12
+  // weeks / ~3 months); monthly spans the whole lifetime, every month since the
+  // household joined (HOUSEHOLD_SINCE) — so "how far back" has one honest answer.
+  const trend = span === "Weekly" ? trendSeries(s, "Week", 12) : trendSeries(s, "Month", monthsSince());
 
   // The pulse's live half: everything open (unclaimed work is still the
   // house's), and who ISN'T simply around right now.
@@ -1066,20 +1068,29 @@ export function IpadHousehold() {
               onClick={move ? () => s.openSheet({ type: "rebalance" }) : undefined}
             />
           </div>
-          {/* THE TREND — finished work over time, so the figure above stops being
-              a number out of nowhere and becomes a trajectory. Follows the grain
-              (eight weeks / five months); keyed by span so the bars re-grow on a
-              toggle. Last bar is the current period, ink on the lavender. */}
+          {/* THE TREND — finished work over time, NAMED so it's an axis, not
+              decoration: each bar tells you which week or month it is, this
+              period glows lime, and the monthly view flags the first bar as
+              where the household started. Keyed by span so the bars re-grow on a
+              toggle. */}
           <div className="mt-6 border-t border-ink/10 pt-5">
-            <Eyebrow>Finished, {span === "Weekly" ? "week by week" : "month by month"}</Eyebrow>
+            <div className="flex items-baseline justify-between">
+              <Eyebrow>Things finished{span === "Weekly" ? ", by week" : ", by month"}</Eyebrow>
+              <span className="text-caption text-sub">
+                {span === "Weekly" ? "last 12 weeks" : "since Jan 2026"}
+              </span>
+            </div>
             <Trend
               key={span}
-              weeks={trend}
+              points={trend}
+              unit={span === "Weekly" ? "Week" : "Month"}
+              showLabels
+              markStart={span === "Monthly"}
               height={56}
               className="mt-3"
               barClass="bg-ink/25"
               trackClass="bg-ink/[.06]"
-              lastBarClass="bg-ink"
+              currentClass="bg-lemon"
             />
           </div>
         </Card>

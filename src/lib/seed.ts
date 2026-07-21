@@ -1,7 +1,7 @@
 import type {
   Automation, HouseEvent, InventoryItem, MaintItem, Member, MemberId, Priority, ShopItem, Task,
 } from "./types";
-import { addDays, iso, periodRange, shiftPeriod } from "./dates";
+import { addDays, HOUSEHOLD_SINCE, iso, periodRange, shiftPeriod } from "./dates";
 
 /**
  * Dates are seeded RELATIVE to now, then materialised to ISO — so the demo is
@@ -179,29 +179,37 @@ const HIST_TITLES: Record<string, string[]> = {
   leo: ["Fed Juno", "Tidied his room", "Did his homework", "Walked Juno", "Set the table"],
   ada: ["Packed her bag", "Tidied her toys", "Put her shoes away", "Fed the fish"],
 };
-// Enough weeks that a MONTHLY view (the phone card's toggle) has several full
-// bars, not two-and-a-bit. A per-person base with a deterministic wobble — no
-// Math.random, which would reshuffle the demo's own past on every reload.
-const WEEKS_OF_HISTORY = 20;
+// Finished-work history stretching back to the household's start
+// (HOUSEHOLD_SINCE = Jan 2026), so the monthly trend spans the whole lifetime
+// and the weekly trend has plenty of recent bars. A per-person base with a
+// deterministic wobble — no Math.random, which would reshuffle the demo's own
+// past on every reload. "Duplicate and change dates" made honest: the same
+// count pattern repeats each week, only the dates move.
 const HIST_BASE: Record<string, number> = { maya: 5, sam: 6, leo: 3, ada: 2 };
 const WOBBLE = [0, 1, -1, 2, 0, -1, 1, -2];
 const histCount = (who: string, weeksAgo: number) =>
   Math.max(0, HIST_BASE[who] + WOBBLE[(weeksAgo + who.length) % WOBBLE.length]);
 
 function buildHistory(): Task[] {
-  // Index 0 = this week, 1 = last week, … Real Monday-aligned windows, so a
-  // stamped `completedAt` lands in the week (and month) it's meant to.
+  // Walk Monday-aligned weeks back from last week until we cross the start date,
+  // so a stamped `completedAt` lands in the week (and month) it's meant to and
+  // nothing predates "when they joined".
   const windows: { from: Date; to: Date }[] = [];
-  let anchor = new Date();
-  for (let i = 0; i <= WEEKS_OF_HISTORY; i++) { windows.push(periodRange("Week", anchor)); anchor = shiftPeriod("Week", anchor, -1); }
+  let anchor = shiftPeriod("Week", new Date(), -1); // start at LAST week (this week fills live)
+  while (+anchor >= +HOUSEHOLD_SINCE) {
+    windows.push(periodRange("Week", anchor));
+    anchor = shiftPeriod("Week", anchor, -1);
+  }
 
   const out: Task[] = [];
   let id = 500;
   (Object.keys(HIST_BASE) as MemberId[]).forEach((who) => {
     const titles = HIST_TITLES[who];
-    for (let w = 1; w <= WEEKS_OF_HISTORY; w++) {
-      const n = histCount(who, w);
-      const midMs = +windows[w].from + 3 * 86_400_000; // Thursday-ish of that week
+    windows.forEach((win, idx) => {
+      const weeksAgo = idx + 1;
+      const midMs = +win.from + 3 * 86_400_000; // Thursday-ish of that week
+      if (midMs < +HOUSEHOLD_SINCE) return;      // never before the start
+      const n = histCount(who, weeksAgo);
       for (let k = 0; k < n; k++) {
         out.push({
           id: id++, title: titles[k % titles.length], owner: who,
@@ -210,7 +218,7 @@ function buildHistory(): Task[] {
           priority: "low", source: "History",
         });
       }
-    }
+    });
   });
   return out;
 }

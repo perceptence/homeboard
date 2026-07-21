@@ -13,8 +13,7 @@ import {
   addDays, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
   periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel, type Period,
 } from "@/lib/dates";
-import { awayOn, billTasks, conflicts, currentMember, doers, holder, pendingFor, previewRebalance, searchAll, shoppingList, trendSeries, useHousehold, weeklyTrend } from "@/lib/store";
-import { Trend } from "@/components/Trend";
+import { awayOn, billTasks, conflicts, currentMember, doers, holder, pendingFor, previewRebalance, searchAll, shoppingList, useHousehold } from "@/lib/store";
 import { useBackdropTone } from "@/lib/useBackdropTone";
 import type { HouseEvent, MaintItem, MemberId, PhoneRoute, Presence, Task } from "@/lib/types";
 import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
@@ -1289,23 +1288,6 @@ function PhoneToday() {
               <Sentence className="mt-0.5">{progress.text}</Sentence>
             </div>
             <span className="shrink-0 font-tight text-display leading-none tabular-nums"><Em>{pct}</Em>%</span>
-          </div>
-          {/* YOUR finished work over time — the % is a moment, this is the
-              trajectory it sits on. The Weekly/Monthly toggle above changes the
-              GRAIN too: eight weeks, or six months. Keyed by `span` so the bars
-              re-grow from zero on a toggle rather than silently swapping. Last
-              bar (this period) reads darkest. */}
-          <div className="mt-5 border-t border-ink/10 pt-4">
-            <Eyebrow>Finished, {span === "Weekly" ? "week by week" : "month by month"}</Eyebrow>
-            <Trend
-              key={span}
-              weeks={span === "Weekly" ? weeklyTrend(s, 8, meId) : trendSeries(s, "Month", 5, meId)}
-              height={44}
-              className="mt-2.5"
-              barClass="bg-ink/25"
-              trackClass="bg-ink/[.06]"
-              lastBarClass="bg-ink"
-            />
           </div>
         </Card>
       </div>
