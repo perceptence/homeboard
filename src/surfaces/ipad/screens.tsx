@@ -11,8 +11,8 @@ import { addDays, clockLabel, greeting, inRange, isCurrentPeriod, iso, isToday, 
 import { listItem, listStagger, smooth } from "@/lib/motion";
 import { billTasks, conflicts, doers, holder, pendingFor, previewRebalance, shoppingList, trendSeries, useHousehold, weeklyTrend } from "@/lib/store";
 import { Trend } from "@/components/Trend";
-import type { HouseEvent, Member, Role } from "@/lib/types";
-import { ROLE_HINT, ROLE_LABEL } from "@/lib/types";
+import type { HouseEvent, Member } from "@/lib/types";
+import { ROLE_LABEL } from "@/lib/types";
 
 /** Focus ring for raw buttons on a LIGHT surface (inside a Card) — the app's
  *  usual ink ring. */
@@ -790,7 +790,6 @@ const DOORS: { route: "inventory" | "maint" | "autos" | "settings"; icon: IconNa
  */
 function PersonCard({ member: m }: { member: Member }) {
   const s = useHousehold();
-  const [open, setOpen] = useState(false);
   const jobs = [...(m.responsibility?.domains ?? []), ...(m.responsibility?.spaces ?? [])];
 
   return (
@@ -807,59 +806,13 @@ function PersonCard({ member: m }: { member: Member }) {
       <div className="mt-auto">
         <b className="text-body">{m.name}</b>
 
-        {/* Access — a decision, not a label. Pets can't hold work, so they
-            don't get a role picker; a dog with permissions is a joke the
-            model shouldn't be able to tell. */}
-        {m.kind === "pet" ? (
-          <div className="text-bodysm font-medium text-white/50">Pet</div>
-        ) : (
-          <div className="mt-0.5">
-            <button
-              onClick={() => setOpen(!open)}
-              aria-expanded={open}
-              className={clsx("flex items-center gap-1 rounded-sm text-bodysm font-medium text-white/50 transition-colors hover:text-white", FOCUS_DARK)}
-            >
-              {ROLE_LABEL[m.role]}
-              <motion.span animate={{ rotate: open ? 180 : 0 }} transition={smooth} className="flex">
-                <Icon name="chevDown" size={14} />
-              </motion.span>
-            </button>
-            <AnimatePresence initial={false}>
-              {open && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={smooth}
-                  className="overflow-hidden"
-                >
-                  <div className="mt-2 flex flex-col gap-1.5 rounded-md bg-black/25 p-1.5">
-                    {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
-                      <button
-                        key={r}
-                        // The last owner can't demote themselves out of the house.
-                        disabled={m.role === "owner" && r !== "owner" && !Object.values(s.members).some((x) => x.id !== m.id && x.role === "owner")}
-                        onClick={() => { s.setRole(m.id, r); setOpen(false); }}
-                        aria-pressed={r === m.role}
-                        className={clsx(
-                          "flex flex-col items-start gap-0.5 rounded-sm px-3 py-2 text-left transition-colors duration-300",
-                          "disabled:cursor-not-allowed disabled:opacity-40",
-                          FOCUS_DARK,
-                          r === m.role
-                            ? "bg-white/[.12] ring-2 ring-inset ring-lemon"
-                            : "bg-white/[.06] hover:bg-white/[.10]",
-                        )}
-                      >
-                        <span className="text-bodysm font-medium text-white">{ROLE_LABEL[r]}</span>
-                        <span className="text-caption text-white/50">{ROLE_HINT[r]}</span>
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
+        {/* Access — shown, not set. Changing a role is an admin decision and
+            lives in one place, Settings › Manage household; a card in a glanceable
+            overview shouldn't be a second door to the same permission, where a
+            stray tap could quietly re-grant the house. Read-only here. */}
+        <div className="mt-0.5 text-bodysm font-medium text-white/50">
+          {m.kind === "pet" ? "Pet" : ROLE_LABEL[m.role]}
+        </div>
 
         {/* Responsibility — what they look after. Separate from access on
             purpose: running the meals doesn't require holding the bank card. */}
