@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import type {
-  ActivityEntry, Automation, AutoThen, AutoWhen, Comment, DraftPerson, HouseEvent, HouseholdAxes, HouseholdPreset,
+  ActivityEntry, Automation, AutoThen, AutoWhen, DraftPerson, HouseEvent, HouseholdAxes, HouseholdPreset,
   InventoryItem, IpadRoute, MaintItem, Member, MemberId, MemberKind, OnboardingDraft, Persona, PhoneRoute,
   Availability, IslandNote, Presence, Priority, Reminder, Role, ShopItem, Task,
 } from "./types";
@@ -11,7 +11,7 @@ import { ROLE_RANK, ROLE_SET } from "./types";
 import type { IconName } from "@/components/Icons";
 import { taskGlyph } from "./glyphs";
 import {
-  importedEvents, seedAutomations, seedComments, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
+  importedEvents, seedAutomations, seedEvents, seedInventory, seedMaint, seedMembers, seedShopping, seedTasks,
 } from "./seed";
 import { addDays, iso, isToday, periodRange, relative, relativeInline, shiftPeriod, timeMinutes, todayIso } from "./dates";
 
@@ -236,8 +236,6 @@ interface HouseholdState {
   events: HouseEvent[];
   automations: Automation[];
   activity: ActivityEntry[];
-  /** Back-and-forth ON items — one thread per task/event (see {@link Comment}). */
-  comments: Comment[];
   /** Outside-calendar connection. A mock (no OAuth/backend): connecting drops a
    *  canned batch of imported events, badged with the provider. */
   calendar: { connected: "google" | "apple" | null };
@@ -308,8 +306,6 @@ interface HouseholdState {
   tick: () => void;
   setQuery: (q: string) => void;
   markRead: () => void;
-  /** Post a comment on a task or event — author is always the current viewer. */
-  addComment: (target: { taskId?: number; eventId?: string }, text: string) => void;
   /** Mock-connect an outside calendar: drops a canned batch of imported events,
    *  badged with the provider. Reconnecting the same provider is a no-op. */
   connectCalendar: (provider: "google" | "apple") => void;
@@ -427,7 +423,6 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   events: seedEvents,
   automations: seedAutomations,
   activity: [],
-  comments: seedComments,
   calendar: { connected: null },
 
   householdName: "Rivera Home",
@@ -724,29 +719,6 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   },
   setQuery: (query) => set({ query }),
   markRead: () => set({ unread: 0 }),
-
-  // Author is ALWAYS the current viewer, never a caller-supplied id — same rule
-  // as every actor in this store (a person can only speak as themselves). Also
-  // logs to Activity: every other write leaves a trace there, and a comment that
-  // didn't would be the one silent mutation. The log line says THAT a comment
-  // happened, not its contents — the thread itself holds the words.
-  addComment: (target, text) =>
-    set((s) => {
-      const body = text.trim();
-      if (!body) return {};
-      const meId = currentMember(s);
-      const title = target.taskId != null
-        ? s.tasks.find((t) => t.id === target.taskId)?.title
-        : s.events.find((e) => e.id === target.eventId)?.title;
-      const comment: Comment = {
-        id: `c${++nextId}`, taskId: target.taskId, eventId: target.eventId,
-        who: meId, text: body, at: Date.now(),
-      };
-      return {
-        comments: [...s.comments, comment],
-        ...logged(s, `commented on “${title ?? "an item"}”`, meId),
-      };
-    }),
 
   // MOCK connect — no OAuth, no network, always succeeds instantly (a fake
   // spinner would be pretending to do work it isn't). Reconnecting the same
@@ -1522,7 +1494,6 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         inventory: [],
         maint: [],
         events: [],
-        comments: [],
         calendar: { connected: null },
         activity: [{ text: `${d.householdName.trim() || "Your home"} is set up`, at: Date.now() }],
         unread: 1,
@@ -1545,7 +1516,6 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       maint: seedMaint,
       events: seedEvents,
       automations: seedAutomations,
-      comments: seedComments,
       calendar: { connected: null },
       sheet: null,
       navTick: s.navTick + 1,
@@ -1579,7 +1549,8 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 16: comments on items — a new persisted `comments` array. Re-seed.
   // 17: calendar connection + imported-event `source`. Re-seed.
   // 18: 8 weeks of synthetic completion history in the seed (trend chart). Re-seed.
-  version: 18,
+  // 19: history extended to 20 weeks (monthly trend grain); comments removed. Re-seed.
+  version: 19,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.
@@ -1595,7 +1566,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   partialize: (s) => ({
     members: s.members, tasks: s.tasks, shopping: s.shopping,
     inventory: s.inventory, maint: s.maint, events: s.events, automations: s.automations,
-    activity: s.activity, comments: s.comments, calendar: s.calendar, unread: s.unread, reminders: s.reminders,
+    activity: s.activity, calendar: s.calendar, unread: s.unread, reminders: s.reminders,
     householdName: s.householdName, axes: s.axes, setupComplete: s.setupComplete,
     persona: s.persona, phoneRoute: s.phoneRoute, ipadRoute: s.ipadRoute,
   }),
@@ -2121,8 +2092,8 @@ export interface SearchHit {
   taskId?: number;
 }
 
-export interface TrendWeek {
-  /** Monday-aligned window this bar covers. */
+export interface TrendPoint {
+  /** The window this bar covers (a week or a month). */
   from: Date;
   to: Date;
   /** Tasks FINISHED in the window (real completions, not a fabricated rate). */
@@ -2130,31 +2101,37 @@ export interface TrendWeek {
 }
 
 /**
- * How much got finished each week, over the last `weeks` weeks — the raw
+ * How much got finished each period, over the last `count` periods — the raw
  * material of the trend chart. ONE implementation for both surfaces (iPad
- * household + phone), so the two can't drift the way the "Last 30 days" card
- * drifted from PhoneToday's honest windowed count.
+ * household + phone) and both grains (week / month), so nothing can drift the
+ * way the "Last 30 days" card drifted from PhoneToday's honest windowed count.
  *
  * VOLUME, not a finish-rate: a rate needs a denominator of missed work, which
  * would mean seeding undone past-due tasks that inflate everyone's open-work
  * count. Counting real completions is honest and clutters nothing. Pass a
  * `memberId` for one person's trend; omit it for the whole household.
  */
-export const weeklyTrend = (s: HouseholdState, weeks = 8, memberId?: MemberId): TrendWeek[] => {
-  const out: TrendWeek[] = [];
+export const trendSeries = (
+  s: HouseholdState, unit: "Week" | "Month", count: number, memberId?: MemberId,
+): TrendPoint[] => {
+  const out: TrendPoint[] = [];
   let anchor = new Date();
-  for (let i = 0; i < weeks; i++) {
-    const { from, to } = periodRange("Week", anchor);
+  for (let i = 0; i < count; i++) {
+    const { from, to } = periodRange(unit, anchor);
     const done = s.tasks.filter(
       (t) => t.done && t.completedAt != null && t.completedAt >= +from && t.completedAt < +to
         && (memberId ? holder(t) === memberId : true),
     ).length;
     out.push({ from, to, done });
-    anchor = shiftPeriod("Week", anchor, -1);
+    anchor = shiftPeriod(unit, anchor, -1);
   }
   // Oldest → newest, so the chart reads left-to-right into the present.
   return out.reverse();
 };
+
+/** The default 8-week grain — most callers want this. */
+export const weeklyTrend = (s: HouseholdState, weeks = 8, memberId?: MemberId): TrendPoint[] =>
+  trendSeries(s, "Week", weeks, memberId);
 
 /** Search everything — one query across every domain in the home. */
 export const searchAll = (s: HouseholdState, raw: string): SearchHit[] => {
@@ -2163,6 +2140,10 @@ export const searchAll = (s: HouseholdState, raw: string): SearchHit[] => {
   const hits: SearchHit[] = [];
 
   s.tasks.forEach((t) => {
+    // Synthetic history (the trend chart's backfill) is months of finished
+    // chores — real rows, but not things anyone searches for. Keep them out of
+    // results so search stays about live work, not the archive.
+    if (t.source === "History") return;
     if (!t.title.toLowerCase().includes(q)) return;
     // Who's DOING it — a search result naming the owner of work someone else
     // picked up would send you to the wrong person.

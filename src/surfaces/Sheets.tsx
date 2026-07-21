@@ -54,80 +54,6 @@ function DeleteControl({ label, onDelete, inline }: { label: string; onDelete: (
   );
 }
 
-/**
- * COMMENTS — the household talking ON one task or event. Same row grammar as the
- * Activity feed (Avatar · bold name · when-ago · text), but every comment has an
- * author, so there's no house-voice branch. Compose posts as whoever's looking
- * (`currentMember`), and the store logs it to Activity like every other action.
- */
-function CommentsSection({ taskId, eventId }: { taskId?: number; eventId?: string }) {
-  const s = useHousehold();
-  const [draft, setDraft] = useState("");
-  const meId = currentMember(s);
-  const me = s.members[meId];
-  const thread = s.comments
-    .filter((c) => (taskId != null ? c.taskId === taskId : c.eventId === eventId))
-    .sort((a, b) => a.at - b.at);
-
-  const send = () => {
-    if (!draft.trim()) return;
-    s.addComment({ taskId, eventId }, draft);
-    setDraft("");
-  };
-
-  return (
-    <div className="mt-6">
-      <span className="text-caption font-medium uppercase tracking-wide text-sub">
-        {thread.length ? `Comments · ${thread.length}` : "Comments"}
-      </span>
-
-      <div className="mt-1.5">
-        {thread.length === 0 && (
-          <p className="py-1 text-bodysm text-sub">No comments yet — start the thread.</p>
-        )}
-        {thread.map((c) => {
-          const m = s.members[c.who];
-          return (
-            <div key={c.id} className="flex items-start gap-3 border-t border-ink/[.06] py-2.5 first:border-t-0">
-              <Avatar member={m} size={28} />
-              <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5 text-bodysm">
-                  <b className="font-medium">{m?.name ?? "Someone"}</b>
-                  <span className="text-caption tabular-nums text-sub">{ago(c.at)}</span>
-                </p>
-                <p className="mt-0.5 whitespace-pre-wrap break-words text-bodysm text-ink">{c.text}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Compose — posts as whoever's viewing; Enter or the arrow sends. */}
-      <div className="mt-3 flex items-center gap-2">
-        <Avatar member={me} size={28} />
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-          placeholder="Add a comment…"
-          className="min-w-0 flex-1 rounded-pill border border-ink/[.12] bg-transparent px-3.5 py-2 text-bodysm text-ink outline-none placeholder:text-sub focus:border-ink/30"
-        />
-        <button
-          onClick={send}
-          disabled={!draft.trim()}
-          aria-label="Post comment"
-          className={clsx(
-            "grid h-9 w-9 shrink-0 place-items-center rounded-pill transition-colors",
-            draft.trim() ? "bg-ink text-white hover:bg-ink/90" : "bg-ink/[.06] text-ink/30",
-          )}
-        >
-          <Icon name="arrow" size={16} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /** All sheets for both surfaces. Phone gets a bottom sheet; iPad gets a centred modal. */
 export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
   const s = useHousehold();
@@ -314,8 +240,6 @@ function TaskSheet({ id }: { id: number }) {
         <span aria-hidden className="text-sub/40">·</span>
         <DeleteControl label="task" onDelete={() => s.deleteTask(id)} inline />
       </div>
-
-      <CommentsSection taskId={id} />
     </>
   );
 }
@@ -1837,8 +1761,6 @@ function EventSheet({ id }: { id: string }) {
         <span aria-hidden className="text-sub/40">·</span>
         <DeleteControl label="event" onDelete={() => s.deleteEvent(e.id)} inline />
       </div>
-
-      <CommentsSection eventId={e.id} />
     </>
   );
 }

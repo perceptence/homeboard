@@ -1,5 +1,5 @@
 import type {
-  Automation, Comment, HouseEvent, InventoryItem, MaintItem, Member, MemberId, Priority, ShopItem, Task,
+  Automation, HouseEvent, InventoryItem, MaintItem, Member, MemberId, Priority, ShopItem, Task,
 } from "./types";
 import { addDays, iso, periodRange, shiftPeriod } from "./dates";
 
@@ -179,28 +179,29 @@ const HIST_TITLES: Record<string, string[]> = {
   leo: ["Fed Juno", "Tidied his room", "Did his homework", "Walked Juno", "Set the table"],
   ada: ["Packed her bag", "Tidied her toys", "Put her shoes away", "Fed the fish"],
 };
-// counts[0] = eight weeks ago … counts[7] = last week
-const HIST_COUNTS: Record<string, number[]> = {
-  maya: [4, 5, 3, 6, 5, 7, 6, 8],
-  sam: [6, 5, 7, 4, 6, 5, 7, 6],
-  leo: [2, 3, 2, 4, 3, 3, 4, 5],
-  ada: [1, 2, 1, 2, 2, 3, 2, 3],
-};
+// Enough weeks that a MONTHLY view (the phone card's toggle) has several full
+// bars, not two-and-a-bit. A per-person base with a deterministic wobble — no
+// Math.random, which would reshuffle the demo's own past on every reload.
+const WEEKS_OF_HISTORY = 20;
+const HIST_BASE: Record<string, number> = { maya: 5, sam: 6, leo: 3, ada: 2 };
+const WOBBLE = [0, 1, -1, 2, 0, -1, 1, -2];
+const histCount = (who: string, weeksAgo: number) =>
+  Math.max(0, HIST_BASE[who] + WOBBLE[(weeksAgo + who.length) % WOBBLE.length]);
 
 function buildHistory(): Task[] {
-  // Index 0 = this week, 1 = last week, … 8 = eight weeks ago. Real Monday-
-  // aligned windows, so a stamped `completedAt` lands in the week it's meant to.
+  // Index 0 = this week, 1 = last week, … Real Monday-aligned windows, so a
+  // stamped `completedAt` lands in the week (and month) it's meant to.
   const windows: { from: Date; to: Date }[] = [];
   let anchor = new Date();
-  for (let i = 0; i <= 8; i++) { windows.push(periodRange("Week", anchor)); anchor = shiftPeriod("Week", anchor, -1); }
+  for (let i = 0; i <= WEEKS_OF_HISTORY; i++) { windows.push(periodRange("Week", anchor)); anchor = shiftPeriod("Week", anchor, -1); }
 
   const out: Task[] = [];
   let id = 500;
-  (Object.keys(HIST_COUNTS) as MemberId[]).forEach((who) => {
-    HIST_COUNTS[who].forEach((n, idx) => {
-      const win = windows[8 - idx];           // idx 0 → 8 weeks ago
-      const midMs = +win.from + 3 * 86_400_000; // Thursday-ish of that week
-      const titles = HIST_TITLES[who];
+  (Object.keys(HIST_BASE) as MemberId[]).forEach((who) => {
+    const titles = HIST_TITLES[who];
+    for (let w = 1; w <= WEEKS_OF_HISTORY; w++) {
+      const n = histCount(who, w);
+      const midMs = +windows[w].from + 3 * 86_400_000; // Thursday-ish of that week
       for (let k = 0; k < n; k++) {
         out.push({
           id: id++, title: titles[k % titles.length], owner: who,
@@ -209,7 +210,7 @@ function buildHistory(): Task[] {
           priority: "low", source: "History",
         });
       }
-    });
+    }
   });
   return out;
 }
@@ -302,18 +303,4 @@ export const importedEvents = (provider: "google" | "apple"): HouseEvent[] => [
   { id: `imp4-${provider}`, due: d(4), title: "Physio", time: "11:00 AM", who: "sam", source: provider, journey: true, where: "The clinic", icon: "cal" },
   { id: `imp5-${provider}`, due: d(6), title: "Team offsite", time: "all day", who: "sam", source: provider, icon: "cal" },
   { id: `imp6-${provider}`, due: d(9), title: "Flu shot", time: "4:30 PM", who: "leo", source: provider, journey: true, where: "The pharmacy", icon: "cal" },
-];
-
-/** Minutes back, epoch ms — so a seeded thread reads as a recent conversation
- *  ("14m", "2h") rather than everything landing at once. */
-const minsAgo = (mins: number) => Date.now() - mins * 60_000;
-
-/* A little back-and-forth already on two items, so the thread has something to
-   show on first run — a household coordinates by talking, and an empty thread
-   teaches nobody that it's there. One task, one event; two voices each. */
-export const seedComments: Comment[] = [
-  { id: "sc1", taskId: 1, who: "maya", text: "Bins go out tonight, not tomorrow — recycling week.", at: minsAgo(180) },
-  { id: "sc2", taskId: 1, who: "sam", text: "Got it, I’ll take them down after dinner.", at: minsAgo(142) },
-  { id: "sc3", eventId: "e1", who: "maya", text: "Leo’s dentist is at 4 — can you pick him up straight after?", at: minsAgo(96) },
-  { id: "sc4", eventId: "e1", who: "sam", text: "Yep, I’ll leave a bit early.", at: minsAgo(64) },
 ];

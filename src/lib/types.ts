@@ -621,21 +621,6 @@ export interface ActivityEntry {
   who?: MemberId;
 }
 
-/**
- * A line of back-and-forth ON one task or event — how a household coordinates
- * by talking. Unlike an {@link ActivityEntry} (a flat, item-less household log),
- * a comment is tied to the thing it's about and always has an author: exactly
- * one of `taskId`/`eventId` is set.
- */
-export interface Comment {
-  id: string;
-  taskId?: number;
-  eventId?: string;
-  who: MemberId;
-  text: string;
-  at: number;
-}
-
 /** Which lens we're looking through. "ipad" = the shared family/owner superset. */
 export type Persona = "ipad" | MemberId;
 /**

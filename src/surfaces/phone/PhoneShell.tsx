@@ -13,7 +13,7 @@ import {
   addDays, greeting, inRange, isCurrentPeriod, iso, isToday, monthKey, monthLabel, parse,
   periodLabel, groupIsPast, periodRange, relative, relativeInline, shiftPeriod, startOfWeek, timeMinutes, today, todayIso, weekKey, weekLabel, type Period,
 } from "@/lib/dates";
-import { awayOn, billTasks, conflicts, currentMember, doers, holder, pendingFor, previewRebalance, searchAll, shoppingList, useHousehold, weeklyTrend } from "@/lib/store";
+import { awayOn, billTasks, conflicts, currentMember, doers, holder, pendingFor, previewRebalance, searchAll, shoppingList, trendSeries, useHousehold, weeklyTrend } from "@/lib/store";
 import { Trend } from "@/components/Trend";
 import { useBackdropTone } from "@/lib/useBackdropTone";
 import type { HouseEvent, MaintItem, MemberId, PhoneRoute, Presence, Task } from "@/lib/types";
@@ -303,17 +303,20 @@ export function PhoneShell() {
                 <Icon name="gear" size={24} />
               </button>
             )}
-            {/* Whole-home search — every tab, beside the bell. Personal chrome
-                stops at the greeting; this reaches the whole house (every domain,
-                every person), so it opens its own overlay rather than filtering
-                the tab you're on. */}
-            <button
-              onClick={() => setSearchOpen(true)}
-              aria-label="Search"
-              className="grid h-touch w-touch place-items-center rounded-pill text-white/70 transition-colors hover:text-white"
-            >
-              <Icon name="search" size={23} />
-            </button>
+            {/* Whole-home search — everywhere EXCEPT Today. Today's greeting is
+                the app's widest title (the same reason the shopping cart was
+                pulled from here, below): a second icon shoulders it off the edge.
+                So search rides the three tabs with short titles (Ahead · House ·
+                You), one tap from Today, and the greeting keeps its whole width. */}
+            {route !== "today" && (
+              <button
+                onClick={() => setSearchOpen(true)}
+                aria-label="Search"
+                className="grid h-touch w-touch place-items-center rounded-pill text-white/70 transition-colors hover:text-white"
+              >
+                <Icon name="search" size={23} />
+              </button>
+            )}
             {/* The household view grew into its own TAB — no door in the
                 chrome; it sits in the nav beside Today/Ahead/You. */}
             {/* Just the bell. The shopping cart used to sit here and it was
@@ -1287,12 +1290,16 @@ function PhoneToday() {
             </div>
             <span className="shrink-0 font-tight text-display leading-none tabular-nums"><Em>{pct}</Em>%</span>
           </div>
-          {/* YOUR eight weeks of finished work — the % is a moment, this is the
-              trajectory it sits on. Last bar is this week, lit lemon. */}
+          {/* YOUR finished work over time — the % is a moment, this is the
+              trajectory it sits on. The Weekly/Monthly toggle above changes the
+              GRAIN too: eight weeks, or six months. Keyed by `span` so the bars
+              re-grow from zero on a toggle rather than silently swapping. Last
+              bar (this period) reads darkest. */}
           <div className="mt-5 border-t border-ink/10 pt-4">
-            <Eyebrow>Finished, week by week</Eyebrow>
+            <Eyebrow>Finished, {span === "Weekly" ? "week by week" : "month by month"}</Eyebrow>
             <Trend
-              weeks={weeklyTrend(s, 8, meId)}
+              key={span}
+              weeks={span === "Weekly" ? weeklyTrend(s, 8, meId) : trendSeries(s, "Month", 5, meId)}
               height={44}
               className="mt-2.5"
               barClass="bg-ink/25"

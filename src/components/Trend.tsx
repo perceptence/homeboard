@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { motion } from "framer-motion";
-import type { TrendWeek } from "@/lib/store";
+import type { TrendPoint } from "@/lib/store";
 
 /**
  * TREND — a hand-rolled bar chart, one bar per week, height ∝ that week's
@@ -23,7 +23,7 @@ export function Trend({
   lastBarClass,
   className,
 }: {
-  weeks: TrendWeek[];
+  weeks: TrendPoint[];
   height?: number;
   barClass?: string;
   trackClass?: string;

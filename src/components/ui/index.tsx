@@ -367,7 +367,11 @@ export function AvatarStack({
   return (
     <span className="flex -space-x-2">
       {members.map((m) => (
-        <span key={m.id} className={clsx("rounded-pill ring-2", ringClass)}>
+        // inline-flex, not the default inline span: a plain span wrapping the
+        // avatar picks up a line-box strut (~5px taller than wide), so the
+        // rounded-pill ring drew as a vertical stadium around a round face —
+        // the "misaligned border". inline-flex hugs the avatar to a true square.
+        <span key={m.id} className={clsx("inline-flex rounded-pill ring-2", ringClass)}>
           <Avatar member={m} size={size} />
         </span>
       ))}
