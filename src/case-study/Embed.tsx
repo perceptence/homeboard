@@ -331,21 +331,21 @@ export function Embed() {
           rightHand ? "left-full -ml-2 items-start text-left" : "right-full -mr-2 items-end text-right",
         )}
       >
-        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-ink">
+        <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-ink">
           {group.title}
         </p>
-        <p className="text-micro leading-[16px] text-sub">{group.note}</p>
+        <p className="text-caption leading-[20px] text-sub">{group.note}</p>
 
         {side === "phone" && (
           <>
-            <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-sub">
+            <p className="mt-2 font-mono text-micro font-bold uppercase tracking-[0.14em] text-sub">
               Viewing as
             </p>
             {people("start")}
           </>
         )}
 
-        <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-sub">
+        <p className="mt-2 font-mono text-micro font-bold uppercase tracking-[0.14em] text-sub">
           Things to do
         </p>
         {/* Each blurb belongs to ONE pill, so it opens under that pill rather
@@ -367,7 +367,7 @@ export function Embed() {
                     transition={{ duration: 0.24, ease: easeOut }}
                     className="overflow-hidden"
                   >
-                    <p className="pt-1.5 text-micro leading-[16px] text-sub">{j.blurb}</p>
+                    <p className="pt-1.5 text-caption leading-[20px] text-sub">{j.blurb}</p>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -385,7 +385,7 @@ export function Embed() {
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.24, ease: easeOut }}
-              className="overflow-hidden text-micro leading-[16px] text-sub"
+              className="overflow-hidden text-caption leading-[20px] text-sub"
             >
               Resting on its home screen — its own tabs are live.
             </motion.p>
@@ -405,7 +405,7 @@ export function Embed() {
 
       return (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:gap-4">
-          <p className="shrink-0 pt-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-ink sm:w-[132px]">
+          <p className="shrink-0 pt-1 font-mono text-micro font-bold uppercase tracking-[0.14em] text-ink sm:w-[132px]">
             {group.title}
           </p>
           <div className="min-w-0 flex-1">
@@ -418,7 +418,7 @@ export function Embed() {
               )}
               {items.map((j) => doingButton(j, side))}
             </div>
-            <p className="mt-2 text-micro leading-[16px] text-sub">
+            <p className="mt-2 text-caption leading-[20px] text-sub">
               {chosen ? current.blurb : "Resting on its home screen — its own tabs are live."}
             </p>
           </div>
@@ -461,7 +461,7 @@ export function Embed() {
               <span className="h-1.5 w-1.5 rounded-pill bg-lemon" />
               Live — the real app
             </span>
-            <span className="truncate font-mono text-[10px] uppercase tracking-[0.1em] text-sub">
+            <span className="truncate font-mono text-micro uppercase tracking-[0.1em] text-sub">
               iPad Pro 11&Prime; · iPhone 17 Pro
             </span>
           </div>
@@ -492,8 +492,8 @@ export function Embed() {
               {s.tasks.filter((t) => !t.done).length} open tasks right now, on both.
             </span>{" "}
             Each screen has a permanent link: the address bar carries{" "}
-            <code className="font-mono text-[12px] text-white/75">?screen=</code> for the phone and{" "}
-            <code className="font-mono text-[12px] text-white/75">?board=</code> for the iPad.
+            <code className="font-mono text-micro text-white/75">?screen=</code> for the phone and{" "}
+            <code className="font-mono text-micro text-white/75">?board=</code> for the iPad.
           </p>
         </div>
       </div>

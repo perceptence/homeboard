@@ -26,13 +26,13 @@ function Frame({ tone, caption, children }: { tone: "before" | "after"; caption:
       <div className="flex items-center gap-2">
         <span
           className={clsx(
-            "shrink-0 rounded-pill px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.12em]",
+            "shrink-0 rounded-pill px-2 py-0.5 font-mono text-micro font-bold uppercase tracking-[0.12em]",
             before ? "bg-danger text-white" : "bg-lemon text-ink",
           )}
         >
           {before ? "Before" : "After"}
         </span>
-        <span className="min-w-0 truncate text-micro text-white/60">{caption}</span>
+        <span className="min-w-0 truncate text-caption text-white/60">{caption}</span>
       </div>
       <div className="mt-2 rounded-card bg-card p-card-pad">{children}</div>
     </div>
@@ -62,7 +62,7 @@ function Story({
 
       {/* What we believed, stated plainly, before anything is shown. */}
       <p className="mt-4 max-w-[68ch] border-l-2 border-white/20 pl-4 text-body leading-relaxed text-white/60">
-        <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">
+        <span className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-white/60">
           We believed —{" "}
         </span>
         {belief}
@@ -72,13 +72,13 @@ function Story({
 
       <div className="mt-6 grid gap-5 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">
+          <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-white/60">
             What that got wrong
           </p>
           <div className="mt-2 space-y-2 text-bodysm leading-relaxed text-white/65">{broke}</div>
         </div>
         <div className="min-w-0 self-start rounded-md bg-lemon/[.10] p-4">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-lemon">
+          <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-lemon">
             The rule now
           </p>
           <p className="mt-2 text-bodysm font-medium leading-relaxed text-white">{rule}</p>
@@ -93,7 +93,7 @@ function Story({
 function Field({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div>
-      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-sub">{label}</p>
+      <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-sub">{label}</p>
       <div className="mt-1.5 flex items-center justify-between rounded-md bg-surface px-3 py-2">
         <span className="text-bodysm font-medium text-ink">{value}</span>
         <Icon name="chevDown" size={14} className="text-sub" />
@@ -157,7 +157,7 @@ export function Stories() {
               who needs the school run but not the bank card. The adult child who moved back in.
             </p>
             <p>
-              And the single <code className="font-mono text-[11px]">adultOnly</code> flag was quietly
+              And the single <code className="font-mono text-micro">adultOnly</code> flag was quietly
               doing two unrelated jobs: <em>may this person be held accountable for it</em> (money,
               contracts) and <em>can this person safely do it</em> (a hot oven, a chainsaw). One
               boolean, two questions — so it locked the sixteen-year-old out of the shopping card and
@@ -322,7 +322,7 @@ export function Stories() {
               <Bar w="70%" h={10} tone="mute" />
             </div>
           </div>
-          <p className="mt-2.5 text-micro text-sub">
+          <p className="mt-2.5 text-caption text-sub">
             More width, identical information. The room learns nothing the pocket didn&rsquo;t know.
           </p>
         </Frame>
@@ -331,7 +331,7 @@ export function Stories() {
             <div className="flex gap-1.5">
               {["Morning", "Afternoon", "Evening"].map((t) => (
                 <div key={t} className="min-w-0 flex-1 space-y-1.5 rounded-md bg-surface p-2">
-                  <p className="truncate text-[9px] font-bold uppercase tracking-wide text-sub">{t}</p>
+                  <p className="truncate text-micro font-bold uppercase tracking-wide text-sub">{t}</p>
                   <Bar w="100%" h={9} tone="mute" />
                   <Bar w="80%" h={9} tone="mute" />
                 </div>
@@ -359,7 +359,7 @@ export function Stories() {
           <>
             <p>
               The iPad renders at true logical size, 1194 × 834, inside a{" "}
-              <code className="font-mono text-[11px]">transform: scale()</code> that fits it to
+              <code className="font-mono text-micro">transform: scale()</code> that fits it to
               whatever window is open. Transforms do not affect layout — so a media query reports
               the <em>browser window</em>, and never once reports the device it is supposedly
               describing.
@@ -369,7 +369,7 @@ export function Stories() {
               Worse, the failure was silent and analogue: it always rendered something, just the
               wrong something, so it read as a spacing bug rather than a measurement bug. It came
               back three separate times before the cause was named — a nav overlapping a card
-              because a <code className="font-mono text-[11px]">vh</code> unit had measured the
+              because a <code className="font-mono text-micro">vh</code> unit had measured the
               browser and not the screen the nav floats over.
             </p>
           </>
@@ -385,9 +385,9 @@ export function Stories() {
             </div>
             {/* the nav, landing on top of the content it was meant to clear */}
             <div className="absolute inset-x-6 bottom-3 flex h-8 items-center justify-center rounded-pill bg-ink shadow-e2">
-              <span className="text-[9px] font-bold uppercase tracking-wide text-white">nav</span>
+              <span className="text-micro font-bold uppercase tracking-wide text-white">nav</span>
             </div>
-            <span className="absolute bottom-1 right-2 font-mono text-[9px] text-danger">overlap</span>
+            <span className="absolute bottom-1 right-2 font-mono text-micro text-danger">overlap</span>
           </div>
         </Frame>
         <Frame tone="after" caption="the container answers, so the clearance is real">
@@ -398,7 +398,7 @@ export function Stories() {
               <Bar w="86%" h={8} tone="mute" />
             </div>
             <div className="absolute inset-x-6 bottom-3 flex h-8 items-center justify-center rounded-pill bg-ink shadow-e2">
-              <span className="text-[9px] font-bold uppercase tracking-wide text-white">nav</span>
+              <span className="text-micro font-bold uppercase tracking-wide text-white">nav</span>
             </div>
           </div>
         </Frame>

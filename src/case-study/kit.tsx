@@ -142,7 +142,7 @@ export function Sample({
         <Label className="!text-white/60">{lang}</Label>
         <pre
           tabIndex={0}
-          className="no-scrollbar mt-2 overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-black/40 p-card-pad text-micro leading-[18px] text-white/85 ring-1 ring-inset ring-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-lemon"
+          className="no-scrollbar mt-2 overflow-x-auto whitespace-pre-wrap break-words rounded-md bg-black/40 p-card-pad text-bodysm leading-[20px] text-white/85 ring-1 ring-inset ring-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-lemon"
         >
           <code>{code}</code>
         </pre>

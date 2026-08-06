@@ -93,3 +93,59 @@ describe("the counts the case study prints", () => {
     expect(tokenCounts.elevation).toBe(Object.keys(boxShadow).length);
   });
 });
+
+/**
+ * THE CASE STUDY MUST OBEY THE SCALE IT DOCUMENTS.
+ *
+ * A page whose whole argument is "there is one type scale, read from source"
+ * had 44 hand-rolled `text-[Npx]` values in it, going down to 9px — and set its
+ * own explanatory prose at `micro`, which the token file marks "whisper cues
+ * ONLY" while marking `caption` "all meta text". Roughly a third of the page's
+ * words were at 12px or under.
+ *
+ * This is a source scan rather than a render check on purpose: it names the file
+ * and the offending literal, which is what makes it fixable.
+ */
+describe("the case study's own typography", () => {
+  const sources = import.meta.glob("../src/case-study/*.tsx", { eager: true, query: "?raw", import: "default" });
+  const page = import.meta.glob("../app/case-study/*.tsx", { eager: true, query: "?raw", import: "default" });
+  const all = { ...sources, ...page } as Record<string, string>;
+
+  it("reads enough files to be meaningful", () => {
+    expect(Object.keys(all).length).toBeGreaterThan(4);
+  });
+
+  /**
+   * The rule is deliberately one-sided, and worth stating plainly: a hand-rolled
+   * size is allowed ONLY above the scale's largest step, where the page's display
+   * figures live (a 56px audit count, the fluid clamps in the hero). Below that
+   * ceiling the scale already has a name for every step, and reaching past it is
+   * how the page ended up with 9, 10 and 11px type. Nobody has ever struggled to
+   * read a number set too large.
+   */
+  const ceiling = px((fontSize.display as unknown as [string, unknown])[0]);
+
+  it("hand-rolls a size only where the scale stops — never below it", () => {
+    const offenders: string[] = [];
+    for (const [file, src] of Object.entries(all)) {
+      for (const m of src.matchAll(/text-\[(\d+)px\]/g)) {
+        if (Number(m[1]) <= ceiling) offenders.push(`${file.split("/").pop()} → ${m[0]}`);
+      }
+    }
+    expect(
+      offenders,
+      `at or below ${ceiling}px the scale has a token for this — use it:\n${offenders.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("puts the reading floor at micro, and keeps the page on it", () => {
+    const floor = px((fontSize.micro as unknown as [string, unknown])[0]);
+    expect(floor).toBe(12);
+    for (const [file, src] of Object.entries(all)) {
+      for (const m of src.matchAll(/text-\[(\d+)px\]/g)) {
+        expect(Number(m[1]), `${file} sets ${m[0]}, under the ${floor}px floor`)
+          .toBeGreaterThanOrEqual(floor);
+      }
+    }
+  });
+});

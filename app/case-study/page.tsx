@@ -62,7 +62,7 @@ function Finding({
         "md:grid-cols-[minmax(0,1fr)]"
       }
     >
-      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-white/60">
+      <p className="font-mono text-micro font-bold uppercase tracking-[0.16em] text-white/60">
         Finding {String(n).padStart(2, "0")}
       </p>
 
@@ -70,7 +70,7 @@ function Finding({
         <blockquote className="mt-3 border-l-2 border-lemon pl-4 text-body leading-relaxed text-white/90">
           {quote}
         </blockquote>
-        <p className="mt-3 pl-4 text-micro leading-[16px] text-white/60">{attribution}</p>
+        <p className="mt-3 pl-4 text-caption leading-[20px] text-white/60">{attribution}</p>
       </div>
 
       {/* mb-6 is the floor that stopped this box merging into the source rule
@@ -81,7 +81,7 @@ function Finding({
           what holds the two apart on a single-column phone layout, where there
           is no subgrid to do it. */}
       <div className="mb-6 mt-6 self-start rounded-md bg-lemon/[.10] p-3">
-        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-lemon">
+        <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-lemon">
           The decision it drove
         </p>
         <p className="mt-2 text-bodysm leading-relaxed text-white">{decision}</p>
@@ -91,7 +91,7 @@ function Finding({
         href={href}
         target="_blank"
         rel="noreferrer noopener"
-        className="mt-auto flex items-center gap-1.5 border-t border-white/12 pt-4 text-micro font-medium text-white/60 transition-colors hover:text-lemon"
+        className="mt-auto flex items-center gap-1.5 border-t border-white/12 pt-4 text-caption font-medium text-white/60 transition-colors hover:text-lemon"
       >
         <span className="min-w-0 truncate">{source}</span>
         <span className="shrink-0 text-lemon">↗</span>
@@ -379,7 +379,7 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
                   keeps telling the truth if they ever diverge again. They did
                   once: the wide run used to find more elements and the narrow
                   run a worse ratio. */}
-              <p className="mt-1 text-micro text-white/60">
+              <p className="mt-1 text-caption text-white/60">
                 all colour contrast ·{" "}
                 {new Set(AUDIT.product.byViewport.map((v) => v.nodes)).size === 1
                   ? `${AUDIT.product.nodes} at both viewports`
@@ -396,7 +396,7 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
               {AUDIT.product.findings.map((f) => (
                 <li key={f.what} className="text-bodysm leading-relaxed text-white/60">
                   <span className="font-medium text-white">{f.what}</span>{" "}
-                  <span className="whitespace-nowrap font-mono text-[11px] text-lemon">{f.ratio}</span>
+                  <span className="whitespace-nowrap font-mono text-micro text-lemon">{f.ratio}</span>
                   <span className="mt-0.5 block">{f.why}</span>
                 </li>
               ))}
@@ -411,8 +411,8 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
                 <b className="text-white/80">Two more were found here and shipped.</b>{" "}
                 Writing this
                 page&rsquo;s contrast tests turned them on the product:{" "}
-                <code className="font-mono text-[12px] text-white/75">sub</code> at 3.28:1 and{" "}
-                <code className="font-mono text-[12px] text-white/75">danger</code> at 3.91:1. Both
+                <code className="font-mono text-micro text-white/75">sub</code> at 3.28:1 and{" "}
+                <code className="font-mono text-micro text-white/75">danger</code> at 3.91:1. Both
                 swatches were darkened rather than the text lightened.
               </li>
               <li>
@@ -487,7 +487,7 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
         <Wrap>
           <p className="text-bodysm text-white/60">
             Homeboard — a working prototype. This page is a route inside it:{" "}
-            <code className="font-mono text-[12px] text-white/70">/case-study</code>, same build,
+            <code className="font-mono text-micro text-white/70">/case-study</code>, same build,
             same tokens, same store as the product embedded above.
           </p>
         </Wrap>

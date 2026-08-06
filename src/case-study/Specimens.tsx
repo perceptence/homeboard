@@ -33,8 +33,15 @@ import { Label, Panel } from "./kit";
 
 const swatchOrder = ["ink", "lemon", "lavender", "mint", "accent", "progress", "surface", "card", "sub", "danger", "star"] as const;
 
-/** A muted caption on the wash panels. */
-const meta = "text-micro text-white/60";
+/**
+ * Every specimen's description line.
+ *
+ * caption, not micro. The token file next door says it in as many words —
+ * caption is "all meta text", micro is "whisper cues ONLY" — and this page,
+ * whose whole job is to document that scale, was setting its own explanatory
+ * prose at the whisper size in a hundred places.
+ */
+const meta = "text-caption text-white/60";
 
 export function ColourSpecimen() {
   return (
@@ -57,8 +64,8 @@ export function ColourSpecimen() {
                 style={{ background: hex, borderRadius: radius.sm }}
               />
               <p className="mt-1.5 truncate text-micro font-medium text-white/85">{name}</p>
-              <p className="font-mono text-[10px] uppercase tracking-wide text-white/60">{hex}</p>
-              <p className="font-mono text-[10px] text-white/60">{onCard.toFixed(1)}:1 on white</p>
+              <p className="font-mono text-micro uppercase tracking-wide text-white/60">{hex}</p>
+              <p className="font-mono text-micro text-white/60">{onCard.toFixed(1)}:1 on white</p>
             </div>
           );
         })}
@@ -67,7 +74,7 @@ export function ColourSpecimen() {
         {Object.entries(colors.member).map(([who, hex]) => (
           <div key={who} className="min-w-0">
             <div className="h-8 w-full" style={{ background: hex, borderRadius: radius.pill }} />
-            <p className="mt-1 truncate text-[10px] capitalize text-white/60">{who}</p>
+            <p className="mt-1 truncate text-micro capitalize text-white/60">{who}</p>
           </div>
         ))}
       </div>
@@ -102,7 +109,7 @@ export function TypeSpecimen() {
               >
                 The washing needs moving
               </span>
-              <span className="shrink-0 text-right font-mono text-[10px] leading-tight text-white/60">
+              <span className="shrink-0 text-right font-mono text-micro leading-tight text-white/60">
                 <span className="block text-white/70">{k}</span>
                 {size} / {m.lineHeight}
                 <span className="block">w{m.fontWeight}</span>
@@ -127,9 +134,9 @@ export function SpaceSpecimen() {
       <div className="mt-4 space-y-2">
         {Object.entries(spacing).map(([k, v]) => (
           <div key={k} className="flex items-center gap-3">
-            <span className="w-20 shrink-0 font-mono text-[10px] text-white/60">{k}</span>
+            <span className="w-20 shrink-0 font-mono text-micro text-white/60">{k}</span>
             <span className="h-3 bg-lemon" style={{ width: v, borderRadius: 2 }} />
-            <span className="font-mono text-[10px] text-white/60">{v}</span>
+            <span className="font-mono text-micro text-white/60">{v}</span>
           </div>
         ))}
       </div>
@@ -144,8 +151,8 @@ export function SpaceSpecimen() {
               // ignored — these are strings with px already on them.
               style={{ borderRadius: v }}
             />
-            <p className="mt-1 font-mono text-[10px] text-white/60">{k}</p>
-            <p className="font-mono text-[10px] text-white/60">{v}</p>
+            <p className="mt-1 font-mono text-micro text-white/60">{k}</p>
+            <p className="font-mono text-micro text-white/60">{v}</p>
           </div>
         ))}
       </div>
@@ -164,7 +171,10 @@ export function SpaceSpecimen() {
                 {k === "touch" ? "Minimum tap target" : k === "ctl" ? "Buttons, pills, fields" : "Primary actions"}
               </span>
             </div>
-            <span className="w-20 shrink-0 text-right font-mono text-[10px] text-white/60">
+            {/* w-28, not w-20: that column was measured against 10px type, and
+                "ctl-lg · 52px" wraps to two lines the moment it is set at the
+                scale's actual floor. */}
+            <span className="w-28 shrink-0 whitespace-nowrap text-right font-mono text-micro text-white/60">
               {k} · {v}
             </span>
           </div>
@@ -196,7 +206,7 @@ export function ElevationSpecimen() {
               className="mx-auto h-14 w-full bg-card"
               style={{ boxShadow: v, borderRadius: radius.md }}
             />
-            <p className="mt-2 font-mono text-[10px] text-sub">{k}</p>
+            <p className="mt-2 font-mono text-micro text-sub">{k}</p>
           </div>
         ))}
       </div>
@@ -214,7 +224,7 @@ export function MotionSpecimen() {
     <Panel tone="wash" className="flex h-full flex-col">
       <Label className="!text-lemon">Motion</Label>
       <p className="mt-2 text-bodysm text-white/60">
-        One ease, one spring, one press — read from <code className="font-mono text-[12px] text-white/75">lib/motion</code>,
+        One ease, one spring, one press — read from <code className="font-mono text-micro text-white/75">lib/motion</code>,
         the same transitions the app animates with.
       </p>
 
@@ -233,7 +243,7 @@ export function MotionSpecimen() {
           <div key={m.name} className="rounded-md bg-white/[.06] p-3">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-bodysm font-medium text-white">{m.name}</span>
-              <span className="truncate font-mono text-[10px] text-white/60">{m.detail}</span>
+              <span className="truncate font-mono text-micro text-white/60">{m.detail}</span>
             </div>
             {/* TRAVEL THE WHOLE TRACK. This animated `x` to a percentage,
                 and a percentage on x resolves against the ELEMENT's own width
@@ -262,7 +272,7 @@ export function MotionSpecimen() {
         {on ? "Send them back" : "Play both"}
       </button>
       <p className={`mt-auto pt-3 ${meta}`}>
-        All of it runs inside <code className="font-mono text-[11px] text-white/60">MotionConfig reducedMotion=&quot;user&quot;</code>,
+        All of it runs inside <code className="font-mono text-micro text-white/60">MotionConfig reducedMotion=&quot;user&quot;</code>,
         so transform animations collapse to instant when the OS asks, while opacity fades stay.
       </p>
     </Panel>
@@ -290,7 +300,7 @@ export function ComponentSpecimen() {
 
   const bay = (title: string, note: string, children: ReactNode) => (
     <div className="min-w-0">
-      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">
+      <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-white/60">
         {title}
       </p>
       <div className="mt-2 flex min-h-[84px] flex-wrap items-center gap-2 rounded-md bg-card p-4">
@@ -304,7 +314,7 @@ export function ComponentSpecimen() {
     <Panel tone="wash">
       <Label className="!text-lemon">Components · the assembled pieces</Label>
       <p className="mt-2 max-w-[74ch] text-bodysm text-white/60">
-        Imported from <code className="font-mono text-[12px] text-white/75">components/ui</code> —
+        Imported from <code className="font-mono text-micro text-white/75">components/ui</code> —
         the same module the two devices above render from, so these are the components rather than
         drawings of them. The checkbox toggles and the buttons press.
       </p>
@@ -376,7 +386,7 @@ export function ComponentSpecimen() {
 
       <p className={`mt-5 border-t border-white/12 pt-4 ${meta}`}>
         The tags above are the light-surface tone. The set carries a second one for dark canvases —{" "}
-        <Pill tone="dark">Overdue</Pill> — because <code className="font-mono text-[11px]">tag</code>{" "}
+        <Pill tone="dark">Overdue</Pill> — because <code className="font-mono text-micro">tag</code>{" "}
         is ink on a 5% ink wash, and it disappears the moment the surface goes dark.
       </p>
     </Panel>

@@ -397,7 +397,7 @@ export function Duet() {
               <figcaption className="mb-3 flex items-baseline gap-2">
                 <span
                   className={clsx(
-                    "rounded-pill px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] transition-colors",
+                    "rounded-pill px-2.5 py-1 font-mono text-micro font-bold uppercase tracking-[0.12em] transition-colors",
                     caption.side === "ipad" ? "bg-ink text-lemon" : "bg-ink/[.07] text-sub",
                   )}
                 >
@@ -421,7 +421,7 @@ export function Duet() {
               <figcaption className="mb-3 flex items-baseline gap-2">
                 <span
                   className={clsx(
-                    "rounded-pill px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-[0.12em] transition-colors",
+                    "rounded-pill px-2.5 py-1 font-mono text-micro font-bold uppercase tracking-[0.12em] transition-colors",
                     caption.side === "phone" ? "bg-ink text-lemon" : "bg-ink/[.07] text-sub",
                   )}
                 >
@@ -550,7 +550,7 @@ export function Duet() {
       <p className="mt-4 text-bodysm leading-relaxed text-white/60">
         Both devices are the real shells, reading one Zustand store — the same one the section above
         uses. The press is a genuine pointer sequence on the app&rsquo;s own button, so its{" "}
-        <code className="font-mono text-[12px] text-white/75">whileTap</code> compresses exactly as it
+        <code className="font-mono text-micro text-white/75">whileTap</code> compresses exactly as it
         would under a thumb, and the card&rsquo;s exit is the app&rsquo;s own completion animation —
         built because this camera exposed its absence.{" "}
         <span className="text-white/85">Nothing on stage is a special effect.</span>{" "}
