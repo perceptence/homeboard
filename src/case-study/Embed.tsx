@@ -14,7 +14,23 @@ import { Sheets } from "@/surfaces/Sheets";
 import { IpadShell } from "@/surfaces/ipad/IpadShell";
 import { PhoneShell } from "@/surfaces/phone/PhoneShell";
 import { easeOut } from "@/lib/tokens";
+import { CONTENT_WIDTH } from "./kit";
 import { useInView } from "./useInView";
+
+/**
+ * How far the devices sit inside the page's text column, per side.
+ *
+ * They used to span it exactly, edge to edge. Holding the text column and the
+ * hardware to one line sounds tidy and reads tight: the glass ends precisely
+ * where the prose does, with nothing between the frames and the rest of the
+ * page. Stepping them in leaves the lavender running full-bleed behind them and
+ * gives the whole assembly somewhere to breathe.
+ *
+ * It also pays for itself. The rails live in the margin this opens, so every
+ * pixel the devices give up is a pixel they gain — which is what finally lets
+ * the side controls appear at 1440, the width they could not reach before.
+ */
+const DEVICE_INSET = 32;
 
 /** The screens the section opens on — real, populated, one per surface. */
 export const DEFAULT_JOURNEY = "today";
@@ -322,19 +338,17 @@ export function Embed() {
              nowrap can't clip — and the offset is negative because `right-full`
              anchors to this box's BORDER edge while the device starts one
              px-inner (24px) further in, so -12 cancels half of that back to a
-             12px gap off the glass. The rail's outer edge therefore lands at
-             (vw − 1194) / 2 + 12 − 158, which clears the window from 1506px up
-             with 10px to spare, and 13px at the 1512 of a 14-inch laptop.
+             12px gap off the glass.
 
-             This used to be 164 wide at a 16px gap, gated at 1538 for a 16px
-             outer margin — which read as generous arithmetic right up until it
-             put a 1512px screen into the fallback. The margin outside a rail is
-             worth less than the rail being there at all.
+             That box is now the text column less DEVICE_INSET a side, so the
+             rail's outer edge lands at (vw − 1130) / 2 + 12 − 158 — clear of
+             the window from 1440 up, which is the gate. It could not reach
+             1440 while the devices spanned the full column; stepping them in
+             by 32 handed the rails 64px they didn't have, and 1440 is the
+             width most of these screens actually are.
 
-             Below the gate the band beneath the stage takes over. 1440 cannot
-             hold this layout at any honest width: 1146 of content plus two
-             rails and their gaps needs 1486, and that leaves nothing. */
-          "absolute top-1/2 hidden w-[158px] -translate-y-1/2 flex-col gap-2 min-[1506px]:flex",
+             Below the gate the band beneath the stage takes over. */
+          "absolute top-1/2 hidden w-[158px] -translate-y-1/2 flex-col gap-2 min-[1440px]:flex",
           rightHand ? "left-full -ml-3 items-start text-left" : "right-full -mr-3 items-end text-right",
         )}
       >
@@ -434,7 +448,7 @@ export function Embed() {
     };
 
     return (
-      <div className="mx-auto mt-6 flex w-full max-w-[1194px] flex-col gap-4 border-t border-ink/10 px-inner pt-4 min-[1506px]:hidden">
+      <div className="mx-auto mt-6 flex w-full max-w-[1194px] flex-col gap-4 border-t border-ink/10 px-inner pt-4 min-[1440px]:hidden">
         {row("ipad")}
         {row("phone")}
       </div>
@@ -479,7 +493,10 @@ export function Embed() {
               tall, which is the 3:1 column ratio below: each is bound by WIDTH and
               fills its column exactly, so the alignment is arithmetic rather than
               eyeballed. The rails hang off this box into the bled margin. */}
-          <div className="relative mx-auto w-full max-w-[1194px] px-inner">
+          <div
+            className="relative mx-auto w-full px-inner"
+            style={{ maxWidth: CONTENT_WIDTH - DEVICE_INSET * 2 }}
+          >
             {rail("ipad")}
             <div className="grid min-w-0 grid-cols-[minmax(0,3fr)_minmax(0,1fr)] gap-inner">
               {device("ipad")}
