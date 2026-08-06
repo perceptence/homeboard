@@ -1,12 +1,17 @@
 "use client";
 
+import clsx from "clsx";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
-  boxShadow, colors, fontSize, radius, spacing, tokenCounts,
+  boxShadow, colors, control, fontSize, radius, spacing, tokenCounts,
 } from "@/lib/tokens";
 import { ratio } from "@/lib/contrast";
 import { ease, smooth, spring } from "@/lib/motion";
+import { seedMembers } from "@/lib/seed";
+import {
+  Avatar, AvatarStack, Button, Check, DateBadge, IconTile, Pill, PriorityPill,
+} from "@/components/ui";
 import { Label, Panel } from "./kit";
 
 /**
@@ -144,7 +149,32 @@ export function SpaceSpecimen() {
           </div>
         ))}
       </div>
-      <p className={`mt-auto pt-4 ${meta}`}>Rounded everywhere. Never sharp.</p>
+      {/* The third scale in this card, and the one a touch product can least
+          afford to leave undocumented: how tall a thing you tap is. It was
+          missing here while the card sat half empty. */}
+      <Label className="mt-6 !text-lemon">Control heights · {Object.keys(control).length} steps</Label>
+      <div className="mt-3 space-y-2">
+        {Object.entries(control).map(([k, v]) => (
+          <div key={k} className="flex items-center gap-3">
+            <div
+              className="flex min-w-0 flex-1 items-center rounded-pill bg-white/[.08] px-4 ring-1 ring-inset ring-white/15"
+              style={{ height: v }}
+            >
+              <span className="truncate text-bodysm font-medium text-white/85">
+                {k === "touch" ? "Minimum tap target" : k === "ctl" ? "Buttons, pills, fields" : "Primary actions"}
+              </span>
+            </div>
+            <span className="w-20 shrink-0 text-right font-mono text-[10px] text-white/60">
+              {k} · {v}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p className={`mt-auto pt-4 ${meta}`}>
+        Rounded everywhere, never sharp — and nothing tappable is under 44px, which is the floor
+        rather than the norm: the things you press most are 48.
+      </p>
     </Panel>
   );
 }
@@ -205,12 +235,21 @@ export function MotionSpecimen() {
               <span className="text-bodysm font-medium text-white">{m.name}</span>
               <span className="truncate font-mono text-[10px] text-white/60">{m.detail}</span>
             </div>
-            <div className="mt-2 h-8 rounded-pill bg-black/25 p-1">
-              <motion.div
-                className="h-6 w-6 rounded-pill bg-lemon"
-                animate={{ x: on ? "calc(100% * 6)" : 0 }}
-                transition={m.t}
-              />
+            {/* TRAVEL THE WHOLE TRACK. This animated `x` to a percentage,
+                and a percentage on x resolves against the ELEMENT's own width
+                — so the dot moved six of its own widths, stopped wherever
+                that landed, and the two curves were being compared over a
+                distance neither of them finished. Switching sides of a flex
+                box and letting `layout` move the dot makes the distance the
+                full track by construction, at any panel width, and it is
+                still a transform, so reduced motion still collapses it. */}
+            <div
+              className={clsx(
+                "mt-2 flex h-8 rounded-pill bg-black/25 p-1 ring-1 ring-inset ring-white/10",
+                on ? "justify-end" : "justify-start",
+              )}
+            >
+              <motion.div layout transition={m.t} className="h-6 w-6 rounded-pill bg-lemon" />
             </div>
           </div>
         ))}
@@ -225,6 +264,120 @@ export function MotionSpecimen() {
       <p className={`mt-auto pt-3 ${meta}`}>
         All of it runs inside <code className="font-mono text-[11px] text-white/60">MotionConfig reducedMotion=&quot;user&quot;</code>,
         so transform animations collapse to instant when the OS asks, while opacity fades stay.
+      </p>
+    </Panel>
+  );
+}
+
+/**
+ * THE VOCABULARY — the components themselves, not the ingredients.
+ *
+ * Everything above this is a scale: colour values, type steps, spacing, radii,
+ * control heights. Useful, and half the story. What a design system actually
+ * hands you is the assembled pieces — and these are the real ones, imported
+ * from the module the product renders. The checkbox toggles; the buttons press.
+ *
+ * ON A LIGHT CARD, for the same reason the elevation chips are: these are drawn
+ * for the app's white card and several of them ENCODE that. `Pill tone="tag"`
+ * is `bg-ink/5 text-sub` — ink on ink, invisible on this panel's wash — and the
+ * set carries a separate `dark` tone precisely because the light one cannot
+ * survive a dark surface. Showing them on wash would have been showing them
+ * broken, so each bay puts its specimen on the surface it was built for.
+ */
+export function ComponentSpecimen() {
+  const [done, setDone] = useState(false);
+  const people = [seedMembers.maya, seedMembers.sam, seedMembers.leo, seedMembers.ada];
+
+  const bay = (title: string, note: string, children: ReactNode) => (
+    <div className="min-w-0">
+      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">
+        {title}
+      </p>
+      <div className="mt-2 flex min-h-[84px] flex-wrap items-center gap-2 rounded-md bg-card p-4">
+        {children}
+      </div>
+      <p className={`mt-2 ${meta}`}>{note}</p>
+    </div>
+  );
+
+  return (
+    <Panel tone="wash">
+      <Label className="!text-lemon">Components · the assembled pieces</Label>
+      <p className="mt-2 max-w-[74ch] text-bodysm text-white/60">
+        Imported from <code className="font-mono text-[12px] text-white/75">components/ui</code> —
+        the same module the two devices above render from, so these are the components rather than
+        drawings of them. The checkbox toggles and the buttons press.
+      </p>
+
+      <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {bay(
+          "Identity",
+          "A person is a face and a colour, and keeps that colour on every surface. Stacked when a job is shared.",
+          <>
+            {people.map((m) => <Avatar key={m.id} member={m} size={40} />)}
+            <AvatarStack members={people} size={32} />
+          </>,
+        )}
+
+        {bay(
+          "Icon wells",
+          "One stroke weight across the set, at two sizes holding the same 1:2 glyph-to-well ratio — a card size and a list-row size.",
+          <>
+            <IconTile name="cart" />
+            <IconTile name="wrench" tone="lemon" />
+            <IconTile name="bolt" tone="onTint" />
+            <IconTile name="plant" size="sm" />
+            <IconTile name="bill" size="sm" tone="lemon" />
+          </>,
+        )}
+
+        {bay(
+          "Status language",
+          "Urgency is the odd one out on purpose: it is text, not a chip, because a pill carried its own 28px and pushed every card it touched taller than its neighbours.",
+          <>
+            <Pill>Kitchen</Pill>
+            <Pill tone="lemon">Today</Pill>
+            <Pill tone="lavender">Shared</Pill>
+            <PriorityPill priority="high" />
+          </>,
+        )}
+
+        {bay(
+          "Completion",
+          "The one control the whole product turns on. Tap it — this is the live component, animating the way it does in the app.",
+          <div className="flex items-center gap-3">
+            <Check done={done} onClick={() => setDone((v) => !v)} />
+            <span className={clsx("text-bodysm", done ? "text-sub line-through" : "text-ink")}>
+              Water the garden
+            </span>
+          </div>,
+        )}
+
+        {bay(
+          "Actions",
+          "One shape, several tones. Lemon is spent on the single primary action a screen exists for; everything else recedes.",
+          <>
+            <Button tone="lemon">Add</Button>
+            <Button tone="outline">Reschedule</Button>
+            <Button tone="ghost">Later</Button>
+          </>,
+        )}
+
+        {bay(
+          "When",
+          "A vertical stadium, not a circle — it stretches to the height of the card it sits in, so a date never floats in its own row.",
+          <>
+            <DateBadge day={5} weekday="Wed" />
+            <DateBadge day={11} weekday="Fri" />
+            <DateBadge day="—" weekday="Any" />
+          </>,
+        )}
+      </div>
+
+      <p className={`mt-5 border-t border-white/12 pt-4 ${meta}`}>
+        The tags above are the light-surface tone. The set carries a second one for dark canvases —{" "}
+        <Pill tone="dark">Overdue</Pill> — because <code className="font-mono text-[11px]">tag</code>{" "}
+        is ink on a 5% ink wash, and it disappears the moment the surface goes dark.
       </p>
     </Panel>
   );

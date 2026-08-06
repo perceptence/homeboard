@@ -48,8 +48,15 @@ function Story({
 }) {
   return (
     <article className="border-t border-white/12 py-12 first:border-0 first:pt-0">
+      {/* The number is set at the heading's own size. At micro it read as a
+          footnote marker beside the thing it was numbering — these are five
+          numbered decisions, so the count is part of the heading, not an
+          annotation on it. Baseline-aligned, tabular, so the column of numbers
+          down the section stays straight. */}
       <div className="flex items-baseline gap-3">
-        <span className="font-mono text-micro font-bold text-lemon">{String(n).padStart(2, "0")}</span>
+        <span className="font-tight text-h1 font-bold leading-tight text-lemon tabular-nums">
+          {String(n).padStart(2, "0")}
+        </span>
         <h3 className="font-tight text-h1 leading-tight text-white">{title}</h3>
       </div>
 

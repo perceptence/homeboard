@@ -1,7 +1,14 @@
 import type { Transition, Variants } from "framer-motion";
+import { easeOut } from "./tokens";
 
-/** Smooth 300ms ease-out — the master prompt's transition. */
-export const ease = [0.16, 1, 0.3, 1] as const;
+/**
+ * Smooth 300ms ease-out — the master prompt's transition.
+ *
+ * The curve itself lives in the token file, because CSS needs it as a function
+ * and Framer needs it as four numbers. It was written out in both places until
+ * the two were put side by side.
+ */
+export const ease = easeOut;
 export const smooth: Transition = { duration: 0.3, ease };
 
 /** Button press: scale 0.95. */

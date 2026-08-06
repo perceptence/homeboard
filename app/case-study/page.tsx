@@ -6,7 +6,7 @@ import { Hero } from "@/case-study/Hero";
 import { Embed } from "@/case-study/Embed";
 import { Stories } from "@/case-study/Stories";
 import {
-  ColourSpecimen, ElevationSpecimen, MotionSpecimen, SpaceSpecimen, TypeSpecimen,
+  ColourSpecimen, ComponentSpecimen, ElevationSpecimen, MotionSpecimen, SpaceSpecimen, TypeSpecimen,
 } from "@/case-study/Specimens";
 import { REPO } from "@/case-study/facts.generated";
 import { AUDIT } from "@/case-study/audit";
@@ -45,17 +45,42 @@ function Finding({
   quote: ReactNode; attribution: string; decision: ReactNode;
 }) {
   return (
-    <Panel tone="wash" className="flex h-full flex-col">
+    /* SUBGRID, so the three cards agree row by row. Each card spans the four
+       rows the parent defines and adopts its lines, which puts every quote,
+       every decision box and every source link on the same baseline across all
+       three — instead of each card packing its own contents and the boxes
+       landing wherever that card's quote happened to end. */
+    <Panel
+      tone="wash"
+      className={
+        "flex h-full flex-col md:row-span-4 md:grid md:grid-rows-subgrid md:gap-0 " +
+        /* The single column is NOT optional. Turning the card into a grid with
+           only rows declared leaves its column implicit, and an implicit track
+           sizes to max-content — so every child laid itself out at its natural
+           width and the three cards spilled 96px past the page. minmax(0,1fr)
+           is the column that is allowed to shrink. */
+        "md:grid-cols-[minmax(0,1fr)]"
+      }
+    >
       <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-white/60">
         Finding {String(n).padStart(2, "0")}
       </p>
 
-      <blockquote className="mt-3 border-l-2 border-lemon pl-4 text-body leading-relaxed text-white/90">
-        {quote}
-      </blockquote>
-      <p className="mt-3 pl-4 text-micro leading-[16px] text-white/60">{attribution}</p>
+      <div className="min-w-0">
+        <blockquote className="mt-3 border-l-2 border-lemon pl-4 text-body leading-relaxed text-white/90">
+          {quote}
+        </blockquote>
+        <p className="mt-3 pl-4 text-micro leading-[16px] text-white/60">{attribution}</p>
+      </div>
 
-      <div className="mt-6 rounded-md bg-lemon/[.10] p-3">
+      {/* mb-6 is the floor that stopped this box merging into the source rule
+          below it. It used to rely on `mt-auto` on the link, and when a quote
+          ran long there was no slack left for `auto` to distribute — which is
+          exactly what happened to the third card, whose quote was the longest.
+          The subgrid now separates the rows too, but the floor stays: it is
+          what holds the two apart on a single-column phone layout, where there
+          is no subgrid to do it. */}
+      <div className="mb-6 mt-6 self-start rounded-md bg-lemon/[.10] p-3">
         <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-lemon">
           The decision it drove
         </p>
@@ -154,7 +179,7 @@ export default function CaseStudy() {
             </>
           }
         />
-        <div className="mt-10 grid gap-tile md:grid-cols-3">
+        <div className="mt-10 grid gap-tile md:grid-cols-3 md:grid-rows-[auto_auto_1fr_auto]">
           <Finding
             n={1}
             source="MIT Technology Review — “Chore apps were meant to make mothers’ lives easier”"
@@ -182,9 +207,9 @@ export default function CaseStudy() {
             }
             decision={
               <>
-                The product does the anticipating: it detects a double-booking or work stranded on
-                someone who&rsquo;s away <em>before</em> anyone notices, and offers the resolution
-                rather than a notification.
+                The product does the anticipating. It detects a double-booking, or work stranded on
+                someone who&rsquo;s away, <em>before</em> anyone notices — and what it surfaces is
+                the resolution, already worked out, rather than a notification.
               </>
             }
           />
@@ -196,14 +221,14 @@ export default function CaseStudy() {
             quote={
               <>
                 The mum-dad-two-kids picture is a particular arrangement from a particular time and
-                place — yet it&rsquo;s still the shape most products are built around.
+                place.
               </>
             }
             decision={
               <>
                 Relationships never determine permissions. Household type, identity, role and
-                responsibility are four independent fields; a fifteen-year-old may hold full access
-                and a forty-year-old may be guided. No code derives a role from an age.
+                responsibility are four independent fields, so a fifteen-year-old may hold full
+                access and a forty-year-old may be guided.
               </>
             }
           />
@@ -231,6 +256,11 @@ export default function CaseStudy() {
             <ElevationSpecimen />
             <MotionSpecimen />
           </div>
+        </div>
+        {/* Full width, and last: the scales above are ingredients, this is what
+            the system actually hands you. */}
+        <div className="mt-tile">
+          <ComponentSpecimen />
         </div>
       </Section>
 
@@ -294,7 +324,8 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
             reading={
               <>
                 <p>
-                  <b className="text-white/80">What it claims:</b> the figures in &ldquo;At a
+                  <b className="text-white/80">What it claims:</b>{" "}
+                  the figures in &ldquo;At a
                   glance&rdquo; match the repository as it stands right now.
                 </p>
                 <p>
@@ -303,7 +334,8 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
                   prints. Commits are checked as a floor, because that figure only ever rises.
                 </p>
                 <p>
-                  <b className="text-white/80">Why it matters:</b> stats on a portfolio page rot
+                  <b className="text-white/80">Why it matters:</b>{" "}
+                  stats on a portfolio page rot
                   silently — the code moves, the numbers don&rsquo;t, and nobody notices. Here the
                   suite fails and names the figure that drifted.
                 </p>
@@ -320,11 +352,9 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
           title="The audited result, and what it doesn&rsquo;t mean"
           standfirst={
             <>
-              {AUDIT.tool} against the {AUDIT.ruleset} ruleset, run on this page in a real browser at{" "}
-              {AUDIT.viewports.join(" and ")}, {AUDIT.date} — with {AUDIT.measuredWith}. Neither
-              viewport is uniformly worse, so both are published and the headline numbers take the
-              unflattering half of each:{" "}
-              {AUDIT.product.byViewport.map((v) => `${v.viewport} → ${v.nodes} nodes, worst ${v.worst}:1`).join("; ")}.
+              {AUDIT.tool}, {AUDIT.ruleset}, run in a real browser at{" "}
+              {AUDIT.viewports.join(" and ")} with both devices mounted — reported as two numbers,
+              because one would let the article hide behind the product.
             </>
           }
         />
@@ -337,10 +367,7 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
               <p className="mt-2 text-bodysm font-medium text-ink">
                 violations in this page&rsquo;s own chrome
               </p>
-              <p className="mt-1 text-micro text-ink/75">type, cards, specimens, hero, controls</p>
             </Panel>
-            {/* The second number is the point. Rounding these into the first
-                would let the article hide behind the product. */}
             <Panel tone="wash">
               <p className="font-tight text-[56px] leading-none tracking-tight text-white tabular-nums">
                 {AUDIT.product.nodes}
@@ -348,20 +375,24 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
               <p className="mt-2 text-bodysm font-medium text-white">
                 elements failing inside the embedded product
               </p>
+              {/* Both viewports, in one line — and derived, not written, so it
+                  keeps telling the truth if they ever diverge again. They did
+                  once: the wide run used to find more elements and the narrow
+                  run a worse ratio. */}
               <p className="mt-1 text-micro text-white/60">
-                all one rule — colour contrast — worst {AUDIT.product.worst}:1
+                all colour contrast ·{" "}
+                {new Set(AUDIT.product.byViewport.map((v) => v.nodes)).size === 1
+                  ? `${AUDIT.product.nodes} at both viewports`
+                  : AUDIT.product.byViewport
+                      .map((v) => `${v.nodes} at ${v.viewport.split(" ")[0]}`)
+                      .join(", ")}{" "}
+                · worst {AUDIT.product.worst}:1
               </p>
             </Panel>
           </div>
           <Panel tone="wash">
-            <p className="text-bodysm font-medium text-white">
-              What the embedded product is failing on — and what neither number means
-            </p>
-
-            {/* Named, not summarised. A count with no list is a number you can't
-                act on, and the whole reason to split the figures was to stop
-                the failures disappearing into an average. */}
-            <ul className="mt-3 space-y-2.5 border-b border-white/12 pb-4">
+            <p className="text-bodysm font-medium text-white">What the product is failing on</p>
+            <ul className="mt-3 space-y-2 border-b border-white/12 pb-4">
               {AUDIT.product.findings.map((f) => (
                 <li key={f.what} className="text-bodysm leading-relaxed text-white/60">
                   <span className="font-medium text-white">{f.what}</span>{" "}
@@ -371,39 +402,28 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
               ))}
             </ul>
 
+            {/* Three caveats, not five. The two that went were true but not
+                load-bearing — a note on how contrast is measured, and a count
+                of h1s that axe never objected to. Both are pinned by tests;
+                neither changed what a reader should take from this number. */}
             <ul className="mt-4 space-y-2.5 text-bodysm leading-relaxed text-white/60">
               <li>
-                <b className="text-white/80">Two of those were fixed in the palette, and shipped.</b>{" "}
-                Writing the contrast tests for this page turned them on the product and found{" "}
-                <code className="font-mono text-[12px] text-white/75">sub</code> at 3.28:1 on a
-                lavender card and <code className="font-mono text-[12px] text-white/75">danger</code>{" "}
-                at 3.91:1 on white. Both swatches were darkened rather than the text lightened. The
-                misses listed above are the ones that remain — opacity applied to good tokens, and
-                one genuine bug — and they belong to the a11y pass still on the backlog.
+                <b className="text-white/80">Two more were found here and shipped.</b>{" "}
+                Writing this
+                page&rsquo;s contrast tests turned them on the product:{" "}
+                <code className="font-mono text-[12px] text-white/75">sub</code> at 3.28:1 and{" "}
+                <code className="font-mono text-[12px] text-white/75">danger</code> at 3.91:1. Both
+                swatches were darkened rather than the text lightened.
               </li>
               <li>
                 <b className="text-white/80">It isn&rsquo;t &ldquo;accessible.&rdquo;</b> Automated
-                rules catch a minority of WCAG criteria. Nobody has tested this page with a screen
-                reader end to end, and no assistive-technology user has reviewed it.
+                rules catch a minority of WCAG criteria. No screen-reader pass, no
+                assistive-technology user has reviewed this.
               </li>
               <li>
-                <b className="text-white/80">The mounted boards add heading-ones of their own.</b>{" "}
-                Each iPad shell greets the room, and that greeting is its page title — so with the
-                embed and the two-surface section this document can carry three: the headline you
-                started at, plus up to two boards. Multiple h1s are valid HTML5 and axe reports
-                nothing, but the count is pinned by a test rather than suppressed, because the
-                honest thing is to know the number.
-              </li>
-              <li>
-                <b className="text-white/80">Contrast is checked at the worst case,</b> not the
-                average: colour pairs are compared against the lightest surface each sits on, and the
-                hero&rsquo;s type is measured against its veil rather than the artwork behind it.
-              </li>
-              <li>
-                <b className="text-white/80">Reduced motion is honoured</b> app-wide via{" "}
-                <code className="font-mono text-[12px] text-white/75">MotionConfig reducedMotion=&quot;user&quot;</code>,
-                with one known gap: the avatars blink using SVG SMIL, which the CSS reduced-motion
-                override doesn&rsquo;t reach.
+                <b className="text-white/80">Reduced motion is honoured</b>{" "}
+                app-wide, with one known
+                gap: the avatars blink using SVG SMIL, which the CSS override doesn&rsquo;t reach.
               </li>
             </ul>
           </Panel>
@@ -415,6 +435,7 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
         <Head
           label="Where this goes next"
           title="Built as a prototype, on purpose"
+          inlineLabel
           standfirst={
             <>
               Two surfaces share one in-memory store, seeded with seven months of plausible

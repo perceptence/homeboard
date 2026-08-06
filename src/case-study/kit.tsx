@@ -41,17 +41,46 @@ export function Section({
   );
 }
 
-/** Section heading: a small label, a big line, and one sentence of orientation. */
+/**
+ * Section heading: a small label, a big line, and one sentence of orientation.
+ *
+ * `inlineLabel` sets the label beside the title instead of above it, on the
+ * same baseline. For a title short enough to leave most of a line empty next to
+ * it, stacking the label wastes a whole row to hold four words — so the closing
+ * section runs them together. It is opt-in per section rather than the default,
+ * because a long title would wrap under an inline label and lose the straight
+ * left edge every other heading on the page keeps.
+ */
 export function Head({
-  label, title, standfirst,
-}: { label: string; title: ReactNode; standfirst?: ReactNode }) {
+  label, title, standfirst, inlineLabel = false,
+}: { label: string; title: ReactNode; standfirst?: ReactNode; inlineLabel?: boolean }) {
+  const chip = (
+    <p className="font-mono text-micro font-bold uppercase tracking-[0.16em] text-lemon">{label}</p>
+  );
   return (
-    <header className="max-w-[62ch]">
-      <p className="font-mono text-micro font-bold uppercase tracking-[0.16em] text-lemon">{label}</p>
-      <h2 className="mt-3 font-tight text-[clamp(28px,4vw,44px)] leading-[1.08] tracking-[-0.015em] text-white">
-        {title}
-      </h2>
-      {standfirst && <p className="mt-4 text-body leading-relaxed text-white/60">{standfirst}</p>}
+    /* The 62ch cap moves off the header and onto the prose when the label is
+       inline. It has to: a 44px title already fills 62ch on its own, so the
+       label had nowhere to sit and wrapped to a line of its own — which is the
+       stacked layout again, with extra steps. The measure still governs the
+       standfirst, which is the part that is actually read as text. */
+    <header className={clsx(!inlineLabel && "max-w-[62ch]")}>
+      {!inlineLabel && chip}
+      <div className={clsx(inlineLabel && "flex flex-wrap items-baseline gap-x-4 gap-y-1")}>
+        <h2
+          className={clsx(
+            "font-tight text-[clamp(28px,4vw,44px)] leading-[1.08] tracking-[-0.015em] text-white",
+            !inlineLabel && "mt-3",
+          )}
+        >
+          {title}
+        </h2>
+        {inlineLabel && chip}
+      </div>
+      {standfirst && (
+        <p className={clsx("mt-4 text-body leading-relaxed text-white/60", inlineLabel && "max-w-[62ch]")}>
+          {standfirst}
+        </p>
+      )}
     </header>
   );
 }

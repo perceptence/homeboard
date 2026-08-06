@@ -10,9 +10,13 @@
  * behind the article. So they're counted separately, and the product's failures
  * are listed rather than rounded off.
  *
- * Both viewports are published, because neither is uniformly worse: the wide
- * one finds more failing elements, the narrow one finds a worse ratio. The
- * headline numbers take the unflattering half of each.
+ * Both viewports are still published, but they no longer disagree. They used to:
+ * the wide run found more failing elements and the narrow run a worse ratio, so
+ * the headline took the unflattering half of each. Enlarging the embed's devices
+ * changed that — the board's floating nav now misreads its backdrop at BOTH
+ * sizes, not just the narrow one — and the two runs came out identical. The
+ * rule for the headline is unchanged (highest count, lowest ratio); there is
+ * simply nothing left for it to choose between.
  */
 export const AUDIT = {
   tool: "axe-core 4.10.2",
@@ -28,40 +32,39 @@ export const AUDIT = {
    * The embedded product. All one rule — colour contrast — and every one of
    * them is the app's own palette, not this page's.
    *
-   * Recorded per viewport, because neither is uniformly worse and collapsing
-   * them would hide something either way: the wide run finds MORE failing
-   * elements, the narrow run finds a WORSE one. `nodes` is the higher count and
-   * `worst` the lower ratio, so the headline figures are the unflattering pick
-   * from each.
+   * Recorded per viewport rather than collapsed, so that a future divergence
+   * shows up instead of averaging away. `nodes` is the higher count and `worst`
+   * the lower ratio across the runs — which is the same pick either way now
+   * that the two agree.
    */
   product: {
     violations: 1,
     byViewport: [
-      { viewport: "1440 × 900", nodes: 13, worst: 3.79 },
-      { viewport: "390 × 844", nodes: 11, worst: 1.16 },
+      { viewport: "1440 × 900", nodes: 15, worst: 1.16 },
+      { viewport: "390 × 844", nodes: 15, worst: 1.16 },
     ],
-    nodes: 13,
+    nodes: 15,
     worst: 1.16,
     findings: [
       {
-        what: "Inactive labels in the iPad's floating nav (narrow viewport)",
+        what: "Inactive labels in the iPad's floating nav",
         ratio: "1.16:1",
-        why: "A real bug, not a thin token. The nav samples what's behind it and inverts its text to suit; that sampling uses elementsFromPoint, which misreads once the app sits inside a scaled container — so it decides the glass is over something light and paints ink on near-black. Correct at full size, wrong in the embed, and worth fixing either way.",
+        why: "A real bug, not a thin token: the glass samples what's behind it to invert its text, and elementsFromPoint misreads inside a scaled container. It used to show only at the narrow viewport; at the embed's current device size it shows at both.",
       },
       {
-        what: "Time-of-day headings on the board (Morning, Afternoon, Evening)",
+        what: "Time-of-day headings on the board",
         ratio: "3.79:1",
-        why: "White at 40% opacity on the ink canvas. The token clears AA on its own; the transparency is what drops it under.",
+        why: "White at 40% on the ink canvas. The token clears AA alone; the transparency is what drops it under.",
       },
       {
         what: "Card eyebrows on white (Meals, Bills, Garage…)",
         ratio: "3.93:1",
-        why: "text-sub at 75% opacity — the largest single group. Same cause: a good token, thinned.",
+        why: "text-sub at 75% — the largest single group, and the same cause: a good token, thinned.",
       },
       {
         what: "The Worth-a-look heading and its second lines",
         ratio: "4.26 – 4.43:1",
-        why: "White at 45% on ink and on a raised dark card. Closest to passing, and the easiest to fix.",
+        why: "White at 45% on ink and on a raised card. Closest to passing, and the easiest to fix.",
       },
     ],
   },
