@@ -278,7 +278,7 @@ export function Embed() {
              pill sit in the same column and the same inline row, so they have
              to agree, and the one carrying a portrait is the one that can't
              give. */
-          "inline-flex h-[30px] items-center justify-center whitespace-nowrap rounded-pill px-2 text-micro font-medium transition-colors",
+          "inline-flex h-[30px] items-center justify-center whitespace-nowrap rounded-pill px-1.5 text-micro font-medium transition-colors",
           /* In a rail every pill is stretched to the column, so the labels are
              centred rather than ragged against one edge — the pills themselves
              already form the straight edge the rail needs. */
@@ -317,18 +317,25 @@ export function Embed() {
           /* Absolutely placed in the bled margin, OUTSIDE the content column,
              so the devices can hold the full content width themselves and these
              still touch the hardware they steer.
-             THE WIDTH AND THE BREAKPOINT ARE THE SAME NUMBER. 164 is the widest
-             pill — a 144px label plus px-2 either side. The offset is negative
-             because `right-full` anchors to this box's BORDER edge while the
-             device starts one px-inner (24px) further in; -8 cancels most of
-             that back to a 16px gap off the glass itself. The rail's outer edge
-             then lands at (vw − 1194) / 2 + 8 − 164, so both rails clear the
-             viewport from 1506px up. The gate is 32 above that, which is the
-             same 16px of air outside the rail as there is inside it — at 1506
-             exactly they'd sit flush against the window. Under the gate, the
-             band beneath the stage takes over instead. */
-          "absolute top-1/2 hidden w-[164px] -translate-y-1/2 flex-col gap-2 min-[1538px]:flex",
-          rightHand ? "left-full -ml-2 items-start text-left" : "right-full -mr-2 items-end text-right",
+             THE WIDTH AND THE BREAKPOINT ARE ONE CALCULATION. 158 is the widest
+             pill — a 144px label, 6px of padding a side, 2px of slack so the
+             nowrap can't clip — and the offset is negative because `right-full`
+             anchors to this box's BORDER edge while the device starts one
+             px-inner (24px) further in, so -12 cancels half of that back to a
+             12px gap off the glass. The rail's outer edge therefore lands at
+             (vw − 1194) / 2 + 12 − 158, which clears the window from 1506px up
+             with 10px to spare, and 13px at the 1512 of a 14-inch laptop.
+
+             This used to be 164 wide at a 16px gap, gated at 1538 for a 16px
+             outer margin — which read as generous arithmetic right up until it
+             put a 1512px screen into the fallback. The margin outside a rail is
+             worth less than the rail being there at all.
+
+             Below the gate the band beneath the stage takes over. 1440 cannot
+             hold this layout at any honest width: 1146 of content plus two
+             rails and their gaps needs 1486, and that leaves nothing. */
+          "absolute top-1/2 hidden w-[158px] -translate-y-1/2 flex-col gap-2 min-[1506px]:flex",
+          rightHand ? "left-full -ml-3 items-start text-left" : "right-full -mr-3 items-end text-right",
         )}
       >
         <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-ink">
@@ -405,7 +412,7 @@ export function Embed() {
 
       return (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:gap-4">
-          <p className="shrink-0 pt-1 font-mono text-micro font-bold uppercase tracking-[0.14em] text-ink sm:w-[132px]">
+          <p className="shrink-0 pt-1 font-mono text-micro font-bold uppercase tracking-[0.14em] text-ink sm:w-[152px]">
             {group.title}
           </p>
           <div className="min-w-0 flex-1">
@@ -427,7 +434,7 @@ export function Embed() {
     };
 
     return (
-      <div className="mx-auto mt-6 flex w-full max-w-[1194px] flex-col gap-4 border-t border-ink/10 px-inner pt-4 min-[1538px]:hidden">
+      <div className="mx-auto mt-6 flex w-full max-w-[1194px] flex-col gap-4 border-t border-ink/10 px-inner pt-4 min-[1506px]:hidden">
         {row("ipad")}
         {row("phone")}
       </div>
