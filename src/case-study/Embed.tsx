@@ -125,13 +125,16 @@ export function Embed() {
           The host box is still what the frame MEASURES: it fills the grid row
           and the device scales down to fit. Nothing here measures the device to
           size the row, which is what keeps it from feeding back. */}
-      <div className="relative min-h-[520px] overflow-hidden py-tile">
-        <span className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-pill bg-lemon px-3 py-1.5 font-mono text-micro font-bold uppercase tracking-[0.12em] text-ink">
+      <div className="flex min-h-[520px] flex-col gap-3 overflow-hidden py-tile">
+        {/* In normal flow, not floated over the device. Absolutely positioned it
+            sat on the phone's own status bar as soon as the column narrowed —
+            a label about the app covering part of the app. */}
+        <span className="flex w-fit items-center gap-2 rounded-pill bg-lemon px-3 py-1.5 font-mono text-micro font-bold uppercase tracking-[0.12em] text-ink">
           <span className="h-1.5 w-1.5 rounded-pill bg-ink" />
           Live — the real app
         </span>
 
-        <div ref={host} className="flex h-full w-full items-center justify-center">
+        <div ref={host} className="flex min-h-0 w-full flex-1 items-center justify-center">
           <MotionConfig reducedMotion="user">
             <DeviceFrame
               kind={isPhone ? "phone" : "tablet"}

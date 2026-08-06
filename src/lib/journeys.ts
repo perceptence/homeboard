@@ -93,7 +93,6 @@ export const JOURNEYS: Journey[] = [
     id: "onboarding-phone", label: "Onboarding · phone", group: "Setup",
     surface: "phone", persona: "maya",
     blurb: "Building a household from scratch, one question at a time.",
-    featured: true,
     run: () => { const s = st(); s.setPersona("maya"); s.startOnboarding(); s.setStep(0); },
   },
   {
@@ -125,7 +124,7 @@ export const JOURNEYS: Journey[] = [
   {
     id: "ahead", label: "Ahead", group: "Phone", surface: "phone", persona: "maya",
     blurb: "The week and the month, at whichever grain you're thinking in.",
-    featured: true, run: phone("ahead"),
+    run: phone("ahead"),
   },
   {
     id: "house", label: "Household", group: "Phone", surface: "phone", persona: "maya",
@@ -135,12 +134,12 @@ export const JOURNEYS: Journey[] = [
   {
     id: "you", label: "You", group: "Phone", surface: "phone", persona: "maya",
     blurb: "Your standing: what you've finished, what you're carrying.",
-    featured: true, run: phone("you"),
+    run: phone("you"),
   },
   {
     id: "shopping", label: "Shopping", group: "Phone", surface: "phone", persona: "maya",
     blurb: "The one list the whole house writes to.",
-    featured: true, run: phone("today", "shop"),
+    run: phone("today", "shop"),
   },
   {
     id: "stock", label: "In the house", group: "Phone", surface: "phone", persona: "maya",
@@ -221,7 +220,17 @@ export const JOURNEYS: Journey[] = [
   },
 ];
 
-/** The subset the case study offers as deep-linkable screens. */
+/**
+ * The subset the case study offers as deep-linkable screens.
+ *
+ * Deliberately not "all of them". The phone side ran to nine, which read as an
+ * index rather than a tour and buried the ones that carry an argument. What's
+ * left is five screens that each say something different — the day and its one
+ * decision, the add flow that classifies for you, the balancer choosing on your
+ * behalf, the shared load on a personal phone, and a trip announcing itself.
+ * Ahead, You, Shopping and the onboarding flow are all still in the table and
+ * still reachable from the demo panel; they just weren't earning a row here.
+ */
 export const FEATURED = JOURNEYS.filter((j) => j.featured);
 
 export const journeyById = (id: string | null | undefined) =>
