@@ -4,11 +4,11 @@ import clsx from "clsx";
 import { MotionConfig } from "framer-motion";
 import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/Icons";
+import { DemoPalette } from "@/components/DemoPalette";
 import { DeviceFrame } from "@/components/DeviceFrame";
 import { Splash } from "@/components/Splash";
 import { Avatar, Toast } from "@/components/ui";
 import { doers, useHousehold } from "@/lib/store";
-import { GROUPS, JOURNEYS } from "@/lib/journeys";
 import { Onboarding } from "@/surfaces/Onboarding";
 import { Sheets } from "@/surfaces/Sheets";
 import { IpadShell } from "@/surfaces/ipad/IpadShell";
@@ -93,6 +93,9 @@ export default function Page() {
           ))}
 
           <span className="mx-1.5 h-4 w-px bg-white/10" />
+
+          <DemoPalette />
+
           <button
             onClick={s.startOnboarding}
             className="rounded-pill px-3 py-2 text-[13px] font-semibold text-white/55 transition-colors hover:text-white"
@@ -117,53 +120,11 @@ export default function Page() {
         <Toast message={s.toast} who={s.toastWho ? s.members[s.toastWho] : undefined} onDone={clearToast} onUndo={s.toastUndo ?? undefined} />
       </DeviceFrame>
 
-      <DemoPanel />
+      {/* Setup hides the bar above, and Onboarding has no exit of its own —
+          so the way back to the seeded demo has to survive it. */}
+      {onboarding && <DemoPalette floating />}
     </main>
     </MotionConfig>
-  );
-}
-
-/**
- * DEMO PANEL — a driver's map for the preview. Every button jumps straight to a
- * journey by setting the persona, surface, route, and sheet in one go, so a
- * walkthrough never has to hunt for a screen. Preview-only chrome; it drives the
- * same store the app does.
- *
- * The journeys themselves live in src/lib/journeys.ts, so the case-study page
- * can offer the same screens as deep links without a second copy to drift.
- */
-function DemoPanel() {
-  const [open, setOpen] = useState(true);
-  return (
-    <div className="fixed left-3 top-3 z-[100] w-[168px] overflow-hidden rounded-2xl bg-ink/95 text-white shadow-e3 backdrop-blur">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-2.5 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/45 transition-colors hover:text-white/80"
-      >
-        Demo
-        <span className="text-white/40">{open ? "\u2013" : "+"}</span>
-      </button>
-      {open && (
-        <div className="no-scrollbar max-h-[calc(100vh-64px)] overflow-y-auto px-2 pb-2">
-          {GROUPS.map((g) => (
-            <div key={g} className="mt-1">
-              <div className="px-1 pb-1 pt-1.5 text-[9px] font-bold uppercase tracking-[0.12em] text-white/30">{g}</div>
-              <div className="flex flex-col gap-0.5">
-                {JOURNEYS.filter((j) => j.group === g).map((j) => (
-                  <button
-                    key={j.id}
-                    onClick={j.run}
-                    className="rounded-lg px-2 py-1.5 text-left text-[12px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-                  >
-                    {j.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 

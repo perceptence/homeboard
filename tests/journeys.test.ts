@@ -318,3 +318,40 @@ describe("the seeded day", () => {
     expect(useHousehold.getState().tasks.map((t) => t.due).join()).toBe(first);
   });
 });
+
+/**
+ * ONBOARDING HAS NO EXIT OF ITS OWN.
+ *
+ * Setup renders over the whole preview and offers no skip, so the ONLY way back
+ * to the seeded demo is a journey — "Reset to demo" — reached from the demo
+ * launcher. That made the launcher's placement load-bearing in a way nothing
+ * recorded: it used to be a fixed panel rendered outside the page's
+ * `!setupComplete` guard, so it survived setup by accident. Moving it into the
+ * top bar (which setup hides) would have made "+ New home" a one-way door,
+ * recoverable only by clearing localStorage.
+ *
+ * The fix is a `floating` variant that still renders during setup. This pins
+ * the requirement that makes that variant necessary, so the next person to move
+ * this control learns about the trap from a red test rather than from being
+ * stuck in it.
+ */
+describe("the way out of onboarding", () => {
+  it("offers a journey that restores the seeded household", () => {
+    const escape = JOURNEYS.find((j) => j.id === "reset");
+    expect(escape, "no reset journey — onboarding would be a one-way door").toBeTruthy();
+    expect(escape!.group).toBe("Setup");
+  });
+
+  it("actually returns a completed household when run from mid-setup", () => {
+    useHousehold.getState().startOnboarding();
+    expect(useHousehold.getState().setupComplete, "precondition: setup is running").toBe(false);
+
+    JOURNEYS.find((j) => j.id === "reset")!.run();
+
+    expect(
+      useHousehold.getState().setupComplete,
+      "the escape journey left the user still inside setup",
+    ).toBe(true);
+    expect(Object.keys(useHousehold.getState().members).length).toBeGreaterThan(0);
+  });
+});

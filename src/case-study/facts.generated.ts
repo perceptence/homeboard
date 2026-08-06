@@ -9,16 +9,16 @@
  */
 export const REPO = {
   /** Commits on HEAD when this was generated. Asserted as a floor — it only rises. */
-  commits: 191,
+  commits: 192,
   /** Lines of TypeScript/TSX across src/ and app/, excluding tests. */
-  lines: 17900,
+  lines: 18092,
   /** Exported React components (`export function Name`), excluding tests. */
-  components: 68,
+  components: 69,
   /** Exported components in the SHARED UI kit (src/components) — the reusable
    *  pieces both surfaces render from, excluding this page's own furniture. */
-  uiComponents: 35,
+  uiComponents: 36,
   /** Source files counted for `lines`. */
-  sourceFiles: 42,
+  sourceFiles: 43,
   /** Test files in the suite. */
   testFiles: 5,
 } as const;
