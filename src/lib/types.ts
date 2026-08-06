@@ -629,11 +629,17 @@ export type Persona = "ipad" | MemberId;
  * household = the people and the things around the house. The last four are
  * Household's sub-screens (doors, not tabs) — the nav keeps Household lit.
  */
-export type IpadRoute =
-  | "today" | "calendar" | "household"
-  | "inventory" | "maint" | "autos" | "settings";
+export const IPAD_ROUTES = [
+  "today", "calendar", "household",
+  "inventory", "maint", "autos", "settings",
+] as const;
+/** Derived from the list above, so the type and the runtime set can't disagree —
+ *  which is exactly how three demo journeys ended up pointing at routes that
+ *  didn't exist. A test walks IPAD_ROUTES to check every journey lands on one. */
+export type IpadRoute = (typeof IPAD_ROUTES)[number];
 /**
  * The phone has THREE tabs, on one axis: now -> later -> me.
  * today = what's on right now · ahead = the week/month/quarter · you = the person.
  */
-export type PhoneRoute = "today" | "ahead" | "house" | "you";
+export const PHONE_ROUTES = ["today", "ahead", "house", "you"] as const;
+export type PhoneRoute = (typeof PHONE_ROUTES)[number];

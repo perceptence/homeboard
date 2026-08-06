@@ -74,6 +74,23 @@ function useFit(
   outerW: number,
   outerH: number,
   chromeGap: number,
+  /**
+   * Where the available room comes from.
+   *
+   * The preview page owns the whole viewport, so it measures the WINDOW. The
+   * case study embeds the same frame inside a scrolling article, where the
+   * window is the wrong question entirely — the device has to fit the box it
+   * was given, and that box changes size without the window ever resizing
+   * (the article reflows, a section above it grows). Passing a host element
+   * switches the measurement to that element and watches it with a
+   * ResizeObserver instead of a window listener.
+   *
+   * Measured with clientWidth/clientHeight, not getBoundingClientRect: the
+   * host contains a `transform: scale()` child, and rects report post-transform
+   * geometry. Feeding a scaled number back into the scale is how you get a box
+   * that shrinks a little more on every pass and never settles.
+   */
+  host?: React.RefObject<HTMLElement | null>,
 ) {
   const [box, setBox] = useState({ s: 1, gw: outerW, gh: outerH, tick: 0 });
   const [nudge, setNudge] = useState({ dx: 0, dy: 0 });
@@ -82,8 +99,10 @@ function useFit(
   useEffect(() => {
     const apply = () => {
       const dpr = window.devicePixelRatio || 1;
-      const availW = window.innerWidth - 48;
-      const availH = window.innerHeight - chromeGap;
+      const el = host?.current;
+      const availW = el ? el.clientWidth : window.innerWidth - 48;
+      const availH = el ? el.clientHeight : window.innerHeight - chromeGap;
+      if (availW <= 0 || availH <= 0) return; // not laid out yet
       const s = Math.max(0.05, Math.min(1, availW / outerW, availH / outerH));
       /** The nearest CSS length that is a whole number of device pixels once scaled. */
       const grid = (v: number) => Math.round(v * s * dpr) / (s * dpr);
@@ -96,12 +115,19 @@ function useFit(
       raf.current = requestAnimationFrame(apply);
     };
     fit();
+
+    const el = host?.current;
+    if (el) {
+      const ro = new ResizeObserver(fit);
+      ro.observe(el);
+      return () => { ro.disconnect(); cancelAnimationFrame(raf.current); };
+    }
     window.addEventListener("resize", fit);
     return () => {
       window.removeEventListener("resize", fit);
       cancelAnimationFrame(raf.current);
     };
-  }, [ref, outerW, outerH, chromeGap]);
+  }, [ref, outerW, outerH, chromeGap, host]);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -121,15 +147,22 @@ function useFit(
 export type Orientation = "landscape" | "portrait";
 
 export function DeviceFrame({
-  kind, children, chromeGap = 150, orientation = "landscape",
-}: { kind: DeviceKind; children: ReactNode; chromeGap?: number; orientation?: Orientation }) {
+  kind, children, chromeGap = 150, orientation = "landscape", host,
+}: {
+  kind: DeviceKind;
+  children: ReactNode;
+  chromeGap?: number;
+  orientation?: Orientation;
+  /** Fit to this element instead of the window — see `useFit`. */
+  host?: React.RefObject<HTMLElement | null>;
+}) {
   return kind === "phone" ? (
     // Centred in the leftover space — a phone floats; the tablet sits.
     <div className="flex min-h-0 w-full flex-1 items-center justify-center">
-      <PhoneChrome chromeGap={chromeGap}>{children}</PhoneChrome>
+      <PhoneChrome chromeGap={chromeGap} host={host}>{children}</PhoneChrome>
     </div>
   ) : (
-    <TabletFrame chromeGap={chromeGap} orientation={orientation}>{children}</TabletFrame>
+    <TabletFrame chromeGap={chromeGap} orientation={orientation} host={host}>{children}</TabletFrame>
   );
 }
 
@@ -144,12 +177,12 @@ const PHONE_BTNS: ["left" | "right", number, number][] = [
   ["right", 347, 42],  // Camera Control
 ];
 
-function PhoneChrome({ children, chromeGap }: { children: ReactNode; chromeGap: number }) {
+function PhoneChrome({ children, chromeGap, host }: { children: ReactNode; chromeGap: number; host?: React.RefObject<HTMLElement | null> }) {
   const d = DEVICES.phone;
   const outerW = d.w + d.bezel * 2;
   const outerH = d.h + d.bezel * 2;
   const frame = useRef<HTMLDivElement>(null);
-  const { s, gw, gh, dx, dy } = useFit(frame, outerW, outerH, chromeGap);
+  const { s, gw, gh, dx, dy } = useFit(frame, outerW, outerH, chromeGap, host);
 
   return (
     // Outer box reserves the *scaled* footprint so the page centres the visual size.
@@ -808,7 +841,7 @@ function BatteryGlyph({ level = 0.68 }: { level?: number }) {
 
 /* ─────────────────────────────── tablet ─────────────────────────────── */
 
-function TabletFrame({ children, chromeGap, orientation }: { children: ReactNode; chromeGap: number; orientation: Orientation }) {
+function TabletFrame({ children, chromeGap, orientation, host }: { children: ReactNode; chromeGap: number; orientation: Orientation; host?: React.RefObject<HTMLElement | null> }) {
   // Portrait is the SAME device, rotated — derived by swapping w/h off the one
   // landscape entry, not a second DEVICES key that could drift on bezel/radius.
   const base = DEVICES.tablet;
@@ -816,7 +849,7 @@ function TabletFrame({ children, chromeGap, orientation }: { children: ReactNode
   const outerW = d.w + d.bezel * 2;
   const outerH = d.h + d.bezel * 2;
   const frame = useRef<HTMLDivElement>(null);
-  const { s, gw, gh, dx, dy } = useFit(frame, outerW, outerH, chromeGap);
+  const { s, gw, gh, dx, dy } = useFit(frame, outerW, outerH, chromeGap, host);
 
   return (
     // Outer box reserves the *scaled* footprint so the page never overflows.
