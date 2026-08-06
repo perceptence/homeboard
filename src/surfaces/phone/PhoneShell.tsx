@@ -1230,17 +1230,31 @@ function PhoneToday() {
       </div>
 
       {/* WITHIN THE NEXT TWO HOURS — the pressing things ride directly under the
-          hero, ahead of the house-keeping cards. One thing, one card. */}
-      {soon.map((c) => (
-        <div key={c.key}>{c.el}</div>
-      ))}
+          hero, ahead of the house-keeping cards. One thing, one card.
+
+          COMPLETION IS AN EXIT, NOT A DELETION. These lists filter `done`, so
+          ticking a task used to unmount its card between two frames — a pop,
+          with every card below snapping up 8px plus a card-height. An act the
+          app celebrates ("Nice — that's done") deserved better than a glitch:
+          popLayout lifts the leaving card out of the flow so it can float off
+          while the cards below — every sibling here carries `layout` — glide
+          up to close the gap at the app's own ease. */}
+      <AnimatePresence initial={false} mode="popLayout">
+        {soon.map((c) => (
+          <motion.div layout key={c.key} exit={{ opacity: 0, scale: 0.96, y: -6 }} transition={smooth}>
+            {c.el}
+          </motion.div>
+        ))}
+      </AnimatePresence>
 
       {/* THE SHARED LIST (mint) — the one collective thing on a personal phone.
           It was a cart in the header crowding the greeting; a thing everyone
           shares shouldn't hide in a corner of personal chrome. As a card it can
           say what's on it, and tapping opens the full list. Mint (not lavender)
-          so it doesn't twin with the progress card two rows down. */}
-      <div>
+          so it doesn't twin with the progress card two rows down.
+          `layout`: when a task above completes and its card leaves, this one
+          glides up to close the gap instead of snapping. */}
+      <motion.div layout transition={smooth}>
         <Card tone="mint" onClick={() => s.openSheet({ type: "shop" })}>
           {/* SAME SHAPE AS 'YOUR PROGRESS' — line one is the icon tile with a
               status chip riding the far end; line two is the eyebrow/figure pair
@@ -1268,10 +1282,10 @@ function PhoneToday() {
             </span>
           </div>
         </Card>
-      </div>
+      </motion.div>
 
-      {/* PROGRESS CARD (lavender) */}
-      <div>
+      {/* PROGRESS CARD (lavender) — `layout` for the same glide as the mint card. */}
+      <motion.div layout transition={smooth}>
         <Card tone="lavender">
           <div className="flex items-center">
             {/* The component, not a hand-rolled span. This well predates IconTile
@@ -1290,13 +1304,18 @@ function PhoneToday() {
             <span className="shrink-0 font-tight text-display leading-none tabular-nums"><Em>{pct}</Em>%</span>
           </div>
         </Card>
-      </div>
+      </motion.div>
 
       {/* THE REST OF THE DAY — everything past the two-hour horizon (and the
-          whole day, when you're reading a day that isn't today). */}
-      {later.map((c) => (
-        <div key={c.key}>{c.el}</div>
-      ))}
+          whole day, when you're reading a day that isn't today). Same exit
+          grammar as the two-hour list above. */}
+      <AnimatePresence initial={false} mode="popLayout">
+        {later.map((c) => (
+          <motion.div layout key={c.key} exit={{ opacity: 0, scale: 0.96, y: -6 }} transition={smooth}>
+            {c.el}
+          </motion.div>
+        ))}
+      </AnimatePresence>
       </motion.div>
       </AnimatePresence>
     </div>
