@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import { AnimatePresence, MotionConfig, motion } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion, useAnimationControls } from "framer-motion";
 import { DeviceFrame } from "@/components/DeviceFrame";
 import { Icon } from "@/components/Icons";
 import { Toast } from "@/components/ui";
+import { ease } from "@/lib/motion";
 import { useHousehold } from "@/lib/store";
 import { Sheets } from "@/surfaces/Sheets";
 import { IpadShell } from "@/surfaces/ipad/IpadShell";
@@ -14,25 +15,34 @@ import { Label } from "./kit";
 import { useInView } from "./useInView";
 
 /**
- * ONE SCENE, PLAYED ON BOTH DEVICES — a directed camera over two live apps.
+ * ONE SCENE, ON TWO LIVE SURFACES — a directed camera over the running product.
  *
- * The first cut of this section ran four store actions on a timer and asked the
- * reader to notice what changed. Nobody could: the actions were invisible, the
- * reactions were three hundred pixels away, and "watch both devices" is not an
- * instruction human eyes can follow. A walkthrough with no camera is a list.
+ * Rules of the cinematography, learned the hard way:
  *
- * So this is a single use case, directed. The camera zooms to the board's
- * headline count and tells you to remember it. It travels to Sam's phone,
- * scrolls his list to the evening chore, and PRESSES THE REAL BUTTON — a
- * visible fingertip lands on the actual DOM node and calls click() on it, the
- * same handler a thumb fires. Then it pulls back out, returns to the board,
- * and rings the number that moved. One tap, one truth, both surfaces.
+ *   THE CAMERA AND THE CONTENT NEVER MOVE AT ONCE. The first cut zoomed while
+ *   the surfaces were still playing their entrance stagger, and scrolled the
+ *   phone while measuring it — every move landed on a target that was itself
+ *   mid-flight. Now the scene opens with a curtain beat that lets both screens
+ *   arrive; the phone's scroll gets its own beat and is POLLED until the card
+ *   stops moving; only then does anything get measured.
  *
- * Everything on stage is live. The zoom is a transform over the devices
- * themselves (real DOM scales losslessly — that is the point of embedding the
- * product instead of screenshotting it), and the choreography deliberately
- * passes through identity between moves, which is also what keeps the camera
- * maths simple: every measurement happens at scale 1.
+ *   EVERY MEASUREMENT HAPPENS AT SCALE 1. All rects for a device are taken in
+ *   one identity pass — the chore card, its button, the hero count — and every
+ *   camera position is solved from those. That's what lets the camera PAN
+ *   between two zoomed positions (card → hero) without ever passing through
+ *   identity: both were solved from the same resting geometry. (The previous
+ *   cut computed the fingertip's position AFTER zooming, from a rect that was
+ *   already transformed — which is why the tap could land beside the button.)
+ *
+ *   EVERY MOVE IS AWAITED, NOT TIMED. The camera runs on animation controls;
+ *   each start() resolves when the move actually completes. No guessed
+ *   setTimeouts racing a 0.85s tween.
+ *
+ *   THE PRESS IS REAL. pointerdown, a beat, pointerup, click — dispatched on
+ *   the app's own <Button>, whose whileTap compresses exactly as it does under
+ *   a thumb. The card's departure is the app's own completion exit (built
+ *   because this camera exposed its absence), and the list closes ranks with
+ *   layout animation. Nothing on stage is a special effect.
  */
 
 export const SCENE = {
@@ -44,13 +54,20 @@ export const SCENE = {
 type Cam = { x: number; y: number; scale: number };
 const IDENTITY: Cam = { x: 0, y: 0, scale: 1 };
 
-/** The steps, for the caption's "step n of…" index. */
+/** Camera grammar: arrivals are slower than departures; a pan is slowest. */
+const MOVE = {
+  in: { duration: 1.1, ease },
+  out: { duration: 0.9, ease },
+  pan: { duration: 1.35, ease },
+} as const;
+
 const STEPS = [
   "The board, before",
-  "Over to the phone",
+  "Across to the phone",
   "The chore",
-  "The tap",
-  "Back out",
+  "The press",
+  "His count",
+  "Pull back",
   "The board, after",
 ] as const;
 
@@ -65,24 +82,23 @@ export function Duet() {
   const cameraRef = useRef<HTMLDivElement>(null);
   const snapshot = useRef<ReturnType<typeof useHousehold.getState> | null>(null);
   const stopRef = useRef(false);
+  const cam = useAnimationControls();
 
   const [mounted, setMounted] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [done, setDone] = useState(false);
-  const [cam, setCam] = useState<Cam>(IDENTITY);
-  const [tapAt, setTapAt] = useState<{ x: number; y: number } | null>(null);
+  const [tap, setTap] = useState<{ x: number; y: number; phase: "land" | "press" | "lift" } | null>(null);
   const [pulse, setPulse] = useState<{ w: number; h: number } | null>(null);
   const [caption, setCaption] = useState<{
     step: number; side: "phone" | "ipad" | null; title: string; body: string;
   }>({
     step: 0, side: null,
-    title: "One scene, on both devices",
-    body: "Press play. The camera zooms to the board's count, follows a real tap on Sam's phone, and comes back to watch the number move.",
+    title: "One scene, on two live surfaces",
+    body: "Press play — the camera zooms to the board's number, walks over to Sam's phone, presses the real Done button, and follows the change back.",
   });
 
-  /* Mount after hydration AND only while near the viewport — see useInView.
-     If the reader scrolls away mid-scene the shells unmount, so the scene
-     stops itself rather than pressing buttons that no longer exist. */
+  /* Mount only while near the viewport; scrolling away mid-scene stops the
+     show rather than pressing buttons that no longer exist. */
   const root = useRef<HTMLDivElement>(null);
   const near = useInView(root, { once: false, rootMargin: "800px" });
   useEffect(() => {
@@ -91,8 +107,6 @@ export function Duet() {
     setMounted(near);
   }, [near]);
 
-  /* Take the household as we found it, so Put-it-back restores it exactly —
-     this store is shared with the embed above. */
   const capture = useCallback(() => {
     const g = st();
     snapshot.current = { ...g, tasks: [...g.tasks], events: [...g.events], activity: [...g.activity] } as never;
@@ -119,19 +133,39 @@ export function Duet() {
   const say = (step: number, side: "phone" | "ipad" | null, title: string, body: string) =>
     setCaption({ step, side, title, body });
 
-  /** Sleep, unless the scene was stopped — then bail out of the whole timeline. */
-  const tick = async (ms: number) => {
+  /** Hold, unless the scene was stopped. */
+  const hold = async (ms: number) => {
     await new Promise((r) => setTimeout(r, ms));
     if (stopRef.current) throw new Error("stopped");
   };
 
-  /* ── the camera ────────────────────────────────────────────────────────
-     All rects are measured AT IDENTITY (the choreography always returns to
-     scale 1 before the next move). With transform-origin 0 0 on the camera,
-     a camera-local point q lands at  o + q·s + t  in stage space, where o is
-     the camera's resting offset inside the stage. Solve for t so the target's
-     centre lands on the stage's centre. */
-  const zoomTo = (el: Element, pad = 24, maxS = 2.1) => {
+  /** An awaited camera move — resolves when the tween actually finishes. */
+  const move = async (to: Cam, t: { duration: number; ease: readonly number[] }) => {
+    await cam.start(to, t as never);
+    if (stopRef.current) throw new Error("stopped");
+  };
+
+  /** Poll an element until it stops moving (scroll settle), capped. */
+  const waitStill = async (el: Element, cap = 1800) => {
+    let last = el.getBoundingClientRect().top;
+    let still = 0;
+    const t0 = performance.now();
+    while (performance.now() - t0 < cap && still < 3) {
+      await new Promise((r) => setTimeout(r, 60));
+      if (stopRef.current) throw new Error("stopped");
+      const now = el.getBoundingClientRect().top;
+      if (Math.abs(now - last) < 0.5) still += 1; else still = 0;
+      last = now;
+    }
+  };
+
+  /* ── camera solving (all inputs measured at identity) ─────────────────
+     With transform-origin 0 0, a camera-local point q renders at o + q·s + t
+     in stage space (o = the camera's resting offset). Solve t so the target's
+     centre sits on the stage's centre; `at` maps any OTHER identity rect
+     through the same solution — how the fingertip finds the button while the
+     card is what's centred. */
+  const solve = (el: Element, pad = 24, maxS = 2.1) => {
     const sr = stageRef.current!.getBoundingClientRect();
     const cr = cameraRef.current!.getBoundingClientRect();
     const tr = el.getBoundingClientRect();
@@ -146,8 +180,6 @@ export function Duet() {
       cam: { x: t.x, y: t.y, scale },
       tw: tr.width * scale,
       th: tr.height * scale,
-      /** Where some OTHER element ends up in stage space under this transform —
-       *  how the fingertip finds the Done button while the CARD is centred. */
       at: (el2: Element) => {
         const r2 = el2.getBoundingClientRect();
         return {
@@ -160,24 +192,19 @@ export function Duet() {
 
   /* ── finding the actors ──────────────────────────────────────────────── */
 
-  /** The board's hero sentence ("… has N things on today, M already done."). */
-  const findBoardHero = () => {
+  const findBoardSentence = () => {
     const pad = padHost.current;
     if (!pad) return null;
-    const els = [...pad.querySelectorAll<HTMLElement>("div,p,span")]
+    return [...pad.querySelectorAll<HTMLElement>("div,p,span")]
       .filter((e) => /things on/.test(e.textContent ?? "") && /already done/.test(e.textContent ?? ""))
-      .sort((a, b) => (a.textContent?.length ?? 0) - (b.textContent?.length ?? 0));
-    const el = els[0];
-    if (!el) return null;
-    return { el, zoomEl: (el.closest(".bg-lemon") as HTMLElement) ?? el };
+      .sort((a, b) => (a.textContent?.length ?? 0) - (b.textContent?.length ?? 0))[0] ?? null;
   };
 
-  const countsOf = (el: Element) => {
+  const boardCounts = (el: Element) => {
     const m = (el.textContent ?? "").match(/has (\d+) things on today, (\d+) already done/);
     return m ? { open: Number(m[1]), done: Number(m[2]) } : null;
   };
 
-  /** The chore's card and its real Done button, inside the phone. */
   const findPhoneCard = () => {
     const ph = phoneHost.current;
     if (!ph) return null;
@@ -192,9 +219,19 @@ export function Duet() {
     return null;
   };
 
-  /** Scroll the phone's OWN list so the card is centred — converting the visual
-   *  delta back to layout px, because the phone renders at true size inside a
-   *  scale transform and scrollTop speaks layout, not pixels-on-screen. */
+  /** The phone's hero count ("You have N tasks / for today"). */
+  const findPhoneHero = () => {
+    const ph = phoneHost.current;
+    if (!ph) return null;
+    return [...ph.querySelectorAll<HTMLElement>('[class*="text-display"]')]
+      .find((e) => /You have|Nothing to|caught up/.test(e.textContent ?? "")) ?? null;
+  };
+
+  const heroLine = (el: Element | null) =>
+    (el?.textContent ?? "").replace(/\s+/g, " ").trim();
+
+  /** Scroll the phone's own list so the card is centred — visual delta ÷ frame
+   *  scale, because scrollTop speaks layout px inside a scale transform. */
   const scrollPhoneTo = (card: HTMLElement) => {
     let n: HTMLElement | null = card.parentElement;
     while (n && n !== phoneHost.current) {
@@ -205,86 +242,114 @@ export function Duet() {
     const frameScale = card.getBoundingClientRect().width / (card.offsetWidth || 1) || 1;
     const cr = card.getBoundingClientRect();
     const nr = n.getBoundingClientRect();
-    const deltaVisual = cr.top + cr.height / 2 - (nr.top + nr.height / 2);
-    n.scrollBy({ top: deltaVisual / frameScale, behavior: "smooth" });
+    n.scrollBy({ top: (cr.top + cr.height / 2 - (nr.top + nr.height / 2)) / frameScale, behavior: "smooth" });
   };
 
-  /* ── the scene itself ────────────────────────────────────────────────── */
+  /** A real press: down, a beat, up, click — so the app's whileTap plays. */
+  const press = async (button: HTMLElement, tapXY: { x: number; y: number }) => {
+    const fire = (type: string) =>
+      button.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1, isPrimary: true, pointerType: "touch" }));
+    setTap({ ...tapXY, phase: "land" });
+    await hold(420);
+    setTap({ ...tapXY, phase: "press" });
+    fire("pointerdown");
+    await hold(260);
+    fire("pointerup");
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    setTap({ ...tapXY, phase: "lift" });
+    await hold(360);
+    setTap(null);
+  };
+
+  /* ── the scene ───────────────────────────────────────────────────────── */
   const play = async () => {
     if (playing || !mounted) return;
     stopRef.current = false;
     setDone(false);
     setPlaying(true);
     try {
+      // CURTAIN. Restore, stage, and let both entrances finish before any move.
       if (!snapshot.current) capture();
-      else restore(); // replays start from the same household, chore un-done
+      else restore();
       stage();
-      await tick(900);
+      say(0, null, "Curtain up", "Both surfaces arrive on the same household — the room's evening on the left, Sam's on the right.");
+      await hold(1600);
 
-      // 1 — the board, before. Plant the number.
-      const before = findBoardHero();
-      if (!before) throw new Error("stage");
-      const n0 = countsOf(before.el);
-      setCam(zoomTo(before.zoomEl, 28, 1.8).cam);
+      // 1 — THE BOARD, BEFORE. Tight on the sentence; plant the numbers.
+      const sentence0 = findBoardSentence();
+      if (!sentence0) throw new Error("stage");
+      const n0 = boardCounts(sentence0);
       say(1, "ipad", "The board, before",
-        n0
-          ? `${n0.open} things on today, ${n0.done} already done. Keep hold of those two numbers.`
-          : "Keep hold of the day's count.");
-      await tick(3000);
+        n0 ? `${n0.open} things on today, ${n0.done} already done. Hold those two numbers.` : "Hold the day's count.");
+      await move(solve(sentence0, 26, 2.35).cam, MOVE.in);
+      await hold(2900);
 
-      // 2 — travel.
-      setCam(IDENTITY);
-      say(2, null, "Over to Sam's phone", "Same household — one person's slice of it.");
-      await tick(1150);
-
-      // 3 — the chore. Scroll his list, then close in on the card.
+      // 2 — ACROSS. Out to identity; the phone finds the chore on its own.
+      say(2, "phone", "Across to Sam's phone", "Same store, one person's slice — his list scrolls to the evening chore.");
+      await move(IDENTITY, MOVE.out);
       const found = findPhoneCard();
       if (!found) throw new Error("stage");
       scrollPhoneTo(found.card);
-      await tick(700);
-      const z = zoomTo(found.card, 48, 2.1);
-      setCam(z.cam);
-      say(3, "phone", "His evening chore",
-        "“Take out the trash”, due at eight. That Done button is the app's own — watch it get pressed.");
-      await tick(1900);
+      await waitStill(found.card);
+      await hold(350);
 
-      // 4 — the tap. A fingertip lands on the real button, then click()s it.
-      setTapAt(z.at(found.button));
-      await tick(520);
-      found.button.click(); // the same handler a thumb fires
-      await tick(420);
-      setTapAt(null);
-      say(4, "phone", "One tap",
-        "A real click on the real button — the card marks done and slides off his day.");
-      await tick(1900);
+      // ONE identity pass for everything the phone act needs.
+      const hero = findPhoneHero();
+      const heroBefore = heroLine(hero);
+      const zCard = solve(found.card, 52, 2.05);
+      const tapXY = zCard.at(found.button);
+      const zHero = hero ? solve(hero, 44, 1.9) : null;
 
-      // 5 — back out. Both devices in view again.
-      setCam(IDENTITY);
-      say(5, null, "And the board already knows", "No refresh, no sync step — there is only one store for it to read.");
-      await tick(1200);
+      // 3 — THE CHORE. Close in on the real card.
+      say(3, "phone", "Take out the trash — 8 PM",
+        "The camera is over the live card. That Done button is the app's own, and it is about to be pressed for real.");
+      await move(zCard.cam, MOVE.in);
+      await hold(1500);
 
-      // 6 — the board, after. Ring the number that moved.
-      const after = findBoardHero();
-      if (!after) throw new Error("stage");
-      const n1 = countsOf(after.el);
-      const zb = zoomTo(after.zoomEl, 28, 1.8);
-      setCam(zb.cam);
-      setPulse({ w: zb.tw + 20, h: zb.th + 20 });
-      say(6, "ipad", "The board, after",
+      // 4 — THE PRESS. Fingertip lands, the button compresses, the card leaves.
+      say(4, "phone", "Pressed",
+        "A true pointer press — the button compresses, the card takes its leave, and the list closes ranks beneath it.");
+      await press(found.button, tapXY);
+      await hold(1400); // the completion exit plays out under the held camera
+
+      // 5 — HIS COUNT. Pan up the phone, zoomed the whole way.
+      if (zHero) {
+        const heroAfter = heroLine(findPhoneHero());
+        say(5, "phone", "His day, lighter",
+          heroBefore && heroAfter && heroBefore !== heroAfter
+            ? `The hero now reads “${heroAfter}” — a moment ago it said “${heroBefore}”.`
+            : "The day's count drops in the same breath.");
+        await move(zHero.cam, MOVE.pan);
+        await hold(2400);
+      }
+
+      // 6 — PULL BACK. Both devices in frame.
+      say(6, null, "Pull back", "No sync, no refresh — there is only one store for either screen to read.");
+      await move(IDENTITY, MOVE.out);
+      await hold(1000);
+
+      // 7 — THE BOARD, AFTER. Same sentence, new numbers, one soft ring.
+      const sentence1 = findBoardSentence();
+      if (!sentence1) throw new Error("stage");
+      const n1 = boardCounts(sentence1);
+      say(7, "ipad", "The board, after",
         n0 && n1
-          ? `${n0.open} became ${n1.open}. ${n0.done} became ${n1.done}. It moved in the same frame as the tap.`
-          : "The count moved in the same frame as the tap.");
-      await tick(3200);
+          ? `${n0.open} became ${n1.open}; ${n0.done} became ${n1.done} — it moved in the frame the button released.`
+          : "The count moved in the frame the button released.");
+      const zb = solve(sentence1, 26, 2.35);
+      await move(zb.cam, MOVE.in);
+      setPulse({ w: zb.tw + 28, h: zb.th + 24 });
+      await hold(3200);
       setPulse(null);
 
-      // curtain.
-      setCam(IDENTITY);
-      say(0, null, "That's the whole product",
-        "Two applications over one truth. Both devices are still live — click around in them.");
+      // CURTAIN CALL.
+      await move(IDENTITY, MOVE.out);
+      say(0, null, "Still live",
+        "Press Undo on his phone and the board gives the chore back — go on, it's the same store.");
       setDone(true);
     } catch (e) {
-      setCam(IDENTITY);
-      setTapAt(null);
+      cam.start(IDENTITY, { duration: 0.5, ease } as never);
+      setTap(null);
       setPulse(null);
       if ((e as Error).message === "stage") {
         say(0, null, "Couldn't stage the scene", "Press “Put it back”, then play again.");
@@ -302,22 +367,20 @@ export function Duet() {
     stopRef.current = true;
     restore();
     stage();
-    setCam(IDENTITY);
-    setTapAt(null);
+    cam.start(IDENTITY, { duration: 0.4, ease } as never);
+    setTap(null);
     setPulse(null);
     setDone(false);
-    say(0, null, "One scene, on both devices",
-      "Press play. The camera zooms to the board's count, follows a real tap on Sam's phone, and comes back to watch the number move.");
-  }, [restore, stage]);
+    say(0, null, "One scene, on two live surfaces",
+      "Press play — the camera zooms to the board's number, walks over to Sam's phone, presses the real Done button, and follows the change back.");
+  }, [cam, restore, stage]);
 
   const clearToast = useCallback(() => st().notify(null), []);
 
   return (
     <MotionConfig reducedMotion="user">
     <div ref={root}>
-      {/* THE STAGE — the app's own bg-room gradient, and a hard overflow clip:
-          the zoom is a transform on everything inside, and the stage's edge is
-          the camera's frame. */}
+      {/* THE STAGE — the app's own room gradient; its edge is the camera's frame. */}
       <div
         ref={stageRef}
         className="relative overflow-hidden rounded-card bg-room ring-1 ring-inset ring-ink/10"
@@ -326,11 +389,10 @@ export function Duet() {
           ref={cameraRef}
           className="p-inner will-change-transform"
           style={{ transformOrigin: "0 0" }}
+          initial={IDENTITY}
           animate={cam}
-          transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
         >
           <div className="grid items-end gap-inner lg:grid-cols-[minmax(0,1.62fr)_minmax(0,1fr)]">
-            {/* iPad — the family board. */}
             <figure className="m-0 flex min-w-0 flex-col">
               <figcaption className="mb-3 flex items-baseline gap-2">
                 <span
@@ -355,7 +417,6 @@ export function Duet() {
               </div>
             </figure>
 
-            {/* Phone — one person's lens. */}
             <figure className="m-0 flex min-w-0 flex-col">
               <figcaption className="mb-3 flex items-baseline gap-2">
                 <span
@@ -388,51 +449,64 @@ export function Duet() {
           </div>
         </motion.div>
 
-        {/* THE FINGERTIP — lands on the real button's mapped position, presses,
-            and a ring rolls off it. Outside the camera, so it doesn't scale. */}
+        {/* THE FINGERTIP — mapped from the button's identity rect through the
+            zoom, so it lands ON the button. Its press is synchronised with the
+            pointerdown the button actually receives. */}
         <AnimatePresence>
-          {tapAt && (
+          {tap && (
             <motion.div
-              key="tap"
+              key="tip"
               className="pointer-events-none absolute z-30"
-              style={{ left: tapAt.x, top: tapAt.y }}
+              style={{ left: tap.x, top: tap.y }}
               initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              animate={{ opacity: tap.phase === "lift" ? 0 : 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
             >
               <motion.span
-                className="absolute -left-[18px] -top-[18px] block h-9 w-9 rounded-pill bg-ink/85 ring-2 ring-lemon shadow-e3"
-                initial={{ scale: 0.4 }}
-                animate={{ scale: [0.4, 1, 0.8, 1] }}
-                transition={{ duration: 0.7, times: [0, 0.45, 0.7, 1] }}
+                className="absolute -left-[15px] -top-[15px] block h-[30px] w-[30px] rounded-pill border border-ink/40 bg-white/85 shadow-e3"
+                initial={{ scale: 1.15, y: -16 }}
+                animate={{
+                  scale: tap.phase === "press" ? 0.86 : tap.phase === "lift" ? 1.12 : 1,
+                  y: tap.phase === "land" ? 0 : tap.phase === "press" ? 1 : -12,
+                }}
+                transition={{ duration: tap.phase === "press" ? 0.16 : 0.3, ease }}
               />
-              <motion.span
-                className="absolute -left-[18px] -top-[18px] block h-9 w-9 rounded-pill border-2 border-ink/50"
-                initial={{ scale: 0.6, opacity: 0.9 }}
-                animate={{ scale: 2.1, opacity: 0 }}
-                transition={{ duration: 0.9, ease: "easeOut", delay: 0.35 }}
-              />
+              {tap.phase === "lift" && (
+                <motion.span
+                  className="absolute -left-[15px] -top-[15px] block h-[30px] w-[30px] rounded-pill border-2 border-ink/45"
+                  initial={{ scale: 0.9, opacity: 0.8 }}
+                  animate={{ scale: 2.2, opacity: 0 }}
+                  transition={{ duration: 0.55, ease: "easeOut" }}
+                />
+              )}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* THE RING around what changed — centred, because the camera centred it. */}
+        {/* One soft ring around the sentence that changed — centred, because
+            the camera centred it. */}
         <AnimatePresence>
           {pulse && (
             <motion.div
               key="pulse"
-              className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-card border-2 border-ink/70"
+              className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-md border-2 border-ink/60"
               style={{ width: pulse.w, height: pulse.h }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 0.35, 1, 0.6] }}
+              initial={{ opacity: 0, scale: 1.06 }}
+              animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 2.2 }}
+              transition={{ duration: 0.6, ease }}
             />
           )}
         </AnimatePresence>
+
+        {/* While the scene runs, the stage is the director's: a transparent
+            shield keeps stray clicks from derailing it. Synthetic dispatch
+            doesn't hit-test, so the scene's own press passes through. */}
+        {playing && <div className="absolute inset-0 z-40" aria-hidden />}
       </div>
 
-      {/* THE NARRATION — under the stage: what just happened, and where to look. */}
+      {/* THE NARRATION. */}
       <div className="mt-tile grid gap-tile lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
         <div className="min-w-0 rounded-card bg-white/[.06] p-card-pad">
           <motion.div key={`${caption.step}-${caption.title}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
@@ -474,11 +548,12 @@ export function Duet() {
       </div>
 
       <p className="mt-4 text-bodysm leading-relaxed text-white/60">
-        Both devices above are the real shells, mounted side by side in this page and reading one
-        Zustand store — the same store the section above uses. The scene presses a real button with
-        a real <code className="font-mono text-[12px] text-white/75">click()</code>; nothing is
-        simulated, which is why you can interrupt it, click around yourself, and{" "}
-        <span className="text-white/85">the two surfaces can never disagree</span>.{" "}
+        Both devices are the real shells, reading one Zustand store — the same one the section above
+        uses. The press is a genuine pointer sequence on the app&rsquo;s own button, so its{" "}
+        <code className="font-mono text-[12px] text-white/75">whileTap</code> compresses exactly as it
+        would under a thumb, and the card&rsquo;s exit is the app&rsquo;s own completion animation —
+        built because this camera exposed its absence.{" "}
+        <span className="text-white/85">Nothing on stage is a special effect.</span>{" "}
         {s.tasks.filter((t) => !t.done).length} open tasks right now, on both.
       </p>
     </div>
