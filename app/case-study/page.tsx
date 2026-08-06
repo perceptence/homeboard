@@ -130,8 +130,9 @@ export default function CaseStudy() {
             <>
               A phone is in a pocket and belongs to a person; the board is on a wall and belongs to
               the room. They ask different questions, so they are different applications — over one
-              store. Both are running below, at the same time. Play the walkthrough and watch each
-              one answer the other.
+              store. Both are running below, at the same time. Play the scene: the camera zooms to
+              the board&rsquo;s count, presses a real button on the phone, and follows the change
+              back across.
             </>
           }
         />

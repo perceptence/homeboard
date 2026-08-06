@@ -3,6 +3,9 @@ import { FEATURED, GROUPS, JOURNEYS, journeyById } from "@/lib/journeys";
 import { useHousehold } from "@/lib/store";
 import { IPAD_ROUTES, PHONE_ROUTES } from "@/lib/types";
 import { DEFAULT_JOURNEY, SURFACE_GROUPS } from "@/case-study/Embed";
+import { SCENE } from "@/case-study/Duet";
+import { seedTasks } from "@/lib/seed";
+import { todayIso } from "@/lib/dates";
 
 /**
  * THE JOURNEY TABLE — the case study's deep links and the demo panel's buttons
@@ -126,5 +129,23 @@ describe("journeys are deterministic", () => {
     const second = useHousehold.getState().ipadRoute;
 
     expect(second).toBe(first);
+  });
+});
+
+describe("the two-surface scene has real actors to find", () => {
+  /**
+   * The scene locates its target by walking the live DOM for a card titled
+   * SCENE.taskTitle with a Done button, then click()s it. That only works if
+   * the seed actually ships that task — open, owned by the persona whose phone
+   * is on stage, and due today so it appears on both surfaces. If someone
+   * renames the chore in the seed, this is the test that says so, instead of
+   * the scene silently reporting "couldn't stage".
+   */
+  it(`seeds an open "${SCENE.taskTitle}" for ${SCENE.persona}, due today`, () => {
+    const t = seedTasks.find((x) => x.title === SCENE.taskTitle);
+    expect(t, `no seed task titled "${SCENE.taskTitle}"`).toBeTruthy();
+    expect(t!.owner).toBe(SCENE.persona);
+    expect(t!.done).toBe(false);
+    expect(t!.due).toBe(todayIso());
   });
 });
