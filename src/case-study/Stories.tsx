@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import clsx from "clsx";
 import { Icon } from "@/components/Icons";
 import { colors, radius } from "@/lib/tokens";
+import { Reveal } from "./kit";
 
 /**
  * THE DECISIONS THAT CHANGED DIRECTION.
@@ -358,20 +359,25 @@ export function Stories() {
         broke={
           <>
             <p>
-              The iPad renders at true logical size, 1194 × 834, inside a{" "}
-              <code className="font-mono text-micro">transform: scale()</code> that fits it to
-              whatever window is open. Transforms do not affect layout — so a media query reports
-              the <em>browser window</em>, and never once reports the device it is supposedly
-              describing.
+              It came back three separate times as the same symptom before the cause got a name: a
+              nav floating over content it was supposed to clear. Not a spacing bug — a measurement
+              one. The tool telling the layout how big the iPad was had never once been asking the
+              iPad.
             </p>
-            <p>
-              Which meant the layout was correct only when the window happened to match the iPad.
-              Worse, the failure was silent and analogue: it always rendered something, just the
-              wrong something, so it read as a spacing bug rather than a measurement bug. It came
-              back three separate times before the cause was named — a nav overlapping a card
-              because a <code className="font-mono text-micro">vh</code> unit had measured the
-              browser and not the screen the nav floats over.
-            </p>
+            <Reveal label="the mechanics">
+              <p>
+                The iPad renders at true logical size, 1194 × 834, inside a{" "}
+                <code className="font-mono text-micro">transform: scale()</code> that fits it to
+                whatever window is open. Transforms do not affect layout — so a media query reports
+                the <em>browser window</em>, and never once reports the device it is supposedly
+                describing. The layout was correct only when the window happened to match the iPad;
+                the rest of the time it rendered something, just the wrong something, which is why
+                it kept reading as a spacing bug instead of a measurement bug. The third time, the
+                overlap traced back to a{" "}
+                <code className="font-mono text-micro">vh</code> unit that had measured the browser
+                and not the screen the nav floats over.
+              </p>
+            </Reveal>
           </>
         }
         rule="Anything that must know how big the DEVICE is asks a container, not the viewport. Container queries (@[1024px]:) and fixed px only — no lg:, no vh, no vw inside the frame."

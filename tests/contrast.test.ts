@@ -105,3 +105,55 @@ describe("member identity colours", () => {
     }
   });
 });
+
+/**
+ * THE CASE STUDY'S OWN text-white/NN, MEASURED — not read off a blocklist.
+ *
+ * The PAIRS above check the PRODUCT's named tokens. This checks the article's
+ * own habit of reaching for a raw Tailwind opacity instead: `text-white/40`
+ * measures 3.79:1 on the ink canvas, a real AA fail, and it shipped three times
+ * before a live audit — not this test, which didn't exist yet — caught it. A
+ * ratio is computed for whatever opacity actually appears in source, so a
+ * future text-white/45 is judged on its own math rather than needing this file
+ * edited first to know about it.
+ */
+describe("the case study's own white/NN text on its dark canvases", () => {
+  const sources = import.meta.glob("../src/case-study/*.tsx", { eager: true, query: "?raw", import: "default" });
+  const page = import.meta.glob("../app/case-study/*.tsx", { eager: true, query: "?raw", import: "default" });
+  /**
+   * Duet.tsx is parked — never rendered on the live page (see its own header
+   * comment) — so an opacity inside it isn't answering to the claim this test
+   * makes. Excluded by name, not by luck.
+   */
+  const all = Object.fromEntries(
+    Object.entries({ ...sources, ...page }).filter(([f]) => !f.endsWith("Duet.tsx")),
+  ) as Record<string, string>;
+
+  const composite = (fgHex: string, bgHex: string, alpha: number) => {
+    const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const [r1, g1, b1] = rgb(fgHex);
+    const [r2, g2, b2] = rgb(bgHex);
+    const mix = (a: number, b: number) => Math.round(a * alpha + b * (1 - alpha));
+    return `#${[mix(r1, r2), mix(g1, g2), mix(b1, b2)].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  };
+  /** Panel tone="wash" — the other dark surface this text renders on. */
+  const WASH = composite("#FFFFFF", colors.ink, 0.06);
+
+  it("reads enough files to be meaningful", () => {
+    expect(Object.keys(all).length).toBeGreaterThan(4);
+  });
+
+  it("clears AA body text against the worse of ink and wash, at every opacity used", () => {
+    const offenders: string[] = [];
+    for (const [file, src] of Object.entries(all)) {
+      for (const m of new Set(src.match(/text-white\/\d+/g) ?? [])) {
+        const alpha = Number(m.split("/")[1]) / 100;
+        const onInk = contrast(composite("#FFFFFF", colors.ink, alpha), colors.ink);
+        const onWash = contrast(composite("#FFFFFF", WASH, alpha), WASH);
+        const worst = Math.min(onInk, onWash);
+        if (worst < AA_BODY) offenders.push(`${file.split("/").pop()} → ${m} (${worst.toFixed(2)}:1)`);
+      }
+    }
+    expect(offenders, `needs text-white/60 or higher:\n${offenders.join("\n")}`).toEqual([]);
+  });
+});

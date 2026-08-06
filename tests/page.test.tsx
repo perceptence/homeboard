@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import CaseStudy from "../app/case-study/page";
 import { CONTENT_WIDTH } from "@/case-study/kit";
 import { DEVICES } from "@/components/DeviceFrame";
@@ -186,5 +186,60 @@ describe("“Product at a glance” prints real figures with no motion at all", 
     for (const banned of ["commit", "lines of", "test file", "colour value"]) {
       expect(text.toLowerCase(), `“${banned}” is codebase trivia`).not.toContain(banned);
     }
+  });
+});
+
+/**
+ * THE HEADER'S JUMP-NAV NAMES REAL SECTIONS.
+ *
+ * A curated nav is still a claim — "this link goes somewhere" — and the same
+ * rule as everywhere else on this page applies: nothing gets to assert
+ * something the render doesn't back up. A relabelled or removed section would
+ * otherwise leave a header link pointing at nothing, silently.
+ */
+describe("the header's jump-nav", () => {
+  it("only ever points at sections that exist", () => {
+    const header = container.querySelector("header")!;
+    const hrefs = [...header.querySelectorAll('nav a[href^="#"]')].map((a) =>
+      a.getAttribute("href")!.slice(1),
+    );
+    expect(hrefs.length, "the nav rendered no links at all").toBeGreaterThan(0);
+    const ids = new Set([...container.querySelectorAll("[data-section]")].map((s) => s.id));
+    for (const href of hrefs) {
+      expect(ids.has(href), `header nav links to #${href}, which no section has`).toBe(true);
+    }
+  });
+});
+
+/**
+ * THE REVEAL TOGGLE — the always-visible layer is really always visible, and
+ * the collapsed layer really opens.
+ *
+ * "The mechanics" (story 05's transform/vh explanation) is the one part of
+ * this page that's allowed to be gated, because the belief/rule pair around it
+ * already carries the decision without it. This checks both halves of that
+ * claim: the gate exists and works, and gating it didn't quietly also hide the
+ * argument it was supposed to leave alone.
+ */
+describe("technical depth is optional, the argument isn't", () => {
+  it("keeps the belief and the rule out of any toggle", () => {
+    const trouble = container.querySelector("#trouble")!;
+    expect(trouble.textContent).toContain("a media query knows how wide the iPad is");
+    expect(trouble.textContent).toContain("Container queries");
+  });
+
+  it("starts the mechanics closed and opens them on click", () => {
+    const trouble = container.querySelector("#trouble")!;
+    const toggle = [...trouble.querySelectorAll("button")].find((b) =>
+      /mechanics/i.test(b.textContent ?? ""),
+    )!;
+    expect(toggle, "no “show the mechanics” control was rendered").toBeTruthy();
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(trouble.textContent).not.toContain("transform: scale()");
+
+    fireEvent.click(toggle);
+
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(trouble.textContent).toContain("transform: scale()");
   });
 });

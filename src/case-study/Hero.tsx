@@ -33,6 +33,26 @@ import { CONTENT_WIDTH } from "./kit";
  */
 const IDS = Array.from({ length: 132 }, (_, i) => `homeboard-${i}`);
 
+/**
+ * The header's jump-nav — five stops, in page order.
+ *
+ * Curated, not exhaustive: the page has eight sections, and a header nav that
+ * lists all eight reads as a table of contents rather than a route through the
+ * argument. These five are the ones a reader deciding "is this person a design
+ * leader" is actually scanning for — see it running, know why it exists, see
+ * the system it's built from, see a decision get made, see where it's going.
+ *
+ * Anchors, not a component that tracks scroll position: no state to get wrong,
+ * and a test asserts every href here names a section id that actually exists.
+ */
+const NAV = [
+  { label: "Product", href: "#product" },
+  { label: "Why", href: "#why" },
+  { label: "System", href: "#system" },
+  { label: "Decisions", href: "#trouble" },
+  { label: "Next", href: "#next" },
+] as const;
+
 export function Hero() {
   const faces = useMemo(() => IDS, []);
   const [scrolled, setScrolled] = useState(false);
@@ -57,6 +77,23 @@ export function Hero() {
         <div style={{ maxWidth: CONTENT_WIDTH }} className="mx-auto flex items-center gap-3 px-inner py-4">
           <AppMark size={28} className="shrink-0 rounded-sm" />
           <span className="font-tight text-h2 text-white">Homeboard</span>
+
+          {/* Hidden below lg — where the header box is narrower than the row
+              needs, this and the CTA would wrap or collide. A reader on a
+              phone is scrolling, not skimming for a jump point, so nothing is
+              lost by giving the space to the CTA instead below that width. */}
+          <nav aria-label="Jump to section" className="ml-8 hidden items-center gap-6 lg:flex">
+            {NAV.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                className="font-mono text-micro uppercase tracking-[0.12em] text-white/60 transition-colors hover:text-white"
+              >
+                {l.label}
+              </a>
+            ))}
+          </nav>
+
           {/* THE ONE THING TO DO FROM HERE.
               This slot held the words "Design case study" — a label, on a page
               whose own headline already says what it is, in the one position a
@@ -133,7 +170,7 @@ export function Hero() {
 
             <dl className="mt-10 flex flex-wrap gap-x-10 gap-y-4 border-t border-white/15 pt-6 font-mono text-micro uppercase tracking-[0.12em]">
               {[
-                ["Role", "Design & build"],
+                ["Role", "Strategy & build"],
                 ["Surfaces", "Tablet · Phones"],
                 ["Stack", "Next.js · TypeScript"],
                 ["Status", "Working prototype"],

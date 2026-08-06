@@ -34,11 +34,23 @@ interface Stat {
   detail?: string;
 }
 
+/**
+ * Ownership leads. It used to sit last of six, after two counts of screens and
+ * components — true, but not the figure that answers a Design Manager's first
+ * question. It's second now, right after the figure that says how much ground
+ * the thing covers.
+ */
 const STATS: Stat[] = [
   {
     n: JOURNEYS.length,
     label: "End-to-end journeys",
     note: "Complete paths a household actually takes — not screens, but whole errands, each one addressable by URL and playable in the embed below.",
+  },
+  {
+    n: PHASES.length,
+    label: "Phases owned end to end",
+    note: "The same person framed the problem, decided what it refuses to do, drew it, built the system and shipped the running thing above.",
+    detail: PHASES.join(" → "),
   },
   {
     n: SURFACES.length,
@@ -60,12 +72,6 @@ const STATS: Stat[] = [
     n: SCREEN_COUNT,
     label: "Screens, every one responsive",
     note: "Phone, tablet portrait and tablet landscape. The board recomposes rather than reflows, and holds its layout inside any frame.",
-  },
-  {
-    n: PHASES.length,
-    label: "Phases owned end to end",
-    note: "The same person framed the problem, decided what it refuses to do, drew it, built the system and shipped the running thing above.",
-    detail: PHASES.join(" → "),
   },
 ];
 
@@ -148,7 +154,7 @@ function Figure({ stat, run, i }: { stat: Stat; run: boolean; i: number }) {
       </p>
 
       {stat.detail && (
-        <p className="mt-3 font-mono text-micro leading-relaxed text-white/40 transition-colors duration-500 group-hover:text-lemon">
+        <p className="mt-3 font-mono text-micro leading-relaxed text-white/60 transition-colors duration-500 group-hover:text-lemon">
           {stat.detail}
         </p>
       )}

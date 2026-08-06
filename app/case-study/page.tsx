@@ -222,6 +222,17 @@ export default function CaseStudy() {
             }
           />
         </div>
+
+        {/* THE THESIS, NAMED. Three findings, three citations, three separate
+            "decision it drove" boxes — and read side by side, they're making
+            one argument rather than three. Nothing above states that argument
+            out loud; a reader has to assemble it from three cards. This closing
+            line does the assembling instead of leaving it to them. */}
+        <p className="mt-8 max-w-[68ch] text-body leading-relaxed text-white/80">
+          Read together, that&rsquo;s one thesis, not three: the product is supposed to carry the
+          coordination itself, not hand a well-organised version of it to whoever already carries
+          the most.
+        </p>
       </Section>
 
       {/* ── THE SYSTEM ──────────────────────────────────────────────────── */}
@@ -278,7 +289,8 @@ export default function CaseStudy() {
           standfirst={
             <>
               {REPO.testFiles} files, and none of them chase coverage. Each pins a rule that a real
-              bug already broke once — including the numbers printed on this page.
+              bug already broke once — including the numbers printed on this page. Built solo, at
+              the standard I&rsquo;d want a team operating at.
             </>
           }
         />
@@ -441,10 +453,15 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
             </>
           }
         />
+        {/* The three buckets used to stand unexplained — three lists, no stated
+            criterion for what put an idea in one over another. The grouping
+            IS the judgment call; a reader shouldn't have to reverse-engineer
+            it from the items. */}
         <div className="mt-10 grid gap-tile md:grid-cols-3">
           {[
             {
               k: "Next",
+              d: "What breaks the illusion fastest, still mocked.",
               items: [
                 "Real sync — one household across actual devices, not one store behind two lenses.",
                 "A delivery layer, so quiet hours gate something real.",
@@ -453,6 +470,7 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
             },
             {
               k: "Later",
+              d: "Real value — the model just doesn’t need it yet.",
               items: [
                 "A scheduler that proposes when, not just who.",
                 "Calendar and billing sources behind the connect flows that already exist.",
@@ -461,6 +479,7 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
             },
             {
               k: "Exploring",
+              d: "The right question. Not yet a specced answer.",
               items: [
                 "An ambient mode for the iPad that never really turns off.",
                 "Whether the household should be able to explain a decision back — “why me?”",
@@ -470,6 +489,7 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
           ].map((col) => (
             <Panel key={col.k} tone="wash" className="h-full">
               <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-lemon">{col.k}</p>
+              <p className="mt-1.5 text-caption text-white/50">{col.d}</p>
               <ul className="mt-4 space-y-3">
                 {col.items.map((i) => (
                   <li key={i} className="text-bodysm leading-relaxed text-white/70">{i}</li>

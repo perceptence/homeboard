@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import clsx from "clsx";
 import type { ReactNode } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { DEVICES } from "@/components/DeviceFrame";
 
 /**
@@ -112,6 +114,56 @@ export function Label({ children, className }: { children: ReactNode; className?
  * has to be reachable from the keyboard or axe fails the page on "scrollable
  * region must be keyboard accessible".
  */
+/**
+ * A LABELLED DISCLOSURE — the mechanics behind a decision, one click away
+ * rather than blocking the decision itself.
+ *
+ * Some of what earns a rule on this page is genuinely technical: a transform
+ * that breaks a media query's own measurement, a grid track sizing to
+ * max-content. True, worth keeping, and not what a reader needs to parse to
+ * follow the argument — the belief, what it cost, and the rule that replaced
+ * it carry that on their own. This is where the HOW goes, so it stops
+ * gatekeeping the WHY for a reader who came for the decision, not the CSS.
+ *
+ * Reduced motion collapses the reveal to an instant show/hide — the same rule
+ * `MotionConfig reducedMotion="user"` applies inside the embed, applied here
+ * by hand because this component sits outside that provider's tree.
+ */
+export function Reveal({ label, children }: { label: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const reduce = useReducedMotion();
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1.5 font-mono text-micro font-bold uppercase tracking-[0.14em] text-white/60 transition-colors hover:text-lemon"
+      >
+        <span aria-hidden className={clsx("inline-block transition-transform duration-300", open && "rotate-90")}>
+          &#9656;
+        </span>
+        {open ? `Hide ${label}` : `Show ${label}`}
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            initial={reduce ? false : { height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={reduce ? undefined : { height: 0, opacity: 0 }}
+            transition={{ duration: reduce ? 0 : 0.28 }}
+            className="overflow-hidden"
+          >
+            <div className="pt-3">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function Sample({
   code, lang = "ts", reading, claim,
 }: { code: string; lang?: string; reading: ReactNode; claim: string }) {
