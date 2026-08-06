@@ -41,17 +41,17 @@ const matches = (j: Journey, q: string) => {
 };
 
 /**
- * `floating` is the onboarding escape hatch, and it is not optional.
+ * THE TRIGGER MUST OUTLIVE ONBOARDING, wherever it is put.
  *
- * Onboarding has no skip control of its own — the old left panel was the only
- * way back out of it, and it worked only because a fixed element rendered
- * outside the page's `!onboarding` guard. Move the trigger into the top bar,
- * which onboarding hides, and "+ New home" becomes a one-way door that strands
- * you until you clear localStorage. So the trigger still renders during setup,
- * as a compact pill where the bar would have been — top centre, never the left
- * edge, because the left edge is the thing this component exists to vacate.
+ * Setup has no skip control of its own, so this palette is the only way back to
+ * the seeded household — "+ New home" is otherwise a one-way door out of the
+ * demo, escapable only by clearing localStorage. The first attempt at that was
+ * a `floating` variant that rendered a fixed pill during setup; fixed means out
+ * of flow, and it sat 3px inside the device on both surfaces. The page keeps
+ * its bar through setup now, so the trigger stays in flow and this component
+ * needs no special case. A test pins the escape itself (journeys.test.ts).
  */
-export function DemoPalette({ floating = false }: { floating?: boolean }) {
+export function DemoPalette() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -130,12 +130,7 @@ export function DemoPalette({ floating = false }: { floating?: boolean }) {
     <>
       <button
         onClick={(e) => { openerRef.current = e.currentTarget; setOpen(true); }}
-        className={clsx(
-          "flex items-center gap-2 rounded-pill text-[13px] font-bold transition-colors",
-          floating
-            ? "fixed left-1/2 top-3 z-[100] -translate-x-1/2 bg-ink/90 px-3.5 py-2 text-white/70 shadow-e3 backdrop-blur hover:text-white"
-            : "px-3.5 py-2 text-white/55 hover:text-white",
-        )}
+        className="flex items-center gap-2 rounded-pill px-3.5 py-2 text-[13px] font-bold text-white/55 transition-colors hover:text-white"
       >
         <Icon name="grid" size={16} strokeWidth={2.2} />
         Journeys

@@ -9,9 +9,9 @@
  */
 export const REPO = {
   /** Commits on HEAD when this was generated. Asserted as a floor — it only rises. */
-  commits: 194,
+  commits: 195,
   /** Lines of TypeScript/TSX across src/ and app/, excluding tests. */
-  lines: 18171,
+  lines: 18170,
   /** Exported React components (`export function Name`), excluding tests. */
   components: 69,
   /** Exported components in the SHARED UI kit (src/components) — the reusable

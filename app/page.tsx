@@ -62,74 +62,81 @@ export default function Page() {
         "flex h-screen flex-col items-center overflow-hidden bg-room px-4 pb-2 pt-2",
       )}
     >
-      {/* mb-9 (36px) IS the gap under the bar, and it is declared here rather
-          than emerging from the fit. It used to be mb-2, with the visible 37px
-          coming from chromeGap over-reserving by 58 and the device centring in
-          the slack — which only held while the device was height-bound. See
-          DeviceFrame's `align` note. */}
-      {!onboarding && (
-        <div className="mb-9 flex shrink-0 flex-wrap items-center justify-center gap-1 rounded-pill bg-ink/90 p-1.5 shadow-e3 backdrop-blur">
-          <span className="px-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">
-            Viewing
-          </span>
+      {/* THE BAR SURVIVES ONBOARDING, with only what setup can answer for.
+          It used to disappear entirely, which forced the one control that must
+          outlive setup — the way back to the seeded demo — to float over the
+          page as a fixed pill. Fixed means out of flow, so it collided with the
+          device: measured 3px into the frame on both surfaces, because the pill
+          and the device are both centred. Keeping the bar puts that control
+          back in flow, where it reserves its own space and can't overlap, and
+          hands iPad setup the rotate control it never had.
 
+          mb-9 (36px) IS the gap under the bar, declared rather than emerging
+          from the fit — see DeviceFrame's `align` note. */}
+      <div className="mb-9 flex shrink-0 flex-wrap items-center justify-center gap-1 rounded-pill bg-ink/90 p-1.5 shadow-e3 backdrop-blur">
+        <span className="px-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">
+          {onboarding ? "Setting up" : "Viewing"}
+        </span>
+
+        {!onboarding && (
           <SwitchButton active={!isPhone} onClick={() => s.setPersona("ipad")}>
             <Icon name="house" size={16} strokeWidth={2.2} />
             Family iPad
           </SwitchButton>
+        )}
 
-          {/* Rotate the iPad frame. Disabled rather than removed on a phone:
-              pulling a control out of a row re-flows everything after it, so
-              every switch to a phone shifted the four people and "+ New home"
-              leftward. A control that greys out reads as "not for this
-              surface"; one that vanishes reads as the bar being unstable. */}
-          <button
-            onClick={() => setOrientation((o) => (o === "landscape" ? "portrait" : "landscape"))}
-            disabled={isPhone}
-            aria-label={
-              isPhone
-                ? "Rotate — available for the iPad"
-                : `Rotate to ${orientation === "landscape" ? "portrait" : "landscape"}`
-            }
-            className={clsx(
-              "rounded-pill p-2 transition-colors",
-              isPhone
-                ? "cursor-not-allowed text-white/20"
-                : "text-white/55 hover:text-white",
-            )}
-          >
-            <Icon name="rotate" size={16} strokeWidth={2.2} />
-          </button>
+        {/* Rotate the frame. Disabled rather than removed on a phone: pulling a
+            control out of a row re-flows everything after it, so every switch
+            to a phone shifted the people and "+ New home" leftward. A control
+            that greys out reads as "not for this surface"; one that vanishes
+            reads as the bar being unstable. Setup gets it too — an iPad being
+            set up is still an iPad, and the flow lays out differently in
+            portrait. */}
+        <button
+          onClick={() => setOrientation((o) => (o === "landscape" ? "portrait" : "landscape"))}
+          disabled={isPhone}
+          aria-label={
+            isPhone
+              ? "Rotate — available for the iPad"
+              : `Rotate to ${orientation === "landscape" ? "portrait" : "landscape"}`
+          }
+          className={clsx(
+            "rounded-pill p-2 transition-colors",
+            isPhone ? "cursor-not-allowed text-white/20" : "text-white/55 hover:text-white",
+          )}
+        >
+          <Icon name="rotate" size={16} strokeWidth={2.2} />
+        </button>
 
-          {people.slice(0, 4).map((m) => (
-            <SwitchButton key={m.id} active={s.persona === m.id} onClick={() => s.setPersona(m.id)}>
-              <Avatar member={m} size={20} />
-              {m.name}
-            </SwitchButton>
-          ))}
+        {!onboarding && people.slice(0, 4).map((m) => (
+          <SwitchButton key={m.id} active={s.persona === m.id} onClick={() => s.setPersona(m.id)}>
+            <Avatar member={m} size={20} />
+            {m.name}
+          </SwitchButton>
+        ))}
 
-          <span className="mx-1.5 h-4 w-px bg-white/10" />
+        <span className="mx-1.5 h-4 w-px bg-white/10" />
 
-          <DemoPalette />
+        <DemoPalette />
 
+        {!onboarding && (
           <button
             onClick={s.startOnboarding}
             className="rounded-pill px-3 py-2 text-[13px] font-semibold text-white/55 transition-colors hover:text-white"
           >
             + New home
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 100 = pt-2 (8) + bar (48) + mb-9 (36) + pb-2 (8). Reserving MORE than
           the chrome actually takes is what created the slack the device used to
-          centre in. Onboarding has no bar, so it keeps centring in its own
-          space. */}
+          centre in. One number now, because the bar is always there. */}
       <DeviceFrame
         kind={kind}
-        chromeGap={onboarding ? 90 : 100}
+        chromeGap={100}
         orientation={isPhone ? undefined : orientation}
-        align={onboarding ? "center" : "start"}
+        align="start"
       >
         {/* Launch splash — INSIDE the glass. It's the app opening, not the
             demo page loading, so it belongs on the device's own screen. */}
@@ -145,9 +152,6 @@ export default function Page() {
         <Toast message={s.toast} who={s.toastWho ? s.members[s.toastWho] : undefined} onDone={clearToast} onUndo={s.toastUndo ?? undefined} />
       </DeviceFrame>
 
-      {/* Setup hides the bar above, and Onboarding has no exit of its own —
-          so the way back to the seeded demo has to survive it. */}
-      {onboarding && <DemoPalette floating />}
     </main>
     </MotionConfig>
   );
