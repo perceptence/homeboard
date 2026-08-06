@@ -434,8 +434,16 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
       <Section id="next">
         <Head
           label="Where this goes next"
-          title="Built as a prototype, on purpose"
-          inlineLabel
+          /* The break is deliberate, not a wrap: the line divides where the
+             sentence does, after the comma, so "on purpose" lands as its own
+             beat rather than as whatever the measure happened to leave over. */
+          title={
+            <>
+              Built as a prototype,
+              <br />
+              on purpose
+            </>
+          }
           standfirst={
             <>
               Two surfaces share one in-memory store, seeded with seven months of plausible
