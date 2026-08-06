@@ -272,7 +272,9 @@ export default function CaseStudy() {
           standfirst={
             <>
               Not a bug list — these are the ones that moved a standing decision. Each shows the
-              broken state rebuilt from real tokens, beside what replaced it.
+              broken state rebuilt from real tokens, beside what replaced it. One gets into real
+              CSS mechanics; that part is collapsed by default, a click away for anyone who wants
+              it.
             </>
           }
         />

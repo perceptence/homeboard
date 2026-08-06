@@ -170,7 +170,7 @@ export function Hero() {
 
             <dl className="mt-10 flex flex-wrap gap-x-10 gap-y-4 border-t border-white/15 pt-6 font-mono text-micro uppercase tracking-[0.12em]">
               {[
-                ["Role", "Strategy & build"],
+                ["Role", "Strategy, design & build"],
                 ["Surfaces", "Tablet · Phones"],
                 ["Stack", "Next.js · TypeScript"],
                 ["Status", "Working prototype"],

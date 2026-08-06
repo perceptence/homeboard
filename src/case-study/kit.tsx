@@ -135,11 +135,18 @@ export function Reveal({ label, children }: { label: string; children: ReactNode
 
   return (
     <div>
+      {/* A LABEL, not a solid lemon chip, was the first cut — the same register
+          as "WHAT THAT GOT WRONG" beside it, so a reader's eye filed it with
+          the inert furniture text rather than reading it as a thing to press.
+          This borrows the exact tag treatment the "Before/After" pills use two
+          inches above it in the same story (solid lemon, ink text) instead of
+          inventing a new control language — the page already has a way of
+          saying "this is live," and the button just needed to speak it. */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 font-mono text-micro font-bold uppercase tracking-[0.14em] text-white/60 transition-colors hover:text-lemon"
+        className="inline-flex items-center gap-1.5 rounded-pill bg-lemon px-2.5 py-1 font-mono text-micro font-bold uppercase tracking-[0.14em] text-ink transition-opacity hover:opacity-80"
       >
         <span aria-hidden className={clsx("inline-block transition-transform duration-300", open && "rotate-90")}>
           &#9656;
