@@ -117,7 +117,16 @@ export const backgroundImage = {
   room: "linear-gradient(160deg, #C9C8F0 0%, #F5F4F8 100%)",
 } as const;
 
-export const timing = { out: "cubic-bezier(0.16, 1, 0.3, 1)" } as const;
+/**
+ * The one easing curve, as control points.
+ *
+ * Framer Motion wants the four numbers and CSS wants the function, so the
+ * function is BUILT from the numbers rather than written out beside them —
+ * otherwise a tweak in one place leaves a transition somewhere else easing on
+ * the old curve, which is the kind of drift nobody sees and nobody reports.
+ */
+export const easeOut = [0.16, 1, 0.3, 1] as const;
+export const timing = { out: `cubic-bezier(${easeOut.join(", ")})` } as const;
 
 /* ── derived counts ───────────────────────────────────────────────────────
    Computed, never typed by hand — the case study prints these, and a number

@@ -4,6 +4,7 @@ import CaseStudy from "../app/case-study/page";
 import { CONTENT_WIDTH } from "@/case-study/kit";
 import { DEVICES } from "@/components/DeviceFrame";
 import { FEATURED } from "@/lib/journeys";
+import { SURFACE_GROUPS } from "@/case-study/Embed";
 
 /**
  * The page renders, isn't stuck, and mounts the product the intended way.
@@ -71,8 +72,12 @@ describe("the product is embedded, not pictured", () => {
     // The section's argument is that the iPad is a different application, not
     // a width — which only lands if both are genuinely running side by side.
     const product = container.querySelector("#product")!;
-    expect(product.textContent).toMatch(/family ipad/i);
-    expect(product.textContent).toMatch(/a phone/i);
+    // Assert against the titles the component actually declares, rather than
+    // repeating them here — this test broke on a copy edit once, which proved
+    // it was checking the wording and not the thing the wording is about.
+    for (const g of SURFACE_GROUPS) {
+      expect(product.textContent, `${g.surface} is never named`).toContain(g.title);
+    }
     const frames = product.querySelectorAll('[style*="translate"]');
     expect(frames.length, "expected a tablet frame and a phone frame").toBeGreaterThanOrEqual(2);
   });

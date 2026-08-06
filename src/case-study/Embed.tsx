@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
-import { MotionConfig } from "framer-motion";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import { DeviceFrame } from "@/components/DeviceFrame";
 import { Splash } from "@/components/Splash";
 import { Avatar, Toast } from "@/components/ui";
@@ -13,6 +13,7 @@ import { FEATURED, journeyById, type Journey } from "@/lib/journeys";
 import { Sheets } from "@/surfaces/Sheets";
 import { IpadShell } from "@/surfaces/ipad/IpadShell";
 import { PhoneShell } from "@/surfaces/phone/PhoneShell";
+import { easeOut } from "@/lib/tokens";
 import { useInView } from "./useInView";
 
 /** The screens the section opens on — real, populated, one per surface. */
@@ -31,8 +32,8 @@ export const SURFACE_GROUPS = [
   },
   {
     surface: "phone" as const,
-    title: "A phone",
-    note: "One person's lens — what's theirs, and what they owe the house.",
+    title: "A member's phone",
+    note: "One lens on the same house — what's theirs, and what they owe it.",
   },
 ];
 
@@ -308,7 +309,6 @@ export function Embed() {
     const group = SURFACE_GROUPS.find((g) => g.surface === side)!;
     const items = FEATURED.filter((j) => j.surface === side);
     const chosen = side === "phone" ? phoneId : boardId;
-    const current = side === "phone" ? phoneJourney : boardJourney;
     const rightHand = side === "phone";
 
     return (
@@ -348,13 +348,49 @@ export function Embed() {
         <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-sub">
           Things to do
         </p>
+        {/* Each blurb belongs to ONE pill, so it opens under that pill rather
+            than at the foot of the stack. Five doings deep, a line at the bottom
+            sits four rows from whatever you just pressed and reads as a caption
+            for the whole group; here there is nothing left to correlate,
+            because the text is already touching its own control. */}
         <div className="flex w-full flex-col gap-1.5">
-          {items.map((j) => doingButton(j, side, true))}
+          {items.map((j) => (
+            <div key={j.id} className="w-full">
+              {doingButton(j, side, true)}
+              <AnimatePresence initial={false}>
+                {j.id === chosen && (
+                  <motion.div
+                    key="blurb"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.24, ease: easeOut }}
+                    className="overflow-hidden"
+                  >
+                    <p className="pt-1.5 text-micro leading-[16px] text-sub">{j.blurb}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ))}
         </div>
 
-        <p className="mt-1 text-micro leading-[16px] text-sub">
-          {chosen ? current.blurb : "Resting on its home screen — its own tabs are live."}
-        </p>
+        {/* Only the resting line stays at the foot: it describes the DEVICE,
+            not any one doing, so it has no pill to sit beneath. */}
+        <AnimatePresence initial={false}>
+          {!chosen && (
+            <motion.p
+              key="resting"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.24, ease: easeOut }}
+              className="overflow-hidden text-micro leading-[16px] text-sub"
+            >
+              Resting on its home screen — its own tabs are live.
+            </motion.p>
+          )}
+        </AnimatePresence>
       </aside>
     );
   };
@@ -399,62 +435,68 @@ export function Embed() {
   };
 
   return (
-    <div ref={root}>
-      {/* THE STAGE, EDGE TO EDGE.
-          Every other section on this page holds one content width; this one
-          deliberately breaks it, and the exception buys something specific.
-          Running the product's own `bg-room` gradient past the text column
-          opens a margin either side of the centred devices — and that margin is
-          where each device's controls stand, touching the hardware they steer.
-          Boxed to the text width there was nowhere for them to go but above or
-          below, and either way one column ended up as tall as the other's
-          taller stack. (The page's text is still governed by the single width:
-          this stage simply isn't text.) */}
-      <div className="bg-room py-inner ring-1 ring-inset ring-ink/10">
-        {/* One badge for the stage, not one per device: both are live, and two
-            identical labels would read as decoration rather than a claim. Held
-            to the page's text width so it lines up with the heading above it,
-            even though the lavender behind it doesn't. */}
-        <div className="mx-auto mb-inner flex w-full max-w-[1194px] items-center justify-between gap-3 px-inner">
-          <span className="flex items-center gap-2 rounded-pill bg-ink px-3 py-1.5 font-mono text-micro font-bold uppercase tracking-[0.12em] text-lemon">
-            <span className="h-1.5 w-1.5 rounded-pill bg-lemon" />
-            Live — the real app
-          </span>
-          <span className="truncate font-mono text-[10px] uppercase tracking-[0.1em] text-sub">
-            iPad Pro 11&Prime; · iPhone 17 Pro
-          </span>
-        </div>
-
-        {/* The devices hold the page's own content width — the iPad's left edge
-            on the text column's left edge, the phone's right edge on its right.
-            At that width the two frames are 842 and 280 across at a shared 595
-            tall, which is the 3:1 column ratio below: each is bound by WIDTH and
-            fills its column exactly, so the alignment is arithmetic rather than
-            eyeballed. The rails hang off this box into the bled margin. */}
-        <div className="relative mx-auto w-full max-w-[1194px] px-inner">
-          {rail("ipad")}
-          <div className="grid min-w-0 grid-cols-[minmax(0,3fr)_minmax(0,1fr)] gap-inner">
-            {device("ipad")}
-            {device("phone")}
+    /* reducedMotion="user" — the rail's blurbs open with a height animation, and
+       someone who has asked their OS for less motion should get the text without
+       the travel. The page claims this setting in its accessibility section;
+       this is where the embed actually honours it. */
+    <MotionConfig reducedMotion="user">
+      <div ref={root}>
+        {/* THE STAGE, EDGE TO EDGE.
+            Every other section on this page holds one content width; this one
+            deliberately breaks it, and the exception buys something specific.
+            Running the product's own `bg-room` gradient past the text column
+            opens a margin either side of the centred devices — and that margin is
+            where each device's controls stand, touching the hardware they steer.
+            Boxed to the text width there was nowhere for them to go but above or
+            below, and either way one column ended up as tall as the other's
+            taller stack. (The page's text is still governed by the single width:
+            this stage simply isn't text.) */}
+        <div className="bg-room py-inner ring-1 ring-inset ring-ink/10">
+          {/* One badge for the stage, not one per device: both are live, and two
+              identical labels would read as decoration rather than a claim. Held
+              to the page's text width so it lines up with the heading above it,
+              even though the lavender behind it doesn't. */}
+          <div className="mx-auto mb-inner flex w-full max-w-[1194px] items-center justify-between gap-3 px-inner">
+            <span className="flex items-center gap-2 rounded-pill bg-ink px-3 py-1.5 font-mono text-micro font-bold uppercase tracking-[0.12em] text-lemon">
+              <span className="h-1.5 w-1.5 rounded-pill bg-lemon" />
+              Live — the real app
+            </span>
+            <span className="truncate font-mono text-[10px] uppercase tracking-[0.1em] text-sub">
+              iPad Pro 11&Prime; · iPhone 17 Pro
+            </span>
           </div>
-          {rail("phone")}
+
+          {/* The devices hold the page's own content width — the iPad's left edge
+              on the text column's left edge, the phone's right edge on its right.
+              At that width the two frames are 842 and 280 across at a shared 595
+              tall, which is the 3:1 column ratio below: each is bound by WIDTH and
+              fills its column exactly, so the alignment is arithmetic rather than
+              eyeballed. The rails hang off this box into the bled margin. */}
+          <div className="relative mx-auto w-full max-w-[1194px] px-inner">
+            {rail("ipad")}
+            <div className="grid min-w-0 grid-cols-[minmax(0,3fr)_minmax(0,1fr)] gap-inner">
+              {device("ipad")}
+              {device("phone")}
+            </div>
+            {rail("phone")}
+          </div>
+
+          {controlBand()}
         </div>
 
-        {controlBand()}
+        <div className="mx-auto mt-3 w-full max-w-[1194px] px-inner">
+          <p className="text-bodysm leading-relaxed text-white/60">
+            Both devices are live and read one store — finish something on the phone and the
+            board&rsquo;s count moves with it.{" "}
+            <span className="text-white/85">
+              {s.tasks.filter((t) => !t.done).length} open tasks right now, on both.
+            </span>{" "}
+            Each screen has a permanent link: the address bar carries{" "}
+            <code className="font-mono text-[12px] text-white/75">?screen=</code> for the phone and{" "}
+            <code className="font-mono text-[12px] text-white/75">?board=</code> for the iPad.
+          </p>
+        </div>
       </div>
-
-      <div className="mx-auto mt-3 w-full max-w-[1194px] px-inner">
-        <p className="text-bodysm leading-relaxed text-white/60">
-          Both devices are live and read one store — finish something on the phone and the
-          board&rsquo;s count moves with it.{" "}
-          <span className="text-white/85">
-            {s.tasks.filter((t) => !t.done).length} open tasks right now, on both.
-          </span>{" "}
-          Each screen has a permanent link: the address bar carries{" "}
-          <code className="font-mono text-[12px] text-white/75">?screen=</code> for the phone and{" "}
-          <code className="font-mono text-[12px] text-white/75">?board=</code> for the iPad.
-        </p>
-      </div>
-    </div>
+    </MotionConfig>
   );
 }
