@@ -65,7 +65,7 @@ export function PhoneShell() {
   // Re-sampled on scroll inside the hook; these deps catch the changes scroll
   // can't see (a new route's content, the bar blooming to a new width).
   const navRef = useRef<HTMLElement>(null);
-  const onLight = useBackdropTone(navRef, [route, navOpen, s.navTick]) === "light";
+  const onLight = useBackdropTone(navRef, [route, navOpen, s.navTick.phone]) === "light";
 
   // Re-park whenever the lens changes — a new period is a new "where am I".
   useLayoutEffect(() => {
@@ -196,19 +196,19 @@ export function PhoneShell() {
                 <Icon name="search" size={16} className="shrink-0" />
                 <input
                   autoFocus
-                  value={s.query}
-                  onChange={(e) => s.setQuery(e.target.value)}
+                  value={s.query.phone}
+                  onChange={(e) => s.setQuery("phone", e.target.value)}
                   placeholder="Search your whole home…"
                   className="w-full bg-transparent text-bodysm text-white outline-none placeholder:text-white/30"
                 />
-                {s.query && (
-                  <button onClick={() => s.setQuery("")} aria-label="Clear search" className="shrink-0 hover:text-white">
+                {s.query.phone && (
+                  <button onClick={() => s.setQuery("phone", "")} aria-label="Clear search" className="shrink-0 hover:text-white">
                     <Icon name="x" size={14} />
                   </button>
                 )}
               </label>
               <button
-                onClick={() => { setSearchOpen(false); s.setQuery(""); }}
+                onClick={() => { setSearchOpen(false); s.setQuery("phone", ""); }}
                 className="shrink-0 px-1 text-bodysm font-medium text-white/70 transition-colors hover:text-white"
               >
                 Cancel
@@ -430,14 +430,14 @@ export function PhoneShell() {
         </header>
 
         <motion.div
-          key={searchOpen ? "search" : s.navTick}
+          key={searchOpen ? "search" : s.navTick.phone}
           variants={listStagger}
           initial="hidden"
           animate="show"
           className="flex flex-col gap-tile px-screen pb-[140px] pt-1"
         >
           {searchOpen ? (
-            <PhoneSearchResults onPick={() => { setSearchOpen(false); s.setQuery(""); }} />
+            <PhoneSearchResults onPick={() => { setSearchOpen(false); s.setQuery("phone", ""); }} />
           ) : (
           <>
           {route === "today" && <PhoneToday />}
@@ -585,8 +585,8 @@ export function PhoneShell() {
  */
 function PhoneSearchResults({ onPick }: { onPick: () => void }) {
   const s = useHousehold();
-  const q = s.query.trim();
-  const hits = searchAll(s, s.query);
+  const q = s.query.phone.trim();
+  const hits = searchAll(s, s.query.phone);
 
   // Land on the THING itself. searchAll's `route` is iPad-only, so we open the
   // item's own sheet by its key prefix (t/e/m/s/i/p) — the sheet is the answer,

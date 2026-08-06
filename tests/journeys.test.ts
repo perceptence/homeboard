@@ -174,3 +174,69 @@ describe("the two-surface scene has real actors to find", () => {
     expect(t!.due).toBe(todayIso());
   });
 });
+
+/**
+ * ONE STORE, TWO DEVICES — and no wires between them.
+ *
+ * The app shows one surface at a time, so anything scoped to "the current
+ * screen" could live in a single field and nobody would ever see the problem.
+ * The case study runs both surfaces at once off this store, and there a shared
+ * field is a wire: the phone navigated and the board replayed its entrance
+ * animation; someone typed in the phone's search and the board filled with
+ * results for it. Neither is a change the board can even read — it has no
+ * persona, and it wasn't the thing being searched.
+ *
+ * So both are per-surface now, and this is what holds them apart.
+ */
+describe("what one surface does, the other doesn't feel", () => {
+  beforeEach(() => {
+    useHousehold.getState().skipOnboarding();
+    useHousehold.setState({ navTick: { phone: 0, ipad: 0 }, query: { phone: "", ipad: "" } });
+  });
+
+  const tick = () => useHousehold.getState().navTick;
+  const query = () => useHousehold.getState().query;
+
+  it("replays only the phone's entrance when the phone navigates", () => {
+    useHousehold.getState().goPhone("ahead");
+    expect(tick(), "goPhone must not touch the board").toEqual({ phone: 1, ipad: 0 });
+  });
+
+  it("replays only the board's entrance when the board navigates", () => {
+    useHousehold.getState().goIpad("calendar");
+    expect(tick(), "goIpad must not touch the phone").toEqual({ phone: 0, ipad: 1 });
+  });
+
+  it("leaves the board alone when the phone changes who it is showing", () => {
+    // The sharpest case: IpadShell reads no persona at all, so switching member
+    // is a change the board is structurally incapable of reflecting.
+    useHousehold.getState().setPersona("leo");
+    expect(tick(), "setPersona is a phone concern").toEqual({ phone: 1, ipad: 0 });
+  });
+
+  it("rebuilds both when the household itself is replaced", () => {
+    // The exception that proves the rule — a reset really is news everywhere.
+    useHousehold.getState().skipOnboarding();
+    expect(tick()).toEqual({ phone: 1, ipad: 1 });
+  });
+
+  it("keeps each surface's search to itself", () => {
+    useHousehold.getState().setQuery("phone", "bill");
+    expect(query()).toEqual({ phone: "bill", ipad: "" });
+
+    useHousehold.getState().setQuery("ipad", "boiler");
+    expect(query(), "two people can search two things at once").toEqual({
+      phone: "bill", ipad: "boiler",
+    });
+  });
+
+  it("clears only the searching surface's query on navigation", () => {
+    useHousehold.setState({ query: { phone: "bill", ipad: "boiler" } });
+    useHousehold.getState().goPhone("ahead");
+    expect(query(), "the board was still reading its results").toEqual({
+      phone: "", ipad: "boiler",
+    });
+    useHousehold.getState().goIpad("household");
+    expect(query()).toEqual({ phone: "", ipad: "" });
+  });
+});

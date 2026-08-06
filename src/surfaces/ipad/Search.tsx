@@ -9,7 +9,7 @@ import { searchAll, useHousehold } from "@/lib/store";
 /** One query across every domain in the home — tasks, shopping, bills, upkeep, people. */
 export function SearchResults() {
   const s = useHousehold();
-  const hits = searchAll(s, s.query);
+  const hits = searchAll(s, s.query.ipad);
 
   return (
     <motion.div variants={listStagger} initial="hidden" animate="show">
@@ -36,7 +36,7 @@ export function SearchResults() {
                   title={h.title}
                   meta={h.meta}
                   onClick={() => {
-                    s.setQuery("");
+                    s.setQuery("ipad", "");
                     // A task hit lands on Today AND opens the task itself —
                     // the route is context, the sheet is the answer.
                     s.goIpad(h.route);

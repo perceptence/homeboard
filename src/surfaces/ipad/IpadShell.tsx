@@ -48,7 +48,7 @@ export function IpadShell() {
   // white worklist card the next. Same hook the phone uses: read the backdrop
   // and invert the contents, so the labels never wash out.
   const navRef = useRef<HTMLElement>(null);
-  const onLight = useBackdropTone(navRef, [route, s.navTick, s.query]) === "light";
+  const onLight = useBackdropTone(navRef, [route, s.navTick.ipad, s.query.ipad]) === "light";
 
   return (
     <div className="absolute inset-0 flex min-h-0 flex-col overflow-hidden bg-ink text-white">
@@ -67,13 +67,13 @@ export function IpadShell() {
         <label className="ml-2 flex h-touch flex-1 items-center gap-2 rounded-pill bg-white/[.06] px-3.5 text-white/45 focus-within:bg-white/[.10]">
           <Icon name="search" size={16} />
           <input
-            value={s.query}
-            onChange={(e) => s.setQuery(e.target.value)}
+            value={s.query.ipad}
+            onChange={(e) => s.setQuery("ipad", e.target.value)}
             placeholder="Search tasks, items, bills…"
             className="w-full bg-transparent text-bodysm text-white outline-none placeholder:text-white/30"
           />
-          {s.query && (
-            <button onClick={() => s.setQuery("")} aria-label="Clear search">
+          {s.query.ipad && (
+            <button onClick={() => s.setQuery("ipad", "")} aria-label="Clear search">
               <Icon name="x" size={14} />
             </button>
           )}
@@ -124,10 +124,10 @@ export function IpadShell() {
           not part of the general gutter) and stays untouched so the last row
           never hides behind the floating nav. */}
       <motion.div
-        key={s.query ? "search" : s.navTick}
+        key={s.query.ipad ? "search" : s.navTick.ipad}
         className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 pb-28"
       >
-        {s.query ? <SearchResults /> : <RouteView route={route} />}
+        {s.query.ipad ? <SearchResults /> : <RouteView route={route} />}
       </motion.div>
 
       {/* FLOATING GLASS NAV — always open, centred at the bottom. Every tab is

@@ -9,9 +9,9 @@
  */
 export const REPO = {
   /** Commits on HEAD when this was generated. Asserted as a floor — it only rises. */
-  commits: 183,
+  commits: 184,
   /** Lines of TypeScript/TSX across src/ and app/, excluding tests. */
-  lines: 17326,
+  lines: 17364,
   /** Exported React components (`export function Name`), excluding tests. */
   components: 66,
   /** Source files counted for `lines`. */

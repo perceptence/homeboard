@@ -227,6 +227,31 @@ const emptyDraft = (): OnboardingDraft => ({
   domains: ["Chores", "Shopping", "Bills"],
 });
 
+/**
+ * A value the two surfaces hold SEPARATELY.
+ *
+ * The app only ever shows one surface at a time, so anything scoped to "the
+ * current screen" could sit in a single field and nobody would notice. The case
+ * study runs both at once off one store, and there the single field is a wire
+ * between two devices: the phone navigates and the board replays its entrance;
+ * someone types in the phone's search and the board fills with results for it.
+ * Neither is a change the other device can even see.
+ */
+export type BySurface<T> = { phone: T; ipad: T };
+export type NavTick = BySurface<number>;
+export type Surface = keyof NavTick;
+
+/**
+ * Bump only the surfaces an action touched. A navigation on one device is not
+ * news on the other.
+ */
+const bumped = (s: { navTick: NavTick }, phone: boolean, ipad: boolean): { navTick: NavTick } => ({
+  navTick: {
+    phone: s.navTick.phone + (phone ? 1 : 0),
+    ipad: s.navTick.ipad + (ipad ? 1 : 0),
+  },
+});
+
 interface HouseholdState {
   members: Record<MemberId, Member>;
   tasks: Task[];
@@ -262,9 +287,20 @@ interface HouseholdState {
   reminders: Reminder[];
   /** What the Dynamic Island is showing right now. Ephemeral. */
   island: IslandNote | null;
-  query: string;
+  /** Search text, per surface — see BySurface. */
+  query: BySurface<string>;
   unread: number;
-  navTick: number;
+  /**
+   * Entrance-animation counters, ONE PER SURFACE.
+   *
+   * Each shell keys its animated container off its own tick, so bumping one
+   * replays that surface's entrance stagger and leaves the other alone. This
+   * was a single shared number — invisible in the app, where only one surface
+   * is ever on screen, and wrong the moment both are: navigating the phone, or
+   * switching which member it shows, replayed the board's entrance too, for a
+   * change the board does not even read.
+   */
+  navTick: NavTick;
 
   setPersona: (p: Persona) => void;
   goIpad: (r: IpadRoute) => void;
@@ -304,7 +340,7 @@ interface HouseholdState {
   completeEvent: (id: string) => void;
   /** The clock. Called every second by <Ticker/>; fires what's due, holds what's quiet. */
   tick: () => void;
-  setQuery: (q: string) => void;
+  setQuery: (surface: Surface, q: string) => void;
   markRead: () => void;
   /** Mock-connect an outside calendar: drops a canned batch of imported events,
    *  badged with the provider. Reconnecting the same provider is a no-op. */
@@ -439,13 +475,15 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   toastUndo: null,
   reminders: [],
   island: null,
-  query: "",
+  query: { phone: "", ipad: "" },
   unread: 0,
-  navTick: 0,
+  navTick: { phone: 0, ipad: 0 },
 
-  setPersona: (p) => set((s) => ({ persona: p, sheet: null, query: "", navTick: s.navTick + 1 })),
-  goIpad: (r) => set((s) => ({ ipadRoute: r, query: "", navTick: s.navTick + 1 })),
-  goPhone: (r) => set((s) => ({ phoneRoute: r, query: "", navTick: s.navTick + 1 })),
+  // Phone only: the board belongs to the room and never reads a persona, so
+  // "who is this phone showing" is not a change the board can see.
+  setPersona: (p) => set((s) => ({ persona: p, sheet: null, query: { ...s.query, phone: "" }, ...bumped(s, true, false) })),
+  goIpad: (r) => set((s) => ({ ipadRoute: r, query: { ...s.query, ipad: "" }, ...bumped(s, false, true) })),
+  goPhone: (r) => set((s) => ({ phoneRoute: r, query: { ...s.query, phone: "" }, ...bumped(s, true, false) })),
   openSheet: (sheet) => set({ sheet }),
   closeSheet: () => set({ sheet: null }),
   notify: (toast) => set({ toast, toastWho: null, toastUndo: null }),
@@ -717,7 +755,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       };
     });
   },
-  setQuery: (query) => set({ query }),
+  setQuery: (surface, q) => set((s) => ({ query: { ...s.query, [surface]: q } })),
   markRead: () => set({ unread: 0 }),
 
   // MOCK connect — no OAuth, no network, always succeeds instantly (a fake
@@ -1356,7 +1394,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     set({ setupComplete: false, onboarding: emptyDraft(), sheet: null }),
 
   setStep: (step) =>
-    set((s) => ({ onboarding: { ...s.onboarding, step }, navTick: s.navTick + 1 })),
+    set((s) => ({ onboarding: { ...s.onboarding, step }, ...bumped(s, true, true) })),
 
   setHouseholdName: (householdName) =>
     set((s) => ({ onboarding: { ...s.onboarding, householdName } })),
@@ -1500,7 +1538,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         persona: "ipad",
         ipadRoute: "today",
         toast: "Your home is set up",
-        navTick: s.navTick + 1,
+        ...bumped(s, true, true),
       };
     }),
 
@@ -1518,7 +1556,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
       automations: seedAutomations,
       calendar: { connected: null },
       sheet: null,
-      navTick: s.navTick + 1,
+      ...bumped(s, true, true),
     })),
 }), {
   name: "homeboard",
