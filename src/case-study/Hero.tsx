@@ -20,8 +20,18 @@ import { CONTENT_WIDTH } from "./kit";
  * a family it has never met, on day one, before anyone has uploaded a photo.
  */
 
-/** Enough to fill a wide screen; deterministic ids, so the wall is stable. */
-const IDS = Array.from({ length: 84 }, (_, i) => `homeboard-${i}`);
+/**
+ * Enough to fill a wide screen edge to edge; deterministic ids, so the wall is
+ * stable between reloads.
+ *
+ * This was briefly cut to 84 while chasing a compositor stall, which thinned
+ * the wall out and left ink showing through at the edges — the density IS the
+ * effect. The stall turned out to be three live copies of the product mounted
+ * at once, not the portraits; that's fixed where it belongs (see useInView),
+ * and the wall is back to full. The `!scrolled` gate below is what makes the
+ * full count affordable: it costs nothing once you've scrolled past it.
+ */
+const IDS = Array.from({ length: 132 }, (_, i) => `homeboard-${i}`);
 
 export function Hero() {
   const faces = useMemo(() => IDS, []);
