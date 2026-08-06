@@ -27,8 +27,10 @@ import { useInView } from "./useInView";
  * gives the whole assembly somewhere to breathe.
  *
  * It also pays for itself. The rails live in the margin this opens, so every
- * pixel the devices give up is a pixel they gain — which is what finally lets
- * the side controls appear at 1440, the width they could not reach before.
+ * pixel the devices give up is a pixel they gain. At 32 with a 12px gap off the
+ * glass that reached 1440; widening the gap to 20 spent the difference, and the
+ * rails now need 1456. Raising this to 40 would buy 1440 back — see the note on
+ * the rail.
  */
 const DEVICE_INSET = 32;
 
@@ -337,19 +339,24 @@ export function Embed() {
              pill — a 144px label, 6px of padding a side, 2px of slack so the
              nowrap can't clip — and the offset is negative because `right-full`
              anchors to this box's BORDER edge while the device starts one
-             px-inner (24px) further in, so -12 cancels half of that back to a
-             12px gap off the glass.
+             px-inner (24px) further in, so -4 cancels most of that back to a
+             20px gap off the glass.
 
-             That box is now the text column less DEVICE_INSET a side, so the
-             rail's outer edge lands at (vw − 1130) / 2 + 12 − 158 — clear of
-             the window from 1440 up, which is the gate. It could not reach
-             1440 while the devices spanned the full column; stepping them in
-             by 32 handed the rails 64px they didn't have, and 1440 is the
-             width most of these screens actually are.
+             THE GAP AND THE OUTER MARGIN COME OUT OF ONE POCKET. The rail's
+             outer edge lands at (vw − 1130) / 2 + 4 − 158, so every pixel added
+             between the pills and the glass is a pixel taken from the far side
+             of the rail. At a 12px gap this cleared 1440 with 9px to spare; at
+             20px the same screen leaves 1px, which reads as a pill jammed
+             against the window, so the gate moves up to where 9px comes back.
+
+             Buying 1440 back is one number: DEVICE_INSET 32 → 40 steps the
+             devices in far enough to fund both. That is a trade against how far
+             the hardware sits inside the text column, which is a composition
+             decision rather than an arithmetic one.
 
              Below the gate the band beneath the stage takes over. */
-          "absolute top-1/2 hidden w-[158px] -translate-y-1/2 flex-col gap-2 min-[1440px]:flex",
-          rightHand ? "left-full -ml-3 items-start text-left" : "right-full -mr-3 items-end text-right",
+          "absolute top-1/2 hidden w-[158px] -translate-y-1/2 flex-col gap-2 min-[1456px]:flex",
+          rightHand ? "left-full -ml-1 items-start text-left" : "right-full -mr-1 items-end text-right",
         )}
       >
         <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-ink">
@@ -448,7 +455,7 @@ export function Embed() {
     };
 
     return (
-      <div className="mx-auto mt-6 flex w-full max-w-[1194px] flex-col gap-4 border-t border-ink/10 px-inner pt-4 min-[1440px]:hidden">
+      <div className="mx-auto mt-6 flex w-full max-w-[1194px] flex-col gap-4 border-t border-ink/10 px-inner pt-4 min-[1456px]:hidden">
         {row("ipad")}
         {row("phone")}
       </div>
