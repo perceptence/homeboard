@@ -1,8 +1,7 @@
 # Backlog
 
-Gaps identified in the whole-app review (2026-07-20), to revisit. The three
-**In progress** items were judged the highest-leverage starting set; everything
-under **Deferred** is real but either foundational (needs infra), a larger design
+Gaps identified in the whole-app review (2026-07-20). Everything under
+**Deferred** is real but either foundational (needs infra), a larger design
 surface, or lower ROI for a portfolio build right now.
 
 ## Done (since the review)
@@ -18,15 +17,24 @@ surface, or lower ROI for a portfolio build right now.
   reschedule flow (notify in-household / draft-to-copy for outside), unified
   add flow, hand-off scoped to today + overdue with expandable detail, add
   defaults to the adder.
-- [x] **Comms on items** — threaded comments on any task/event (author = the
-  viewer, logged to Activity). @mentions/reactions left as follow-ups.
 - [x] **Calendar import (mock connect)** — Google/Apple connect flow drops a
   canned batch of provider-badged events; idempotent, disconnect-with-undo.
   A *real* inbox/OAuth source is still deferred (see Integrations).
-- [x] **Full-domain phone search** — a header search on every phone tab, the
-  iPad's `searchAll` across all domains + people, tapping through to sheets.
-- [x] **Trends over time** — `weeklyTrend` + a bar chart, 8 weeks household +
-  per-person; fixed the mislabeled all-time "Last 30 days" figure.
+- [x] **Full-domain phone search** — a header search on Ahead/House/You (kept
+  off Today, where it crowded the greeting), the iPad's `searchAll` across all
+  domains + people, tapping through to sheets.
+- [x] **Trends over time** — a labelled bar chart on the iPad Household card:
+  named weeks/months, current period in lime, monthly spanning the household's
+  whole life since a mocked Jan-2026 start. Person cards carry a bare
+  sparkline. Also fixed the mislabeled all-time "Last 30 days" figure.
+
+## Built, then pulled
+
+- **Comms on items** (threaded comments on a task/event) shipped and was
+  removed a day later — it didn't earn its space on the sheet, and a household
+  this size coordinates through hand-off and Activity rather than a thread per
+  chore. Fully recoverable from git (`a26353b`) if it's ever wanted back;
+  that's why @mentions/reactions are no longer listed as follow-ups.
 
 ## Deferred — revisit
 
@@ -46,10 +54,6 @@ surface, or lower ROI for a portfolio build right now.
 - [ ] **Recurring edit: this vs. all occurrences.** Needs a real recurrence
   engine (rule + materialized instances + exceptions); `recurring` is a string
   label today. Deliberately split out of the create/delete pass.
-
-### Coordination
-- [ ] **@mentions / reactions on comments** — the thread ships; nudging a
-  specific person from it (and lightweight reactions) is the follow-up.
 
 ### Integrations
 - [ ] **Real email-for-bills + real calendar sync.** The "bills from email"
