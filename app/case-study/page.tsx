@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { Head, Panel, Sample, Section, Wrap } from "@/case-study/kit";
 import { Hero } from "@/case-study/Hero";
 import { Embed } from "@/case-study/Embed";
-import { Duet } from "@/case-study/Duet";
 import { Stories } from "@/case-study/Stories";
 import {
   ColourSpecimen, ElevationSpecimen, MotionSpecimen, SpaceSpecimen, TypeSpecimen,
@@ -108,12 +107,13 @@ export default function CaseStudy() {
       <Section id="product">
         <Head
           label="The product, running"
-          title="Not a screenshot"
+          title="Not a screenshot &mdash; and not one device"
           standfirst={
             <>
-              The device below is the real application, mounted in this page&rsquo;s React tree and
-              reading the same store. Pick a journey and it drives the app through its own
-              navigation actions; the address bar follows, so every screen has a permanent link.
+              Both devices below are the real application, mounted in this page&rsquo;s React tree
+              and reading one store. They are not two sizes of one screen — the board answers
+              &ldquo;how is the house doing&rdquo;, the phone answers &ldquo;what do I owe it
+              today&rdquo;. Steer each with its own controls; the address bar follows both.
             </>
           }
         />
@@ -122,24 +122,19 @@ export default function CaseStudy() {
         </div>
       </Section>
 
-      <Section id="surfaces">
-        <Head
-          label="One household, two surfaces"
-          title="The iPad isn&rsquo;t the phone made bigger"
-          standfirst={
-            <>
-              A phone is in a pocket and belongs to a person; the board is on a wall and belongs to
-              the room. They ask different questions, so they are different applications — over one
-              store. Both are running below, at the same time. Play the scene: the camera zooms to
-              the board&rsquo;s count, presses a real button on the phone, and follows the change
-              back across.
-            </>
-          }
-        />
-        <div className="mt-10">
-          <Duet />
-        </div>
-      </Section>
+      {/* ── TWO SURFACES — PARKED ────────────────────────────────────────
+          A directed "scene" used to live here: both shells side by side with a
+          camera that zoomed the board's count, pressed a real button on the
+          phone, and followed the change back. The idea is right and the section
+          isn't — the choreography never read as clearly as it needed to, so it
+          is out of the page rather than half-working in it.
+
+          `src/case-study/Duet.tsx` is intact and still passes its tests; drop
+          <Duet /> back into a <Section id="surfaces"> to bring it back. What it
+          was arguing for now lives above instead: the embed shows BOTH devices
+          at once, each with its own controls, which makes the same point
+          without needing a camera to make it. */}
+
 
       {/* ── WHY THIS EXISTS ─────────────────────────────────────────────── */}
       <Section id="why">
@@ -320,9 +315,9 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
           standfirst={
             <>
               {AUDIT.tool} against the {AUDIT.ruleset} ruleset, run on this page in a real browser at{" "}
-              {AUDIT.viewports.join(" and ")}, {AUDIT.date} — with {AUDIT.measuredWith}. That
-              condition is the worst case, and it&rsquo;s stated because the same run at 390 wide
-              returns zero: true, and misleading on its own.
+              {AUDIT.viewports.join(" and ")}, {AUDIT.date} — with {AUDIT.measuredWith}. The figures
+              are the worse of the two viewports: at 1440 the same run returns 13 nodes with nothing
+              below 3.79:1, so the narrow result is the one published.
             </>
           }
         />

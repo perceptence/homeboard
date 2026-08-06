@@ -76,7 +76,11 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
   const ownSheet = type === "newTask" || type === "addAutomation";
 
   return (
-    <>
+    // data-sheet-host marks this whole layer. The store holds ONE open sheet,
+    // so anywhere two shells are mounted at once (the case study embeds a phone
+    // and an iPad side by side) exactly one of them may render this — otherwise
+    // the same composer paints inside both devices. A test counts these.
+    <div data-sheet-host className="contents">
       <Sheet open={!!sheet && !ownSheet} onClose={close} variant={variant} scrollKey={type}>
         {sheet?.type === "task" && <TaskSheet id={sheet.id as number} />}
         {/* Events and upkeep wear the same card as a task, so they must open like
@@ -113,7 +117,7 @@ export function Sheets({ variant }: { variant: "phone" | "ipad" }) {
           Kept mounted while closed so the dismiss still animates. */}
       <NewTaskSheet open={sheet?.type === "newTask"} variant={variant} onClose={close} />
       <AutomationSheet open={sheet?.type === "addAutomation"} variant={variant} onClose={close} />
-    </>
+    </div>
   );
 }
 

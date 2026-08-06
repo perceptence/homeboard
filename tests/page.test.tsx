@@ -34,7 +34,7 @@ describe("it renders at all", () => {
 
   it("renders every section", () => {
     const ids = [...container.querySelectorAll("[data-section]")].map((s) => s.id);
-    expect(ids).toEqual(["glance", "product", "surfaces", "why", "system", "trouble", "tests", "a11y", "next"]);
+    expect(ids).toEqual(["glance", "product", "why", "system", "trouble", "tests", "a11y", "next"]);
   });
 
   it("is not stuck on a loading or empty state", () => {
@@ -67,25 +67,35 @@ describe("the product is embedded, not pictured", () => {
     expect(screen.getByText(/live — the real app/i)).toBeTruthy();
   });
 
-  it("mounts BOTH surfaces at once in the two-surface section", () => {
-    // The whole argument of that section is that the iPad is a different
-    // application, not a width — which only lands if both are really running.
-    const surfaces = container.querySelector("#surfaces");
-    expect(surfaces).toBeTruthy();
-    expect(surfaces!.textContent).toMatch(/family ipad/i);
-    expect(surfaces!.textContent).toMatch(/phone/i);
-    // two device frames, each with its own scaled chrome
-    const frames = surfaces!.querySelectorAll('[style*="translate"]');
-    expect(frames.length, "expected a phone frame and a tablet frame").toBeGreaterThanOrEqual(2);
+  it("mounts BOTH devices at once, not one at a time", () => {
+    // The section's argument is that the iPad is a different application, not
+    // a width — which only lands if both are genuinely running side by side.
+    const product = container.querySelector("#product")!;
+    expect(product.textContent).toMatch(/family ipad/i);
+    expect(product.textContent).toMatch(/a phone/i);
+    const frames = product.querySelectorAll('[style*="translate"]');
+    expect(frames.length, "expected a tablet frame and a phone frame").toBeGreaterThanOrEqual(2);
   });
 
-  it("offers every featured journey as a button", () => {
+  it("gives each device its own controls", () => {
+    // Every featured journey must be offered, and the two surfaces' journeys
+    // must be reachable independently — one shared list would mean picking a
+    // board screen could only be done by giving up the phone's.
+    const product = container.querySelector("#product")!;
+    const labels = [...product.querySelectorAll("button")].map((b) => b.textContent?.trim());
     for (const j of FEATURED) {
-      expect(
-        screen.getAllByText(j.label).length,
-        `journey "${j.label}" is missing from the embed's list`,
-      ).toBeGreaterThan(0);
+      expect(labels, `journey "${j.label}" is missing from the embed`).toContain(j.label);
     }
+    expect(FEATURED.filter((j) => j.surface === "phone").length).toBeGreaterThan(0);
+    expect(FEATURED.filter((j) => j.surface === "ipad").length).toBeGreaterThan(0);
+  });
+
+  it("renders the shared sheet layer in only one device at a time", () => {
+    // The store holds ONE open sheet; rendering <Sheets> in both frames would
+    // paint the same composer inside two devices at once.
+    const product = container.querySelector("#product")!;
+    const overlays = product.querySelectorAll("[data-sheet-host]");
+    expect(overlays.length, "exactly one device may own the sheet layer").toBe(1);
   });
 });
 
@@ -106,10 +116,9 @@ describe("one content width", () => {
 describe("the known tradeoff of embedding whole applications", () => {
   it("pins the extra h1s rather than hiding them", () => {
     /**
-     * Every mounted iPad shell greets the room, and that greeting is its page
-     * title — so each one contributes an <h1> to this document. With the embed
-     * plus the two-surface section, the ceiling is three: this page's headline,
-     * and up to two boards.
+     * The mounted iPad shell greets the room, and that greeting is its page
+     * title — so it contributes an <h1> to this document. The ceiling is two:
+     * this page's headline, and the board's.
      *
      * Multiple h1s are valid HTML5 and axe reports no violation for them. The
      * count is asserted rather than suppressed because the honest thing is to
@@ -117,7 +126,7 @@ describe("the known tradeoff of embedding whole applications", () => {
      * something has been mounted that nobody meant to mount.
      */
     const h1s = [...container.querySelectorAll("h1")];
-    expect(h1s.length, h1s.map((h) => h.textContent?.slice(0, 24)).join(" | ")).toBeLessThanOrEqual(3);
+    expect(h1s.length, h1s.map((h) => h.textContent?.slice(0, 24)).join(" | ")).toBeLessThanOrEqual(2);
     expect(h1s[0].textContent).toMatch(/a home runs on/i);
   });
 });
