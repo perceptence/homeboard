@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import clsx from "clsx";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon, type IconName } from "@/components/Icons";
 import { clockLabel } from "@/lib/dates";
@@ -147,7 +148,7 @@ function useFit(
 export type Orientation = "landscape" | "portrait";
 
 export function DeviceFrame({
-  kind, children, chromeGap = 150, orientation = "landscape", host,
+  kind, children, chromeGap = 150, orientation = "landscape", host, align = "center",
 }: {
   kind: DeviceKind;
   children: ReactNode;
@@ -155,6 +156,22 @@ export function DeviceFrame({
   orientation?: Orientation;
   /** Fit to this element instead of the window — see `useFit`. */
   host?: React.RefObject<HTMLElement | null>;
+  /**
+   * How the device sits in the space left for it.
+   *
+   * `center` is right when the space was made for the device and nothing else
+   * borders it — onboarding, and the case study's fixed-height hosts.
+   *
+   * `start` is right when something sits directly above it, because centring
+   * makes the gap under that thing depend on how tall the device happened to
+   * render. A landscape iPad in a narrow window is WIDTH-bound: it comes out
+   * shorter than the room available, and centring hands it half of the
+   * leftover. Measured at 1200x1000 — 66px under the preview bar against the
+   * phone's 37 — so the chrome appeared to shift every time the surface
+   * changed. Anchoring to the top makes that gap a declared number instead of
+   * a by-product of the fit.
+   */
+  align?: "center" | "start";
 }) {
   /**
    * BOTH devices centre in the leftover space, on one wrapper.
@@ -168,7 +185,12 @@ export function DeviceFrame({
    * changed. One wrapper, one rule, and the device stays put.
    */
   return (
-    <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+    <div
+      className={clsx(
+        "flex min-h-0 w-full flex-1 justify-center",
+        align === "start" ? "items-start" : "items-center",
+      )}
+    >
       {kind === "phone" ? (
         <PhoneChrome chromeGap={chromeGap} host={host}>{children}</PhoneChrome>
       ) : (

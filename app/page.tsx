@@ -62,8 +62,13 @@ export default function Page() {
         "flex h-screen flex-col items-center overflow-hidden bg-room px-4 pb-2 pt-2",
       )}
     >
+      {/* mb-9 (36px) IS the gap under the bar, and it is declared here rather
+          than emerging from the fit. It used to be mb-2, with the visible 37px
+          coming from chromeGap over-reserving by 58 and the device centring in
+          the slack — which only held while the device was height-bound. See
+          DeviceFrame's `align` note. */}
       {!onboarding && (
-        <div className="mb-2 flex shrink-0 flex-wrap items-center justify-center gap-1 rounded-pill bg-ink/90 p-1.5 shadow-e3 backdrop-blur">
+        <div className="mb-9 flex shrink-0 flex-wrap items-center justify-center gap-1 rounded-pill bg-ink/90 p-1.5 shadow-e3 backdrop-blur">
           <span className="px-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">
             Viewing
           </span>
@@ -73,17 +78,28 @@ export default function Page() {
             Family iPad
           </SwitchButton>
 
-          {/* Rotate the iPad frame — preview-only, so it only shows up when
-              there's an iPad on screen to turn. */}
-          {!isPhone && (
-            <button
-              onClick={() => setOrientation((o) => (o === "landscape" ? "portrait" : "landscape"))}
-              aria-label={`Rotate to ${orientation === "landscape" ? "portrait" : "landscape"}`}
-              className="rounded-pill p-2 text-white/55 transition-colors hover:text-white"
-            >
-              <Icon name="rotate" size={16} strokeWidth={2.2} />
-            </button>
-          )}
+          {/* Rotate the iPad frame. Disabled rather than removed on a phone:
+              pulling a control out of a row re-flows everything after it, so
+              every switch to a phone shifted the four people and "+ New home"
+              leftward. A control that greys out reads as "not for this
+              surface"; one that vanishes reads as the bar being unstable. */}
+          <button
+            onClick={() => setOrientation((o) => (o === "landscape" ? "portrait" : "landscape"))}
+            disabled={isPhone}
+            aria-label={
+              isPhone
+                ? "Rotate — available for the iPad"
+                : `Rotate to ${orientation === "landscape" ? "portrait" : "landscape"}`
+            }
+            className={clsx(
+              "rounded-pill p-2 transition-colors",
+              isPhone
+                ? "cursor-not-allowed text-white/20"
+                : "text-white/55 hover:text-white",
+            )}
+          >
+            <Icon name="rotate" size={16} strokeWidth={2.2} />
+          </button>
 
           {people.slice(0, 4).map((m) => (
             <SwitchButton key={m.id} active={s.persona === m.id} onClick={() => s.setPersona(m.id)}>
@@ -105,7 +121,16 @@ export default function Page() {
         </div>
       )}
 
-      <DeviceFrame kind={kind} chromeGap={onboarding ? 90 : 130} orientation={isPhone ? undefined : orientation}>
+      {/* 100 = pt-2 (8) + bar (48) + mb-9 (36) + pb-2 (8). Reserving MORE than
+          the chrome actually takes is what created the slack the device used to
+          centre in. Onboarding has no bar, so it keeps centring in its own
+          space. */}
+      <DeviceFrame
+        kind={kind}
+        chromeGap={onboarding ? 90 : 100}
+        orientation={isPhone ? undefined : orientation}
+        align={onboarding ? "center" : "start"}
+      >
         {/* Launch splash — INSIDE the glass. It's the app opening, not the
             demo page loading, so it belongs on the device's own screen. */}
         <Splash />
