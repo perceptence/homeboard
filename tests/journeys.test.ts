@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { FEATURED, GROUPS, JOURNEYS, journeyById } from "@/lib/journeys";
+import { FEATURED, GROUPS, JOURNEYS, TAB_ROUTES, journeyById } from "@/lib/journeys";
 import { useHousehold } from "@/lib/store";
 import { IPAD_ROUTES, PHONE_ROUTES } from "@/lib/types";
 import { DEFAULT_JOURNEY, SURFACE_GROUPS } from "@/case-study/Embed";
@@ -53,6 +53,31 @@ describe("the case study's list can't drift from the table", () => {
   it("features only journeys that exist", () => {
     for (const j of FEATURED) {
       expect(journeyById(j.id), `featured journey ${j.id} is not in JOURNEYS`).toBeTruthy();
+    }
+  });
+
+  it("never features a journey that is just a tab the app already offers", () => {
+    /**
+     * THE RULE: a journey is something a household DOES, not a place the app
+     * can already take you. Both devices draw their own nav — Today/Ahead/
+     * House/You on the phone, Today/Calendar/Household on the board — a tap
+     * away on the screen itself. A control outside the device that merely
+     * lands on one of those is duplicated chrome, and it quietly redefines
+     * "journey" as "tab". The embed shipped exactly that mistake: pills
+     * reading "Home · Calendar · Household" sitting directly above an iPad
+     * whose own nav read the same three words.
+     *
+     * So every featured journey must EARN its control: open a sheet, run an
+     * action, or land somewhere the tabs can't reach (a door like Upkeep or
+     * Automations, which live under Household rather than in the nav).
+     */
+    for (const j of FEATURED) {
+      const tabs = TAB_ROUTES[j.surface] as readonly string[];
+      const isBareTab = tabs.includes(j.route) && !j.sheet && !j.extra;
+      expect(
+        isBareTab,
+        `"${j.label}" only lands on the ${j.surface}'s own "${j.route}" tab — the device already offers that`,
+      ).toBe(false);
     }
   });
 

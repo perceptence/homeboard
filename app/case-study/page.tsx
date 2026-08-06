@@ -315,9 +315,10 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
           standfirst={
             <>
               {AUDIT.tool} against the {AUDIT.ruleset} ruleset, run on this page in a real browser at{" "}
-              {AUDIT.viewports.join(" and ")}, {AUDIT.date} — with {AUDIT.measuredWith}. The figures
-              are the worse of the two viewports: at 1440 the same run returns 13 nodes with nothing
-              below 3.79:1, so the narrow result is the one published.
+              {AUDIT.viewports.join(" and ")}, {AUDIT.date} — with {AUDIT.measuredWith}. Neither
+              viewport is uniformly worse, so both are published and the headline numbers take the
+              unflattering half of each:{" "}
+              {AUDIT.product.byViewport.map((v) => `${v.viewport} → ${v.nodes} nodes, worst ${v.worst}:1`).join("; ")}.
             </>
           }
         />

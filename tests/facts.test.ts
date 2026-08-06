@@ -104,6 +104,17 @@ describe("the accessibility figures", () => {
     }
   });
 
+  it("takes its headline numbers from the unflattering half of each viewport", () => {
+    // Neither viewport is uniformly worse, so the published figures must be the
+    // highest node count seen and the lowest ratio seen — never one viewport's
+    // friendlier pair.
+    const counts = AUDIT.product.byViewport.map((v) => v.nodes);
+    const ratios = AUDIT.product.byViewport.map((v) => v.worst);
+    expect(AUDIT.product.nodes).toBe(Math.max(...counts));
+    expect(AUDIT.product.worst).toBe(Math.min(...ratios));
+    expect(AUDIT.product.byViewport.length).toBe(AUDIT.viewports.length);
+  });
+
   it("quotes a worst-case ratio that is actually the worst one listed", () => {
     // parseFloat, not Number(): these read "1.16:1" and "3.79 – 4.26:1", and
     // Number() returns NaN for both because of the trailing ":1".

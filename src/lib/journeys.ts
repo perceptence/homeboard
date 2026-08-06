@@ -126,7 +126,6 @@ const SPECS: Spec[] = [
     id: "today", label: "Today", group: "Phone", surface: "phone", persona: "maya",
     route: "today",
     blurb: "What's yours today, and the one thing that needs deciding first.",
-    featured: true,
   },
   {
     id: "ahead", label: "Ahead", group: "Phone", surface: "phone", persona: "maya",
@@ -137,7 +136,6 @@ const SPECS: Spec[] = [
     id: "house", label: "Household", group: "Phone", surface: "phone", persona: "maya",
     route: "house",
     blurb: "Everyone's load beside your own — the shared view on a personal phone.",
-    featured: true,
   },
   {
     id: "you", label: "You", group: "Phone", surface: "phone", persona: "maya",
@@ -145,9 +143,10 @@ const SPECS: Spec[] = [
     blurb: "Your standing: what you've finished, what you're carrying.",
   },
   {
-    id: "shopping", label: "Shopping", group: "Phone", surface: "phone", persona: "maya",
+    id: "shopping", label: "The shared list", group: "Phone", surface: "phone", persona: "maya",
     route: "today", sheet: "shop",
     blurb: "The one list the whole house writes to.",
+    featured: true,
   },
   {
     id: "stock", label: "In the house", group: "Phone", surface: "phone", persona: "maya",
@@ -155,9 +154,15 @@ const SPECS: Spec[] = [
     blurb: "What's running low, before anyone has to notice.",
   },
   {
-    id: "new-task", label: "New task", group: "Phone", surface: "phone", persona: "maya",
+    id: "new-task", label: "Add something", group: "Phone", surface: "phone", persona: "maya",
     route: "today", sheet: "newTask",
     blurb: "Say it or type it; the app decides whether it's a task or an event.",
+    featured: true,
+  },
+  {
+    id: "handoff", label: "Hand something over", group: "Phone", surface: "phone",
+    persona: "sam", route: "today", sheet: "handoff", pinPersona: true,
+    blurb: "Too much on — give one of today's jobs to whoever has room.",
     featured: true,
   },
   {
@@ -166,7 +171,7 @@ const SPECS: Spec[] = [
     blurb: "The household's short-term memory, grouped by when it happened.",
   },
   {
-    id: "rebalance", label: "Rebalance", group: "Phone", surface: "phone", persona: "maya",
+    id: "rebalance", label: "Even out the week", group: "Phone", surface: "phone", persona: "maya",
     route: "you", sheet: "rebalance",
     blurb: "One move to level the week — shown before it's made.",
     featured: true,
@@ -196,7 +201,7 @@ const SPECS: Spec[] = [
 
   /* ── Live trip ─────────────────────────────────────────────────────── */
   {
-    id: "on-my-way", label: "On my way · Sam", group: "Live trip", surface: "phone",
+    id: "on-my-way", label: "Leave for the school run", group: "Live trip", surface: "phone",
     persona: "sam", route: "today", pinPersona: true,
     extra: () => st().onWay(4),
     blurb: "Leaving for the school run, announced to whoever's waiting.",
@@ -213,24 +218,40 @@ const SPECS: Spec[] = [
     id: "ipad-today", label: "Home", group: "iPad", surface: "ipad", persona: "ipad",
     route: "today",
     blurb: "The family board: the day, the people, and what's already handled.",
-    featured: true,
   },
   {
     id: "ipad-calendar", label: "Calendar", group: "iPad", surface: "ipad", persona: "ipad",
     route: "calendar",
     blurb: "Week and month for the whole house, in one grid.",
-    featured: true,
   },
   {
     id: "ipad-household", label: "Household", group: "iPad", surface: "ipad", persona: "ipad",
     route: "household",
     blurb: "Who's carrying what, and how the house has been doing since January.",
+  },
+  {
+    id: "ipad-rebalance", label: "Even the house out", group: "iPad", surface: "ipad",
+    persona: "ipad", route: "today", sheet: "rebalance",
+    blurb: "The board proposes one move, and shows it before it makes it.",
+    featured: true,
+  },
+  {
+    id: "ipad-connect", label: "Connect a calendar", group: "iPad", surface: "ipad",
+    persona: "ipad", route: "autos", sheet: "connectCalendar",
+    blurb: "Pull an outside calendar in — events arrive badged with where they came from.",
     featured: true,
   },
   {
     id: "ipad-autos", label: "Automations", group: "iPad", surface: "ipad", persona: "ipad",
     route: "autos",
     blurb: "The rules quietly running in the background.",
+    featured: true,
+  },
+  {
+    id: "ipad-upkeep", label: "Upkeep", group: "iPad", surface: "ipad", persona: "ipad",
+    route: "maint",
+    blurb: "The boiler, the filters, the alarms — jobs a house asks for, not a person.",
+    featured: true,
   },
 ];
 
@@ -248,6 +269,22 @@ export const FEATURED = JOURNEYS.filter((j) => j.featured);
 
 export const journeyById = (id: string | null | undefined) =>
   JOURNEYS.find((j) => j.id === id);
+
+/**
+ * What each surface's OWN nav already offers.
+ *
+ * These are the tabs drawn inside the device, a tap away on the screen itself —
+ * so nothing that merely lands on one of them earns a control OUTSIDE the
+ * device. The case study briefly shipped exactly that: pills reading "Home ·
+ * Calendar · Household" sitting directly above an iPad whose own nav read the
+ * same three words. Duplicated chrome, and it quietly redefined "journey" as
+ * "tab". A journey is something a household DOES. A test walks FEATURED
+ * against this list.
+ */
+export const TAB_ROUTES = {
+  phone: ["today", "ahead", "house", "you"],
+  ipad: ["today", "calendar", "household"],
+} as const;
 
 /** Panel order — the groups, in the order the Demo panel shows them. */
 export const GROUPS = ["Setup", "Phone", "Owner admin", "Live trip", "iPad"] as const;

@@ -60,8 +60,16 @@ export const SURFACE_GROUPS = [
 export function Embed() {
   const s = useHousehold();
 
-  const [phoneId, setPhoneId] = useState(DEFAULT_JOURNEY);
-  const [boardId, setBoardId] = useState(DEFAULT_BOARD);
+  /**
+   * null = the device is simply sitting on its home screen.
+   *
+   * These controls are DOINGS, not a segmented control over tabs — each device
+   * draws its own nav, a tap away on the screen itself, and duplicating that
+   * outside the glass was the mistake this replaced. So nothing is "selected"
+   * at rest, and choosing the same doing twice puts the device back down.
+   */
+  const [phoneId, setPhoneId] = useState<string | null>(null);
+  const [boardId, setBoardId] = useState<string | null>(null);
   /** Which device the sheet layer and toast belong to right now. */
   const [active, setActive] = useState<"phone" | "ipad">("phone");
   const activeRef = useRef<"phone" | "ipad">("phone");
@@ -73,6 +81,7 @@ export function Embed() {
   const phoneHost = useRef<HTMLDivElement>(null);
   const padHost = useRef<HTMLDivElement>(null);
 
+  /** What each device is actually showing — a chosen doing, or its home screen. */
   const phoneJourney = journeyById(phoneId) ?? journeyById(DEFAULT_JOURNEY)!;
   const boardJourney = journeyById(boardId) ?? journeyById(DEFAULT_BOARD)!;
 
@@ -131,7 +140,8 @@ export function Embed() {
     if (!mounted) return;
     applyPhone(phoneJourney);
     const url = new URL(window.location.href);
-    url.searchParams.set("screen", phoneJourney.id);
+    if (phoneId) url.searchParams.set("screen", phoneId);
+    else url.searchParams.delete("screen");
     window.history.replaceState(null, "", url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phoneId, mounted]);
@@ -140,7 +150,8 @@ export function Embed() {
     if (!mounted) return;
     applyBoard(boardJourney);
     const url = new URL(window.location.href);
-    url.searchParams.set("board", boardJourney.id);
+    if (boardId) url.searchParams.set("board", boardId);
+    else url.searchParams.delete("board");
     window.history.replaceState(null, "", url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId, mounted]);
@@ -148,37 +159,49 @@ export function Embed() {
   const clearToast = useCallback(() => useHousehold.getState().notify(null), []);
 
   /**
-   * A device column: heading, its own journey chips, then the hardware.
+   * A device's two blocks — its heading-and-controls, and its hardware.
    *
-   * Declared OUTSIDE the render body would be tidier, but it needs a dozen
-   * values from this scope; what matters is that it isn't a component — it's
-   * called as `{column("ipad")}`, so React sees plain elements and never
-   * remounts a live app shell just because a sibling's state changed.
+   * They're returned SEPARATELY, and placed into explicit grid rows below,
+   * because the two columns' headings are different heights: let them share a
+   * flow and one device starts lower than the other. With headings pinned to
+   * row 1 and hardware to row 2, row 1 takes the taller heading and both
+   * devices begin on the same line — and since both hosts are given the same
+   * height, they end on one too.
+   *
+   * Not components: called as `{head("ipad")}`, so React sees plain elements
+   * and never remounts a live app shell because a sibling's state moved.
    */
-  const column = (side: "phone" | "ipad", height: string) => {
+  const head = (side: "phone" | "ipad") => {
     const group = SURFACE_GROUPS.find((g) => g.surface === side)!;
     const items = FEATURED.filter((j) => j.surface === side);
-    const current = side === "phone" ? phoneJourney : boardJourney;
-    const choose = side === "phone" ? setPhoneId : setBoardId;
-    const host = side === "phone" ? phoneHost : padHost;
+    const chosen = side === "phone" ? phoneId : boardId;
+    const set = side === "phone" ? setPhoneId : setBoardId;
 
     return (
-      <div className="flex min-w-0 flex-col">
+      <div
+        className={clsx(
+          "flex min-w-0 flex-col",
+          side === "ipad" ? "lg:col-start-1" : "lg:col-start-2",
+          "lg:row-start-1",
+        )}
+      >
         <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-ink">
           {group.title}
         </p>
         <p className="mt-1 text-micro leading-[16px] text-sub">{group.note}</p>
 
-        {/* The controls sit with the device they steer — no guessing which list
-            drives which screen. Chips styled for the LIGHT stage. */}
+        {/* THINGS TO DO — not a copy of the nav. Each device already draws its
+            own tabs; these are the moments worth jumping straight to, and each
+            one either opens something or goes somewhere the tabs can't. */}
         <ul className="mt-3 flex flex-wrap gap-1.5">
           {items.map((j) => {
-            const on = j.id === current.id;
+            const on = j.id === chosen;
             return (
               <li key={j.id}>
                 <button
-                  onClick={() => choose(j.id)}
-                  aria-current={on ? "true" : undefined}
+                  onClick={() => set(on ? null : j.id)}
+                  aria-pressed={on}
+                  title={j.blurb}
                   className={clsx(
                     "rounded-pill px-3 py-1.5 text-bodysm font-medium transition-colors",
                     on ? "bg-ink text-white" : "bg-white/70 text-ink hover:bg-white",
@@ -191,40 +214,58 @@ export function Embed() {
           })}
         </ul>
 
-        {/* One line about whatever is on screen, held to a fixed height so the
-            two columns' devices stay on the same baseline. */}
-        <p className="mt-2.5 min-h-[32px] text-micro leading-[16px] text-sub">{current.blurb}</p>
+        {/* One line about whatever was chosen — or a reminder that the device's
+            own navigation is live, which is the point of not duplicating it. */}
+        <p className="mt-2.5 min-h-[32px] text-micro leading-[16px] text-sub">
+          {chosen
+            ? (side === "phone" ? phoneJourney : boardJourney).blurb
+            : "Resting on its home screen — its tabs are live, so you can wander it yourself."}
+        </p>
+      </div>
+    );
+  };
 
-        {/* Any tap in here makes this device the owner of the sheet layer. */}
-        <div
-          ref={host}
-          onPointerDownCapture={() => own(side)}
-          className={clsx("mt-1 flex w-full items-center justify-center", height)}
+  const device = (side: "phone" | "ipad") => {
+    const host = side === "phone" ? phoneHost : padHost;
+    const current = side === "phone" ? phoneJourney : boardJourney;
+
+    return (
+      <div
+        ref={host}
+        onPointerDownCapture={() => own(side)}
+        className={clsx(
+          // One height for both, so the two devices share a bottom edge as well
+          // as a top one. The columns are sized 3:1 — the ratio of the two
+          // frames' widths at equal height — so each is bound by height and
+          // fills it, rather than one floating small inside a roomy column.
+          "flex h-[380px] w-full items-center justify-center sm:h-[480px] lg:h-[560px]",
+          side === "ipad" ? "lg:col-start-1" : "lg:col-start-2",
+          "lg:row-start-2",
+        )}
+      >
+        <DeviceFrame
+          kind={side === "phone" ? "phone" : "tablet"}
+          host={host}
+          orientation={side === "phone" ? undefined : "landscape"}
         >
-          <DeviceFrame
-            kind={side === "phone" ? "phone" : "tablet"}
-            host={host}
-            orientation={side === "phone" ? undefined : "landscape"}
-          >
-            {/* The splash sits outside the keyed subtree: it's the app opening,
-                and it should do that once — not again on every journey. */}
-            <Splash />
-            {mounted && (
-              <div key={current.id} className="absolute inset-0">
-                {side === "phone" ? <PhoneShell /> : <IpadShell />}
-                {active === side && <Sheets variant={side === "phone" ? "phone" : "ipad"} />}
-                {active === side && (
-                  <Toast
-                    message={s.toast}
-                    who={s.toastWho ? s.members[s.toastWho] : undefined}
-                    onDone={clearToast}
-                    onUndo={s.toastUndo ?? undefined}
-                  />
-                )}
-              </div>
-            )}
-          </DeviceFrame>
-        </div>
+          {/* The splash sits outside the keyed subtree: it's the app opening,
+              and it should do that once — not again on every doing. */}
+          <Splash />
+          {mounted && (
+            <div key={current.id} className="absolute inset-0">
+              {side === "phone" ? <PhoneShell /> : <IpadShell />}
+              {active === side && <Sheets variant={side === "phone" ? "phone" : "ipad"} />}
+              {active === side && (
+                <Toast
+                  message={s.toast}
+                  who={s.toastWho ? s.members[s.toastWho] : undefined}
+                  onDone={clearToast}
+                  onUndo={s.toastUndo ?? undefined}
+                />
+              )}
+            </div>
+          )}
+        </DeviceFrame>
       </div>
     );
   };
@@ -247,9 +288,11 @@ export function Embed() {
           </span>
         </div>
         <MotionConfig reducedMotion="user">
-          <div className="grid gap-inner lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:items-start">
-            {column("ipad", "h-[300px] sm:h-[380px]")}
-            {column("phone", "h-[300px] sm:h-[380px]")}
+          <div className="grid gap-x-inner gap-y-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)] lg:grid-rows-[auto_auto]">
+            {head("ipad")}
+            {head("phone")}
+            {device("ipad")}
+            {device("phone")}
           </div>
         </MotionConfig>
       </div>
