@@ -286,6 +286,17 @@ interface HouseholdState {
   axes: HouseholdAxes;
   /** False while the onboarding flow is running. */
   setupComplete: boolean;
+  /**
+   * The day this household's demo data was laid down, as an ISO date.
+   *
+   * The seed is written RELATIVE TO NOW — `d(0)` is today, `doneAgo(4)` is four
+   * days back — and persistence then freezes those dates forever. So a visitor
+   * who opened the site once and came back a week later found every "today"
+   * task nine days overdue and the day itself empty, while a browser that had
+   * never been here got a perfect demo. Two people, same build, different
+   * product. This stamp is what lets the store notice.
+   */
+  seededOn: string;
   onboarding: OnboardingDraft;
 
   persona: Persona;
@@ -465,6 +476,30 @@ const logged = (s: HouseholdState, text: string, who?: MemberId) => ({
  * wouldn't match the client tree (persisted state) and React would tear the page
  * down. <Rehydrate/> in page.tsx does it in an effect, after hydration settles.
  */
+/**
+ * The seeded household, as of RIGHT NOW.
+ *
+ * Read at call time, never cached: the seed modules compute their dates from
+ * `new Date()` when this runs, so calling it again on a later day produces a
+ * demo anchored to that day. Both the "reset to demo" action and the
+ * rehydration guard below go through here, so there is one definition of what
+ * a fresh household is.
+ */
+const freshHousehold = () => ({
+  setupComplete: true,
+  onboarding: emptyDraft(),
+  householdName: "Rivera Home",
+  members: seedMembers,
+  tasks: seedTasks,
+  shopping: seedShopping,
+  inventory: seedInventory,
+  maint: seedMaint,
+  events: seedEvents,
+  automations: seedAutomations,
+  calendar: { connected: null as "google" | "apple" | null },
+  seededOn: todayIso(),
+});
+
 export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   members: seedMembers,
   tasks: seedTasks,
@@ -479,6 +514,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   householdName: "Rivera Home",
   axes: { money: "pooled", dependents: true },
   setupComplete: true,
+  seededOn: todayIso(),
   onboarding: emptyDraft(),
 
   persona: "ipad",
@@ -1553,26 +1589,12 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
         persona: "ipad",
         ipadRoute: "today",
         toast: "Your home is set up",
+        seededOn: todayIso(),
         ...bumped(s, true, true),
       };
     }),
 
-  skipOnboarding: () =>
-    set((s) => ({
-      setupComplete: true,
-      onboarding: emptyDraft(),
-      householdName: "Rivera Home",
-      members: seedMembers,
-      tasks: seedTasks,
-      shopping: seedShopping,
-      inventory: seedInventory,
-      maint: seedMaint,
-      events: seedEvents,
-      automations: seedAutomations,
-      calendar: { connected: null },
-      sheet: null,
-      ...bumped(s, true, true),
-    })),
+  skipOnboarding: () => set((s) => ({ ...freshHousehold(), sheet: null, ...bumped(s, true, true) })),
 }), {
   name: "homeboard",
   // 2: seed event times gained explicit AM/PM. Persisted state predating this
@@ -1604,7 +1626,11 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
   // 18: 8 weeks of synthetic completion history in the seed (trend chart). Re-seed.
   // 19: history extended to 20 weeks (monthly trend grain); comments removed. Re-seed.
   // 20: history backfilled to the Jan-2026 start date (labelled trend). Re-seed.
-  version: 20,
+  // 21: `seededOn` — the day the demo data was laid down. Without it a stored
+  //     household kept the dates of whichever day it was first opened, so a
+  //     returning visitor and a first-time one saw different products from the
+  //     same build. Re-seed.
+  version: 21,
   // Discard-and-reseed IS our migration (no backend, demo data). Returning an
   // empty patch hands the store its fresh seed — and stops zustand logging
   // "couldn't be migrated" as a console error on every version bump.
@@ -1622,6 +1648,7 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     inventory: s.inventory, maint: s.maint, events: s.events, automations: s.automations,
     activity: s.activity, calendar: s.calendar, unread: s.unread, reminders: s.reminders,
     householdName: s.householdName, axes: s.axes, setupComplete: s.setupComplete,
+    seededOn: s.seededOn,
     persona: s.persona, phoneRoute: s.phoneRoute, ipadRoute: s.ipadRoute,
   }),
   onRehydrateStorage: () => (state) => {
@@ -1636,6 +1663,31 @@ export const useHousehold = create<HouseholdState>()(persist((set, get) => ({
     // MIGRATION: the short-lived "feed" merge is undone — a persisted route
     // naming a screen that no longer exists would render an empty body.
     if (!["today", "ahead", "house", "you"].includes(state.phoneRoute)) state.phoneRoute = "today";
+
+    /**
+     * RE-ANCHOR A DEMO THAT HAS OUTLIVED ITS OWN DAY.
+     *
+     * The seed is written relative to now, and persistence freezes it. Left
+     * alone, a household laid down on Monday still thinks it is Monday on
+     * Friday: nothing is due today, everything is overdue, and the trend chart
+     * stops mid-week. Measured on a nine-day-old store — 0 tasks due today,
+     * 19 overdue — which is the difference between a browser that had been
+     * here before and one that hadn't, on the same build.
+     *
+     * So a new day gets a new seed. That does discard whatever the visitor
+     * poked at yesterday, which is the right trade for demo data and would be
+     * unforgivable for real data: this is a household nobody lives in.
+     */
+    if (state.seededOn !== todayIso()) {
+      Object.assign(state, freshHousehold());
+      /* Mutating the rehydrated object does not itself write anything back —
+         the middleware persists on `set`, and nothing has called one yet. Left
+         at that, storage keeps yesterday's copy and the guard re-fires on every
+         load until some unrelated action happens to save. One empty set, once
+         the hydration that called us has finished, puts the re-anchored
+         household on disk. */
+      queueMicrotask(() => useHousehold.setState({}));
+    }
   },
 }));
 

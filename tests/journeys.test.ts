@@ -240,3 +240,81 @@ describe("what one surface does, the other doesn't feel", () => {
     expect(query()).toEqual({ phone: "", ipad: "" });
   });
 });
+
+/**
+ * A DEMO THAT OUTLIVES ITS OWN DAY.
+ *
+ * The seed is written relative to now — `d(0)` is today — and persistence then
+ * freezes those dates. A household laid down on Monday still believed it was
+ * Monday on Friday: nothing due today, everything overdue, the trend chart
+ * stopping mid-week. Two people on the same build saw different products,
+ * depending only on whether their browser had been here before.
+ */
+describe("the seeded day", () => {
+  it("stamps the day the data was laid down", () => {
+    useHousehold.getState().skipOnboarding();
+    expect(useHousehold.getState().seededOn).toBe(todayIso());
+  });
+
+  it("seeds work that is actually due today", () => {
+    useHousehold.getState().skipOnboarding();
+    const due = useHousehold.getState().tasks.filter((t) => t.due === todayIso());
+    expect(due.length, "a demo that opens on an empty day is the bug").toBeGreaterThan(0);
+  });
+
+  it("re-anchors a household that was stored on an earlier day", async () => {
+    // The guard lives in onRehydrateStorage, so it only fires on a real
+    // rehydration — which is why the three assertions above pass with it
+    // switched off. This one drives the actual path: write a stored household
+    // stamped nine days ago, rehydrate, and check what comes back.
+    useHousehold.getState().skipOnboarding();
+    const stale = JSON.parse(JSON.stringify({
+      state: {
+        ...useHousehold.getState(),
+        seededOn: "2026-07-28",
+        tasks: useHousehold.getState().tasks.map((t) => ({ ...t, due: "2026-07-28" })),
+      },
+      version: 21,
+    }));
+    localStorage.setItem("homeboard", JSON.stringify(stale));
+
+    await useHousehold.persist.rehydrate();
+
+    expect(useHousehold.getState().seededOn, "the stamp must move to today").toBe(todayIso());
+    expect(
+      useHousehold.getState().tasks.filter((t) => t.due === todayIso()).length,
+      "a re-anchored demo opens on today, not on the day it was stored",
+    ).toBeGreaterThan(0);
+  });
+
+  it("leaves a household stored on the SAME day alone", async () => {
+    // The other half: re-seeding mid-visit would throw away whatever the
+    // reader had just done, which is the failure this guard must not become.
+    useHousehold.getState().skipOnboarding();
+    const open = useHousehold.getState().tasks.find((t) => !t.done)!;
+    useHousehold.getState().toggleTask(open.id);
+    localStorage.setItem("homeboard", JSON.stringify({
+      state: JSON.parse(JSON.stringify(useHousehold.getState())),
+      version: 21,
+    }));
+
+    await useHousehold.persist.rehydrate();
+
+    expect(
+      useHousehold.getState().tasks.find((t) => t.id === open.id)?.done,
+      "same-day rehydration wiped the visitor's work",
+    ).toBe(true);
+  });
+
+  it("re-seeds relative to whenever it is called, not to module load", () => {
+    // The guard is only worth anything if a later call produces a later demo.
+    // If the seed were captured once and reused, re-anchoring would restore
+    // exactly the stale dates it was trying to replace.
+    useHousehold.getState().skipOnboarding();
+    const first = useHousehold.getState().tasks.map((t) => t.due).join();
+    useHousehold.setState({ seededOn: "2020-01-01" });
+    useHousehold.getState().skipOnboarding();
+    expect(useHousehold.getState().seededOn).toBe(todayIso());
+    expect(useHousehold.getState().tasks.map((t) => t.due).join()).toBe(first);
+  });
+});
