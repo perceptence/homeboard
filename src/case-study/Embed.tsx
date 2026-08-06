@@ -521,10 +521,7 @@ export function Embed() {
             board&rsquo;s count moves with it.{" "}
             <span className="text-white/85">
               {s.tasks.filter((t) => !t.done).length} open tasks right now, on both.
-            </span>{" "}
-            Each screen has a permanent link: the address bar carries{" "}
-            <code className="font-mono text-micro text-white/75">?screen=</code> for the phone and{" "}
-            <code className="font-mono text-micro text-white/75">?board=</code> for the iPad.
+            </span>
           </p>
         </div>
       </div>

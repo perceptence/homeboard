@@ -57,9 +57,29 @@ export function Hero() {
         <div style={{ maxWidth: CONTENT_WIDTH }} className="mx-auto flex items-center gap-3 px-inner py-4">
           <AppMark size={28} className="shrink-0 rounded-sm" />
           <span className="font-tight text-h2 text-white">Homeboard</span>
-          <span className="ml-auto hidden font-mono text-micro uppercase tracking-[0.14em] text-white/60 sm:block">
-            Design case study
-          </span>
+          {/* THE ONE THING TO DO FROM HERE.
+              This slot held the words "Design case study" — a label, on a page
+              whose own headline already says what it is, in the one position a
+              reader's eye returns to on every scroll. The product is running
+              two sections down and deep-linked throughout; the header should
+              hand it over rather than describe the document.
+
+              h-touch, not something smaller: this page prints a control scale
+              with 44px marked as the floor, and the header is the last place
+              to be caught under it. New tab, because the case study is a long
+              read and losing your place in it to try the app is a bad trade —
+              said out loud for screen readers, since a new tab with no warning
+              is disorienting when you can't see it happen. */}
+          <a
+            href="/"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="ml-auto inline-flex h-touch shrink-0 items-center gap-2 rounded-pill bg-lemon px-5 text-bodysm font-medium text-ink transition-opacity duration-300 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lemon"
+          >
+            Open the live app
+            <span aria-hidden>&#8599;</span>
+            <span className="sr-only">(opens in a new tab)</span>
+          </a>
         </div>
       </header>
 
