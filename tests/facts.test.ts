@@ -79,12 +79,37 @@ describe("counts derived from modules need no pinning", () => {
   });
 });
 
-describe("the accessibility figure", () => {
-  it("is recorded with the tool, ruleset, viewports and date that produced it", () => {
-    expect(AUDIT.tool).toBeTruthy();
+describe("the accessibility figures", () => {
+  it("record the tool, ruleset, viewports and date that produced them", () => {
+    expect(AUDIT.tool).toMatch(/axe/i);
     expect(AUDIT.ruleset).toMatch(/WCAG/);
     expect(AUDIT.viewports.length).toBeGreaterThanOrEqual(2);
     expect(AUDIT.date).toBeTruthy();
-    expect(AUDIT.serious).toBeLessThanOrEqual(AUDIT.violations);
+  });
+
+  it("keep the page's own result separate from the embedded product's", () => {
+    // One combined number would let the article hide behind the product, or
+    // the product hide behind the article. Two numbers, always.
+    expect(AUDIT.page.violations).toBe(0);
+    expect(AUDIT.product.nodes).toBeGreaterThan(0);
+  });
+
+  it("names every failure it counts, rather than only totalling them", () => {
+    // A count with no list is a number nobody can act on.
+    expect(AUDIT.product.findings.length).toBeGreaterThan(0);
+    for (const f of AUDIT.product.findings) {
+      expect(f.what.length, "each finding says what it is").toBeGreaterThan(8);
+      expect(f.ratio, "each finding states its measured ratio").toMatch(/\d(\.\d+)?:1/);
+      expect(f.why.length, "each finding explains the cause").toBeGreaterThan(30);
+    }
+  });
+
+  it("quotes a worst-case ratio that is actually the worst one listed", () => {
+    // parseFloat, not Number(): these read "1.16:1" and "3.79 – 4.26:1", and
+    // Number() returns NaN for both because of the trailing ":1".
+    const listed = AUDIT.product.findings
+      .map((f) => parseFloat(f.ratio))
+      .filter((n) => !Number.isNaN(n));
+    expect(AUDIT.product.worst).toBe(Math.min(...listed));
   });
 });

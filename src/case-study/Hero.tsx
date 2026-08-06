@@ -21,7 +21,7 @@ import { CONTENT_WIDTH } from "./kit";
  */
 
 /** Enough to fill a wide screen; deterministic ids, so the wall is stable. */
-const IDS = Array.from({ length: 132 }, (_, i) => `homeboard-${i}`);
+const IDS = Array.from({ length: 84 }, (_, i) => `homeboard-${i}`);
 
 export function Hero() {
   const faces = useMemo(() => IDS, []);
@@ -58,13 +58,17 @@ export function Hero() {
         className="relative flex h-[100svh] w-full flex-col justify-end overflow-hidden bg-ink"
       >
         {/* THE WALL. aria-hidden: it's texture, and every face already renders
-            its own aria-hidden SVG — announcing 132 portraits would bury the
+            its own aria-hidden SVG — announcing every portrait would bury the
             headline for a screen reader. */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 flex flex-wrap content-center justify-center gap-2 p-4 opacity-80"
         >
-          {faces.map((id) => (
+          {/* Only while the hero is on screen. Each portrait blinks on its own
+              SMIL timer, and eighty of those running for the entire length of
+              the page — long after the artwork has scrolled away — is a cost
+              paid for nothing. */}
+          {!scrolled && faces.map((id) => (
             <Face key={id} id={id} size={76} />
           ))}
         </div>

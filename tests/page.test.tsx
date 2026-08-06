@@ -34,7 +34,7 @@ describe("it renders at all", () => {
 
   it("renders every section", () => {
     const ids = [...container.querySelectorAll("[data-section]")].map((s) => s.id);
-    expect(ids).toEqual(["glance", "product", "why", "system", "trouble", "tests", "a11y", "next"]);
+    expect(ids).toEqual(["glance", "product", "surfaces", "why", "system", "trouble", "tests", "a11y", "next"]);
   });
 
   it("is not stuck on a loading or empty state", () => {
@@ -67,6 +67,18 @@ describe("the product is embedded, not pictured", () => {
     expect(screen.getByText(/live — the real app/i)).toBeTruthy();
   });
 
+  it("mounts BOTH surfaces at once in the two-surface section", () => {
+    // The whole argument of that section is that the iPad is a different
+    // application, not a width — which only lands if both are really running.
+    const surfaces = container.querySelector("#surfaces");
+    expect(surfaces).toBeTruthy();
+    expect(surfaces!.textContent).toMatch(/family ipad/i);
+    expect(surfaces!.textContent).toMatch(/phone/i);
+    // two device frames, each with its own scaled chrome
+    const frames = surfaces!.querySelectorAll('[style*="translate"]');
+    expect(frames.length, "expected a phone frame and a tablet frame").toBeGreaterThanOrEqual(2);
+  });
+
   it("offers every featured journey as a button", () => {
     for (const j of FEATURED) {
       expect(
@@ -91,16 +103,21 @@ describe("one content width", () => {
   });
 });
 
-describe("the known tradeoff of embedding a whole app", () => {
-  it("pins the second h1 rather than hiding it", () => {
+describe("the known tradeoff of embedding whole applications", () => {
+  it("pins the extra h1s rather than hiding them", () => {
     /**
-     * The embedded product contributes its own <h1> to this document. That is
-     * not a WCAG failure — it's what mounting an application inside an article
-     * actually means — and papering over it would misrepresent the page. So the
-     * count is asserted instead: the page's own headline, plus the app's.
+     * Every mounted iPad shell greets the room, and that greeting is its page
+     * title — so each one contributes an <h1> to this document. With the embed
+     * plus the two-surface section, the ceiling is three: this page's headline,
+     * and up to two boards.
+     *
+     * Multiple h1s are valid HTML5 and axe reports no violation for them. The
+     * count is asserted rather than suppressed because the honest thing is to
+     * know the number, not to hide it — and if it ever climbs past three,
+     * something has been mounted that nobody meant to mount.
      */
     const h1s = [...container.querySelectorAll("h1")];
-    expect(h1s.length).toBeLessThanOrEqual(2);
+    expect(h1s.length, h1s.map((h) => h.textContent?.slice(0, 24)).join(" | ")).toBeLessThanOrEqual(3);
     expect(h1s[0].textContent).toMatch(/a home runs on/i);
   });
 });

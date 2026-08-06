@@ -2,18 +2,22 @@
 
 import type { ReactNode } from "react";
 import clsx from "clsx";
-import { Face } from "@/components/Face";
 import { Icon } from "@/components/Icons";
 import { colors, radius } from "@/lib/tokens";
-import { Label } from "./kit";
 
 /**
- * WHERE IT NEARLY CAME APART.
+ * THE DECISIONS THAT CHANGED DIRECTION.
  *
- * Five problems that changed a rule. Each one renders its own before and after
- * from real tokens — the broken state is reconstructed, not described, because
- * a paragraph about a misaligned ring is much less convincing than the ring.
+ * Not a bug list. Each of these moved a load-bearing rule and left the product
+ * a different shape than the one it started as — the permission model, who the
+ * app is allowed to volunteer, a question we stopped asking, what the second
+ * device even is, and how the whole responsive layer measures itself.
+ *
+ * Every before/after is rebuilt from real tokens rather than described, because
+ * the interesting part of "we removed a choice" is seeing the choice.
  */
+
+/* ── shared furniture ──────────────────────────────────────────────────── */
 
 function Frame({ tone, caption, children }: { tone: "before" | "after"; caption: string; children: ReactNode }) {
   const before = tone === "before";
@@ -22,8 +26,7 @@ function Frame({ tone, caption, children }: { tone: "before" | "after"; caption:
       <div className="flex items-center gap-2">
         <span
           className={clsx(
-            "rounded-pill px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.12em]",
-            // Solid fill, not a tint: danger on a danger-tint measured 3.46:1.
+            "shrink-0 rounded-pill px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.12em]",
             before ? "bg-danger text-white" : "bg-lemon text-ink",
           )}
         >
@@ -37,66 +40,79 @@ function Frame({ tone, caption, children }: { tone: "before" | "after"; caption:
 }
 
 function Story({
-  n, title, rule, children, reading, mattered,
+  n, title, belief, broke, rule, children,
 }: {
-  n: number; title: string; rule: string;
-  children: ReactNode; reading: ReactNode; mattered: string;
+  n: number; title: string;
+  belief: string; broke: ReactNode; rule: string;
+  children: ReactNode;
 }) {
   return (
-    <article className="border-t border-white/12 py-10 first:border-0 first:pt-0">
+    <article className="border-t border-white/12 py-12 first:border-0 first:pt-0">
       <div className="flex items-baseline gap-3">
         <span className="font-mono text-micro font-bold text-lemon">{String(n).padStart(2, "0")}</span>
         <h3 className="font-tight text-h1 leading-tight text-white">{title}</h3>
       </div>
 
-      <div className="mt-5 grid gap-4 md:grid-cols-2">{children}</div>
+      {/* What we believed, stated plainly, before anything is shown. */}
+      <p className="mt-4 max-w-[68ch] border-l-2 border-white/20 pl-4 text-body leading-relaxed text-white/60">
+        <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">
+          We believed —{" "}
+        </span>
+        {belief}
+      </p>
 
-      <div className="mt-5 grid gap-5 md:grid-cols-2">
-        <div>
-          <Label className="!text-white/60">What happened</Label>
-          <div className="mt-2 space-y-2 text-bodysm leading-relaxed text-white/65">{reading}</div>
-        </div>
-        <div>
-          <Label className="!text-white/60">Why it mattered</Label>
-          <p className="mt-2 text-bodysm leading-relaxed text-white/65">{mattered}</p>
-          <p className="mt-3 rounded-md bg-lemon/10 px-3 py-2 text-bodysm font-medium text-lemon">
-            Rule it changed — {rule}
+      <div className="mt-6 grid gap-4 md:grid-cols-2">{children}</div>
+
+      <div className="mt-6 grid gap-5 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <div className="min-w-0">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">
+            What that got wrong
           </p>
+          <div className="mt-2 space-y-2 text-bodysm leading-relaxed text-white/65">{broke}</div>
+        </div>
+        <div className="min-w-0 self-start rounded-md bg-lemon/[.10] p-4">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-lemon">
+            The rule now
+          </p>
+          <p className="mt-2 text-bodysm font-medium leading-relaxed text-white">{rule}</p>
         </div>
       </div>
     </article>
   );
 }
 
-/* ── 1. the ring that wasn't round ─────────────────────────────────────── */
+/* ── small renderers ───────────────────────────────────────────────────── */
 
-function RingRow({ broken }: { broken: boolean }) {
-  const ids = ["maya", "sam", "leo", "ada"];
+function Field({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
-    <span className="flex -space-x-2">
-      {ids.map((id) => (
-        <span
-          key={id}
-          // The whole bug, preserved: without `inline-flex` this span is an
-          // inline box, so it inherits a line-box strut and stands ~6px taller
-          // than it is wide. rounded-pill on a non-square box is a stadium.
-          className={clsx("rounded-pill ring-2 ring-card", !broken && "inline-flex")}
-          style={{ boxShadow: `0 0 0 2px ${colors.card}` }}
-        >
-          <Face id={id} size={30} />
-        </span>
-      ))}
-    </span>
+    <div>
+      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-sub">{label}</p>
+      <div className="mt-1.5 flex items-center justify-between rounded-md bg-surface px-3 py-2">
+        <span className="text-bodysm font-medium text-ink">{value}</span>
+        <Icon name="chevDown" size={14} className="text-sub" />
+      </div>
+      {note && <p className="mt-1.5 text-micro text-sub">{note}</p>}
+    </div>
   );
 }
 
-/* ── 2. the balancer's pick ────────────────────────────────────────────── */
+function Gate({ icon, label, detail }: { icon: "lock" | "kid"; label: string; detail: string }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-md bg-surface px-3 py-2.5">
+      <span className="mt-0.5 shrink-0 text-ink"><Icon name={icon} size={14} /></span>
+      <span className="min-w-0">
+        <b className="block text-micro font-semibold text-ink">{label}</b>
+        <span className="block text-micro text-sub">{detail}</span>
+      </span>
+    </div>
+  );
+}
 
 function AssignRow({ task, who, colour, reason }: { task: string; who: string; colour: string; reason: string }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-pill bg-ink text-white">
-        <Icon name="tasks" size={18} />
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-pill bg-ink text-white">
+        <Icon name="tasks" size={16} />
       </span>
       <span className="min-w-0 flex-1">
         <b className="block truncate text-bodysm text-ink">{task}</b>
@@ -110,198 +126,273 @@ function AssignRow({ task, who, colour, reason }: { task: string; who: string; c
   );
 }
 
-/* ── 3. a figure with the wrong window ─────────────────────────────────── */
-
-function Stat({ pct, label, sub }: { pct: number; label: string; sub: string }) {
-  return (
-    <div className="flex items-end gap-4">
-      <div className="min-w-0 flex-1">
-        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-sub">{label}</p>
-        <p className="mt-1 text-bodysm text-ink">The house is finishing most of what it&rsquo;s asked.</p>
-        <p className="mt-1 text-micro text-sub">{sub}</p>
-      </div>
-      <span className="shrink-0 font-tight text-[44px] leading-none tracking-tight text-ink">{pct}%</span>
-    </div>
-  );
+/** A crude wireframe block, for the IA comparisons. */
+function Bar({ w = "100%", h = 10, tone = "ink" }: { w?: string; h?: number; tone?: "ink" | "mute" | "lemon" }) {
+  const bg = tone === "lemon" ? colors.lemon : tone === "mute" ? "#E4E3EA" : colors.ink;
+  return <span className="block" style={{ width: w, height: h, background: bg, borderRadius: 3 }} />;
 }
+
+/* ── the stories ───────────────────────────────────────────────────────── */
 
 export function Stories() {
   return (
     <div>
+      {/* 01 ─────────────────────────────────────────────────────────────── */}
       <Story
         n={1}
-        title="A ring that was never round"
-        rule="a wrapper that hugs artwork is inline-flex, never a bare span."
-        reading={
+        title="&ldquo;Mum, Dad, Kid&rdquo; is not a permission model"
+        belief="a household is a set of family roles, and what somebody may do follows from which one they are. Adults get everything; children get a simplified view; one flag on a task marks it adults-only."
+        broke={
           <>
             <p>
-              The four faces in Settings wore rings that looked subtly wrong and nobody could say why.
-              Measuring the wrapper gave it away: <b className="text-white">29.3 × 35.6px</b>. Not square.
+              It fails on real homes immediately. The fifteen-year-old who runs the family budget. The
+              grandparent who lives here and shouldn&rsquo;t be locked out of the heating. The au pair
+              who needs the school run but not the bank card. The adult child who moved back in.
             </p>
             <p>
-              A bare <code className="font-mono text-[11px]">span</code> is an inline box, so it inherits a
-              line-box strut — roughly six pixels of invisible text leading. The avatar inside was a perfect
-              circle; the box around it was a stadium, and so was the ring.
+              And the single <code className="font-mono text-[11px]">adultOnly</code> flag was quietly
+              doing two unrelated jobs: <em>may this person be held accountable for it</em> (money,
+              contracts) and <em>can this person safely do it</em> (a hot oven, a chainsaw). One
+              boolean, two questions — so it locked the sixteen-year-old out of the shopping card and
+              let any visiting adult near the bleach.
             </p>
           </>
         }
-        mattered="It read as sloppiness on the one screen that shows the family. And it was invisible to screenshots — the ring is 2px, the error 6px, and both sit under a rounded corner. Only measurement found it."
+        rule="Household type, identity, role and responsibility are four independent fields. Role is assigned, never derived — no code may write age &lt; 18 ? &ldquo;limited&rdquo; : &ldquo;full&rdquo;. A task carries two separate gates: requires (authority) and minAge (capability)."
       >
-        <Frame tone="before" caption="wrapper: 29.3 × 35.6 — a stadium">
-          <RingRow broken />
+        <Frame tone="before" caption="one identity field, doing three jobs">
+          <div className="space-y-3">
+            <Field label="Member" value="Leo · Child" note="Relationship, life stage and access, all in one word." />
+            <label className="flex items-center gap-2.5 rounded-md bg-surface px-3 py-2.5">
+              <span className="grid h-4 w-4 shrink-0 place-items-center rounded-[4px] bg-ink text-white">
+                <Icon name="check" size={11} />
+              </span>
+              <span className="text-micro text-ink">Adults only</span>
+            </label>
+            <p className="text-micro text-sub">
+              The same checkbox guards the mortgage and the oven.
+            </p>
+          </div>
         </Frame>
-        <Frame tone="after" caption="wrapper: 29.3 × 29.3 — concentric">
-          <RingRow broken={false} />
+        <Frame tone="after" caption="four fields, and two gates that ask different things">
+          <div className="space-y-3">
+            <Field label="Identity" value="Leo · person, 10" note="What someone is. Never a permission." />
+            <Field label="Role" value="Tasks and chores" note="What someone may do. Assigned by an owner." />
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Gate icon="lock" label="Requires" detail="Money, contracts or safety" />
+              <Gate icon="kid" label="Ages 8+" detail="Can they physically do it" />
+            </div>
+          </div>
         </Frame>
       </Story>
 
+      {/* 02 ─────────────────────────────────────────────────────────────── */}
       <Story
         n={2}
-        title="The load balancer kept picking the ten-year-old"
-        rule="unassessed work is only ever offered to someone who can hold anything."
-        reading={
+        title="The fairest algorithm we had kept picking the ten-year-old"
+        belief="the kindest way to assign work is to give it to whoever is least busy. It is neutral, it is measurable, and nobody can argue with it."
+        broke={
           <>
             <p>
-              The suggestion engine ranked whoever had the lightest day. In a family, the lightest day
-              always belongs to a child — so <em>every</em> task with no explicit requirement landed on Leo,
-              aged ten. Including picking up his siblings.
+              In a family, the person with the lightest day is always a child. So every task that
+              hadn&rsquo;t been explicitly assessed — which is most of them, because they arrive as
+              half-typed sentences — landed on Leo, aged ten. Including collecting his siblings.
             </p>
             <p>
-              The fix wasn&rsquo;t an age check. Age is a capability, not a permission. A task with no
-              stated requirement simply hasn&rsquo;t been assessed yet, so it&rsquo;s only offered to roles
-              that can hold anything. Once work <em>is</em> assessed, a ten-year-old is a candidate like
-              anyone else — which is what keeps children in the rota rather than exempt from it.
+              The fix that suggests itself is an age check, and it&rsquo;s the wrong one: it drags
+              age back into permissions, which is the trap story 01 exists to close. The real
+              insight was that an unassessed task isn&rsquo;t &ldquo;safe by default&rdquo; — it is{" "}
+              <em>unknown</em>, and unknown work should only ever be volunteered to someone who could
+              hold anything it turns out to be.
             </p>
           </>
         }
-        mattered="A recommendation engine that quietly routes real responsibility to whoever is least able to refuse isn't a scheduling bug — it's the product making a claim about who a household is for."
+        rule="A task with no stated requirement has not been assessed, so it is only ever OFFERED to roles that can hold anything. Once work is assessed, a ten-year-old is a candidate like anyone else — which keeps children in the rota rather than exempt from it."
       >
-        <Frame tone="before" caption="ranked purely by who was least busy">
+        <Frame tone="before" caption="ranked purely by who had the lightest day">
           <div className="space-y-3">
-            <AssignRow task="Pick up the kids" who="Leo (10)" colour={colors.member.leo} reason="Lightest load — 2 tasks" />
-            <AssignRow task="Renew home insurance" who="Leo (10)" colour={colors.member.leo} reason="Lightest load — 2 tasks" />
+            <AssignRow task="Collect the kids from school" who="Leo (10)" colour={colors.member.leo} reason="Lightest load — 2 tasks" />
+            <AssignRow task="Renew the home insurance" who="Leo (10)" colour={colors.member.leo} reason="Lightest load — 2 tasks" />
           </div>
         </Frame>
-        <Frame tone="after" caption="unvetted work goes to roles that can hold anything">
+        <Frame tone="after" caption="unassessed work goes to whoever can hold anything">
           <div className="space-y-3">
-            <AssignRow task="Pick up the kids" who="Sam" colour={colors.member.sam} reason="Lightest load — 10 tasks" />
-            <AssignRow task="Renew home insurance" who="Maya" colour={colors.member.maya} reason="Runs the bills" />
+            <AssignRow task="Collect the kids from school" who="Sam" colour={colors.member.sam} reason="Lightest load — 10 tasks" />
+            <AssignRow task="Renew the home insurance" who="Maya" colour={colors.member.maya} reason="Runs the bills" />
           </div>
         </Frame>
       </Story>
 
+      {/* 03 ─────────────────────────────────────────────────────────────── */}
       <Story
         n={3}
-        title="A headline figure that only lied once there was history"
-        rule="a number with a time word in its label must be windowed by that word."
-        reading={
+        title="We stopped asking whether it was a task or an event"
+        belief="tasks and events are genuinely different things, so the person adding one should tell us which they mean. It is one tap, and it keeps the data clean."
+        broke={
           <>
             <p>
-              The family board showed a finish rate under the label &ldquo;Last 30 days.&rdquo; It was
-              computed as done ÷ all tasks, ever — no date filter anywhere in it.
+              The distinction is real — a task is work the household can redistribute, an event is a
+              booked slot with a body in it — but it is <em>our</em> distinction, and asking made it
+              the user&rsquo;s problem. Nobody adding &ldquo;dentist, Thursday&rdquo; is thinking
+              about whether it is redistributable. They are thinking about the dentist.
             </p>
             <p>
-              For months this looked perfectly reasonable, because the seeded household only had a
-              few days of history and the two numbers happened to agree. It only became a lie when the
-              trend chart arrived and backfilled months of completed work: the figure drifted toward 100%
-              and stayed there, because finished history accumulates and open work doesn&rsquo;t.
+              So the app classifies instead. Vocabulary, a named plan, a social arrangement, an
+              amount of money — enough signal to decide, then say the decision out loud in the
+              readback where it can be corrected in one tap. The choice didn&rsquo;t move; it
+              stopped being asked.
             </p>
           </>
         }
-        mattered="The bug was written long before it was wrong. Nothing about the code changed on the day it started lying — the data grew into it. That's the kind of fault a test written against a small fixture will never catch."
+        rule="Never make somebody understand our internal split to use the product. Infer it, state the inference in plain words, and make the correction cheap. The user types one sentence — the app decides what kind of thing it just heard."
       >
-        <Frame tone="before" caption="done ÷ every task ever recorded">
-          <Stat pct={92} label="Last 30 days" sub="No date filter. Rises forever as history accrues." />
-        </Frame>
-        <Frame tone="after" caption="completed in-window ÷ (completed + still open) in-window">
-          <Stat pct={72} label="This month" sub="Windowed — and the label now names the window it uses." />
-        </Frame>
-      </Story>
-
-      <Story
-        n={4}
-        title="A comment that manufactured the bug it warned about"
-        rule="document a class-name collision by describing it, never by spelling it."
-        reading={
-          <>
-            <p>
-              Moving the design tokens into their own module was meant to be a pure refactor. The generated
-              CSS was byte-compared before and after to prove it — and it came back{" "}
-              <b className="text-white">73 bytes heavier</b>.
-            </p>
-            <p>
-              The extra bytes were a real utility class, built from a <em>comment</em>. Tailwind&rsquo;s
-              content scanner reads raw file text, so the moment a note explaining that an elevation named{" "}
-              <em>card</em> would collide with the colour of the same name moved into a scanned file, the
-              scanner treated the spelled-out example as a class someone wanted and emitted it.
-            </p>
-          </>
-        }
-        mattered="It's the smallest defect here and the one most worth keeping. Nobody would have noticed 73 bytes; it was only caught because the refactor was verified by comparing output rather than by reading the diff and feeling confident."
-      >
-        <Frame tone="before" caption="the warning, spelled out in a scanned file">
-          <pre tabIndex={0} className="no-scrollbar overflow-x-auto whitespace-pre-wrap break-words text-[11px] leading-[17px] text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink">
-{`/* names must not collide, or Tailwind
-   reads \`shadow-card\` as a COLOUR */`}
-          </pre>
-          {/* The tint carries the "this is the bad one" signal; the text stays
-              ink. Danger-on-danger-tint measured 4.32:1 — under AA for 11px. */}
-          <p className="mt-3 rounded-md bg-danger/10 px-3 py-2 font-mono text-[11px] text-ink">
-            + .shadow-card&#123;--tw-shadow-color:#fff&#125;
-            <span className="mt-1 block text-sub">39,574 bytes — 73 more than before</span>
-          </p>
-        </Frame>
-        <Frame tone="after" caption="the same warning, describing rather than quoting">
-          <pre tabIndex={0} className="no-scrollbar overflow-x-auto whitespace-pre-wrap break-words text-[11px] leading-[17px] text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-ink">
-{`/* an elevation named \`card\` would make
-   Tailwind build a white shadow instead */`}
-          </pre>
-          <p className="mt-3 rounded-md bg-lemon/25 px-3 py-2 font-mono text-[11px] text-ink">
-            no extra rules
-            <span className="mt-1 block text-sub">39,501 bytes — byte-identical to before</span>
-          </p>
-        </Frame>
-      </Story>
-
-      <Story
-        n={5}
-        title="Two true sentences that couldn't both be true"
-        rule="&ldquo;caught up&rdquo; means the day is clear, not that one list is empty."
-        reading={
-          <>
-            <p>
-              Finish your last task while two events still overlap, and the phone said{" "}
-              <em>You&rsquo;re all caught up</em> directly above a warning that you were double-booked.
-              Both lines were correct in isolation. Together they were nonsense.
-            </p>
-            <p>
-              The greeting was reading one list — open tasks — and calling it the day. The clash detector
-              was reading the calendar. Nothing was broken; the two had simply never been asked to agree
-              on what &ldquo;clear&rdquo; meant.
-            </p>
-          </>
-        }
-        mattered="A product that contradicts itself in the same glance stops being trusted for the things it gets right. This one only appeared after finishing every task — the state a demo rarely reaches and a real Tuesday evening reaches constantly."
-      >
-        <Frame tone="before" caption="two lines, one screen">
-          <div className="rounded-md bg-lemon p-4">
-            <p className="font-tight text-[26px] leading-tight text-ink">
-              You&rsquo;re all <span className="font-medium">caught up</span>
-            </p>
-            <p className="mt-3 flex items-center gap-1.5 text-bodysm font-medium text-danger">
-              You&rsquo;re double-booked <Icon name="high" size={14} />
-            </p>
+        <Frame tone="before" caption="the user resolves our data model first">
+          <div className="space-y-3">
+            <div className="flex gap-1.5">
+              <span className="flex-1 rounded-pill bg-ink px-3 py-2 text-center text-micro font-semibold text-white">Task</span>
+              <span className="flex-1 rounded-pill bg-surface px-3 py-2 text-center text-micro font-medium text-sub">Event</span>
+            </div>
+            <div className="rounded-md bg-surface px-3 py-2.5 text-bodysm text-sub">What needs doing?</div>
+            <p className="text-micro text-sub">Two forms behind two different words for &ldquo;a thing on Thursday&rdquo;.</p>
           </div>
         </Frame>
-        <Frame tone="after" caption="the headline defers to the calendar">
-          <div className="rounded-md bg-lemon p-4">
-            <p className="font-tight text-[26px] leading-tight text-ink">
-              Nothing to <span className="font-medium">tick off</span>
-              <span className="block">for today</span>
+        <Frame tone="after" caption="one field; the app says what it heard">
+          <div className="space-y-3">
+            <div className="rounded-md bg-surface px-3 py-2.5 text-bodysm font-medium text-ink">
+              Leo&rsquo;s dentist Thursday at 4
+            </div>
+            <div className="rounded-md bg-card p-3 shadow-e1">
+              <b className="block text-bodysm text-ink">Leo&rsquo;s dentist</b>
+              <p className="mt-1 flex flex-wrap items-center gap-1 text-micro text-sub">
+                <Icon name="spark" size={11} className="text-ink" />
+                <span className="text-ink">Thursday</span>·<span className="text-ink">4:00 PM</span>·
+                <span className="text-ink">Leo</span>
+              </p>
+              <p className="mt-1.5 flex items-center gap-1 text-micro text-sub">
+                <Icon name="pin" size={11} /> Just Leo — this one can&rsquo;t be handed off.
+              </p>
+            </div>
+          </div>
+        </Frame>
+      </Story>
+
+      {/* 04 ─────────────────────────────────────────────────────────────── */}
+      <Story
+        n={4}
+        title="The iPad stopped being a bigger phone"
+        belief="one responsive application, two breakpoints. The tablet is the phone with more room — the same screens, laid out wider."
+        broke={
+          <>
+            <p>
+              The two devices are not two sizes of one reader. A phone is in a pocket and belongs to
+              a person: it should answer <em>what do I owe the house today</em>. The iPad is on a
+              wall in a kitchen and belongs to the room: nobody is logged into it, and the question
+              it answers is <em>how is this household doing</em>.
             </p>
-            <p className="mt-3 flex items-center gap-1.5 text-bodysm font-medium text-danger">
-              You&rsquo;re double-booked <Icon name="high" size={14} />
+            <p>
+              Once that was said out loud the layouts stopped being versions of each other. The
+              board grew a screen the phone doesn&rsquo;t have (the whole household, by person, with
+              the load between them) and lost the one the phone is built around (a personal tab —
+              the iPad is never a person). The phone kept the day; the iPad got the week on the wall.
             </p>
+          </>
+        }
+        rule="They are two applications over one truth, not one application at two widths. A screen exists on a surface because that surface's question needs it — the shared tab list is a coincidence, not a requirement."
+      >
+        <Frame tone="before" caption="the same personal list, stretched">
+          <div className="flex gap-3">
+            <div className="w-[86px] shrink-0 space-y-1.5 rounded-md bg-surface p-2">
+              <Bar w="60%" h={7} tone="mute" />
+              <Bar w="100%" h={16} tone="lemon" />
+              <Bar w="100%" h={10} tone="mute" />
+              <Bar w="100%" h={10} tone="mute" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1.5 rounded-md bg-surface p-2">
+              <Bar w="40%" h={7} tone="mute" />
+              <Bar w="100%" h={16} tone="lemon" />
+              <Bar w="100%" h={10} tone="mute" />
+              <Bar w="100%" h={10} tone="mute" />
+              <Bar w="70%" h={10} tone="mute" />
+            </div>
+          </div>
+          <p className="mt-2.5 text-micro text-sub">
+            More width, identical information. The room learns nothing the pocket didn&rsquo;t know.
+          </p>
+        </Frame>
+        <Frame tone="after" caption="a different screen, for a different question">
+          <div className="space-y-2">
+            <div className="flex gap-1.5">
+              {["Morning", "Afternoon", "Evening"].map((t) => (
+                <div key={t} className="min-w-0 flex-1 space-y-1.5 rounded-md bg-surface p-2">
+                  <p className="truncate text-[9px] font-bold uppercase tracking-wide text-sub">{t}</p>
+                  <Bar w="100%" h={9} tone="mute" />
+                  <Bar w="80%" h={9} tone="mute" />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 rounded-md bg-surface p-2">
+              {Object.values(colors.member).slice(0, 4).map((c) => (
+                <span key={c} className="h-5 w-5 shrink-0 rounded-pill" style={{ background: c }} />
+              ))}
+              <span className="ml-1 min-w-0 flex-1"><Bar w="100%" h={8} tone="mute" /></span>
+            </div>
+          </div>
+          <p className="mt-2.5 text-micro text-sub">
+            The day by time-of-day, and the people carrying it — neither exists on the phone.
+          </p>
+        </Frame>
+      </Story>
+
+      {/* 05 ─────────────────────────────────────────────────────────────── */}
+      <Story
+        n={5}
+        title="The viewport was never the device"
+        belief="a media query knows how wide the iPad is, so `lg:` and `vh` are the natural way to lay it out — the same tools that work everywhere else on the web."
+        broke={
+          <>
+            <p>
+              The iPad renders at true logical size, 1194 × 834, inside a{" "}
+              <code className="font-mono text-[11px]">transform: scale()</code> that fits it to
+              whatever window is open. Transforms do not affect layout — so a media query reports
+              the <em>browser window</em>, and never once reports the device it is supposedly
+              describing.
+            </p>
+            <p>
+              Which meant the layout was correct only when the window happened to match the iPad.
+              Worse, the failure was silent and analogue: it always rendered something, just the
+              wrong something, so it read as a spacing bug rather than a measurement bug. It came
+              back three separate times before the cause was named — a nav overlapping a card
+              because a <code className="font-mono text-[11px]">vh</code> unit had measured the
+              browser and not the screen the nav floats over.
+            </p>
+          </>
+        }
+        rule="Anything that must know how big the DEVICE is asks a container, not the viewport. Container queries (@[1024px]:) and fixed px only — no lg:, no vh, no vw inside the frame."
+      >
+        <Frame tone="before" caption="a vh-sized element, measured against the browser">
+          <div className="relative h-[104px] overflow-hidden rounded-md bg-surface p-2">
+            <div className="space-y-1.5">
+              <Bar w="55%" h={8} tone="mute" />
+              <Bar w="100%" h={30} tone="lemon" />
+              <Bar w="86%" h={10} tone="mute" />
+            </div>
+            {/* the nav, landing on top of the content it was meant to clear */}
+            <div className="absolute inset-x-6 bottom-3 flex h-8 items-center justify-center rounded-pill bg-ink shadow-e2">
+              <span className="text-[9px] font-bold uppercase tracking-wide text-white">nav</span>
+            </div>
+            <span className="absolute bottom-1 right-2 font-mono text-[9px] text-danger">overlap</span>
+          </div>
+        </Frame>
+        <Frame tone="after" caption="the container answers, so the clearance is real">
+          <div className="relative h-[104px] overflow-hidden rounded-md bg-surface p-2">
+            <div className="space-y-1.5">
+              <Bar w="55%" h={8} tone="mute" />
+              <Bar w="100%" h={24} tone="lemon" />
+              <Bar w="86%" h={8} tone="mute" />
+            </div>
+            <div className="absolute inset-x-6 bottom-3 flex h-8 items-center justify-center rounded-pill bg-ink shadow-e2">
+              <span className="text-[9px] font-bold uppercase tracking-wide text-white">nav</span>
+            </div>
           </div>
         </Frame>
       </Story>

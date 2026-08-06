@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Head, Panel, Sample, Section, Wrap } from "@/case-study/kit";
 import { Hero } from "@/case-study/Hero";
 import { Embed } from "@/case-study/Embed";
+import { Duet } from "@/case-study/Duet";
 import { Stories } from "@/case-study/Stories";
 import {
   ColourSpecimen, ElevationSpecimen, MotionSpecimen, SpaceSpecimen, TypeSpecimen,
@@ -27,26 +28,50 @@ function Figure({ n, label }: { n: string; label: string }) {
   );
 }
 
+/**
+ * A research finding and the decision it produced.
+ *
+ * The link used to sit directly under the quote as a long underlined citrus
+ * sentence, which ran straight into the "Decision it drove" block below it —
+ * two different kinds of text touching, with the loudest colour on the page
+ * marking the least important one. Now the card has four clearly separated
+ * registers: number, quote, who said it, what we did — and the link is a short
+ * footer control at the very bottom, after a rule, sized like a control rather
+ * than like prose.
+ */
 function Finding({
-  source, href, quote, decision,
-}: { source: string; href: string; quote: ReactNode; decision: ReactNode }) {
+  n, source, href, quote, attribution, decision,
+}: {
+  n: number; source: string; href: string;
+  quote: ReactNode; attribution: string; decision: ReactNode;
+}) {
   return (
     <Panel tone="wash" className="flex h-full flex-col">
-      <blockquote className="text-body leading-relaxed text-white/85">{quote}</blockquote>
+      <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-white/60">
+        Finding {String(n).padStart(2, "0")}
+      </p>
+
+      <blockquote className="mt-3 border-l-2 border-lemon pl-4 text-body leading-relaxed text-white/90">
+        {quote}
+      </blockquote>
+      <p className="mt-3 pl-4 text-micro leading-[16px] text-white/60">{attribution}</p>
+
+      <div className="mt-6 rounded-md bg-lemon/[.10] p-3">
+        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-lemon">
+          The decision it drove
+        </p>
+        <p className="mt-2 text-bodysm leading-relaxed text-white">{decision}</p>
+      </div>
+
       <a
         href={href}
         target="_blank"
         rel="noreferrer noopener"
-        className="mt-3 inline-block text-micro font-medium text-lemon underline decoration-lemon/40 underline-offset-4 hover:decoration-lemon"
+        className="mt-auto flex items-center gap-1.5 border-t border-white/12 pt-4 text-micro font-medium text-white/60 transition-colors hover:text-lemon"
       >
-        {source}
+        <span className="min-w-0 truncate">{source}</span>
+        <span className="shrink-0 text-lemon">↗</span>
       </a>
-      <div className="mt-auto border-t border-white/12 pt-4">
-        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-white/60">
-          Decision it drove
-        </p>
-        <p className="mt-2 text-bodysm leading-relaxed text-white">{decision}</p>
-      </div>
     </Panel>
   );
 }
@@ -97,6 +122,24 @@ export default function CaseStudy() {
         </div>
       </Section>
 
+      <Section id="surfaces">
+        <Head
+          label="One household, two surfaces"
+          title="The iPad isn&rsquo;t the phone made bigger"
+          standfirst={
+            <>
+              A phone is in a pocket and belongs to a person; the board is on a wall and belongs to
+              the room. They ask different questions, so they are different applications — over one
+              store. Both are running below, at the same time. Play the walkthrough and watch each
+              one answer the other.
+            </>
+          }
+        />
+        <div className="mt-10">
+          <Duet />
+        </div>
+      </Section>
+
       {/* ── WHY THIS EXISTS ─────────────────────────────────────────────── */}
       <Section id="why">
         <Head
@@ -111,17 +154,11 @@ export default function CaseStudy() {
         />
         <div className="mt-10 grid gap-tile md:grid-cols-3">
           <Finding
-            source="MIT Technology Review — “Chore apps were meant to make mothers’ lives easier. They often don’t.”"
+            n={1}
+            source="MIT Technology Review — “Chore apps were meant to make mothers’ lives easier”"
             href="https://www.technologyreview.com/2022/05/10/1051954/chore-apps/"
-            quote={
-              <>
-                &ldquo;The work in managing the app is still going to be seen as women&rsquo;s
-                work.&rdquo;
-                <span className="mt-2 block text-bodysm text-white/60">
-                  — Jaclyn Wong, sociologist, University of South Carolina
-                </span>
-              </>
-            }
+            attribution="Jaclyn Wong, sociologist, University of South Carolina"
+            quote={<>The work in managing the app is still going to be seen as women&rsquo;s work.</>}
             decision={
               <>
                 The app assigns; the person doesn&rsquo;t delegate. Adding a task names an owner and
@@ -131,13 +168,14 @@ export default function CaseStudy() {
             }
           />
           <Finding
-            source="MIT Technology Review, citing sociologist Allison Daminger on the four-step cycle of invisible labour"
+            n={2}
+            source="MIT Technology Review, on Allison Daminger’s four-step cycle of invisible labour"
             href="https://www.technologyreview.com/2022/05/10/1051954/chore-apps/"
+            attribution="Allison Daminger, sociologist — anticipate, identify options, decide, monitor"
             quote={
               <>
-                Apps focus on the visible, physical chores and overlook the cognitive work —
-                anticipating needs, identifying options, deciding, and monitoring — which is the part
-                that never stops.
+                Apps focus on the visible, physical chores and overlook the cognitive work — the
+                part that never stops.
               </>
             }
             decision={
@@ -149,8 +187,10 @@ export default function CaseStudy() {
             }
           />
           <Finding
+            n={3}
             source="Ecovillages AU — “Why do we design for the nuclear family?”"
             href="https://www.ecovillages.au/post/why-do-we-design-for-the-nuclear-family"
+            attribution="On the “cereal packet” family that most products still assume"
             quote={
               <>
                 The mum-dad-two-kids picture is a particular arrangement from a particular time and
@@ -279,34 +319,77 @@ expect(REPO.commits).toBeLessThanOrEqual(fresh.commits);`}
           standfirst={
             <>
               {AUDIT.tool} against the {AUDIT.ruleset} ruleset, run on this page in a real browser at{" "}
-              {AUDIT.viewports.join(" and ")}, {AUDIT.date}.
+              {AUDIT.viewports.join(" and ")}, {AUDIT.date} — with {AUDIT.measuredWith}. That
+              condition is the worst case, and it&rsquo;s stated because the same run at 390 wide
+              returns zero: true, and misleading on its own.
             </>
           }
         />
         <div className="mt-10 grid gap-tile md:grid-cols-[auto_minmax(0,1fr)] md:items-start">
-          <Panel tone="lemon" className="md:w-[280px]">
-            <p className="font-tight text-[64px] leading-none tracking-tight text-ink tabular-nums">
-              {AUDIT.violations}
-            </p>
-            <p className="mt-2 text-bodysm font-medium text-ink">
-              automated violations, both viewports
-            </p>
-            <p className="mt-1 text-micro text-ink/75">{AUDIT.serious} serious or critical</p>
-          </Panel>
+          <div className="grid gap-tile md:w-[280px]">
+            <Panel tone="lemon">
+              <p className="font-tight text-[56px] leading-none tracking-tight text-ink tabular-nums">
+                {AUDIT.page.violations}
+              </p>
+              <p className="mt-2 text-bodysm font-medium text-ink">
+                violations in this page&rsquo;s own chrome
+              </p>
+              <p className="mt-1 text-micro text-ink/75">type, cards, specimens, hero, controls</p>
+            </Panel>
+            {/* The second number is the point. Rounding these into the first
+                would let the article hide behind the product. */}
+            <Panel tone="wash">
+              <p className="font-tight text-[56px] leading-none tracking-tight text-white tabular-nums">
+                {AUDIT.product.nodes}
+              </p>
+              <p className="mt-2 text-bodysm font-medium text-white">
+                elements failing inside the embedded product
+              </p>
+              <p className="mt-1 text-micro text-white/60">
+                all one rule — colour contrast — worst {AUDIT.product.worst}:1
+              </p>
+            </Panel>
+          </div>
           <Panel tone="wash">
-            <p className="text-bodysm font-medium text-white">What the number does not mean</p>
-            <ul className="mt-3 space-y-2.5 text-bodysm leading-relaxed text-white/60">
+            <p className="text-bodysm font-medium text-white">
+              What the embedded product is failing on — and what neither number means
+            </p>
+
+            {/* Named, not summarised. A count with no list is a number you can't
+                act on, and the whole reason to split the figures was to stop
+                the failures disappearing into an average. */}
+            <ul className="mt-3 space-y-2.5 border-b border-white/12 pb-4">
+              {AUDIT.product.findings.map((f) => (
+                <li key={f.what} className="text-bodysm leading-relaxed text-white/60">
+                  <span className="font-medium text-white">{f.what}</span>{" "}
+                  <span className="whitespace-nowrap font-mono text-[11px] text-lemon">{f.ratio}</span>
+                  <span className="mt-0.5 block">{f.why}</span>
+                </li>
+              ))}
+            </ul>
+
+            <ul className="mt-4 space-y-2.5 text-bodysm leading-relaxed text-white/60">
+              <li>
+                <b className="text-white/80">Two of those were fixed in the palette, and shipped.</b>{" "}
+                Writing the contrast tests for this page turned them on the product and found{" "}
+                <code className="font-mono text-[12px] text-white/75">sub</code> at 3.28:1 on a
+                lavender card and <code className="font-mono text-[12px] text-white/75">danger</code>{" "}
+                at 3.91:1 on white. Both swatches were darkened rather than the text lightened. The
+                misses listed above are the ones that remain — opacity applied to good tokens, and
+                one genuine bug — and they belong to the a11y pass still on the backlog.
+              </li>
               <li>
                 <b className="text-white/80">It isn&rsquo;t &ldquo;accessible.&rdquo;</b> Automated
                 rules catch a minority of WCAG criteria. Nobody has tested this page with a screen
                 reader end to end, and no assistive-technology user has reviewed it.
               </li>
               <li>
-                <b className="text-white/80">On the iPad journeys, the embedded app adds a second
-                heading-one</b> to this document — the family board greets the room, and that greeting
-                is its page title. The phone journeys add none. It&rsquo;s a consequence of mounting a
-                whole application inside an article, not a WCAG failure, and hiding it would
-                misrepresent the page — so a test pins the count instead of papering over it.
+                <b className="text-white/80">The mounted boards add heading-ones of their own.</b>{" "}
+                Each iPad shell greets the room, and that greeting is its page title — so with the
+                embed and the two-surface section this document can carry three: the headline you
+                started at, plus up to two boards. Multiple h1s are valid HTML5 and axe reports
+                nothing, but the count is pinned by a test rather than suppressed, because the
+                honest thing is to know the number.
               </li>
               <li>
                 <b className="text-white/80">Contrast is checked at the worst case,</b> not the

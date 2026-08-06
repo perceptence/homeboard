@@ -12,6 +12,7 @@ import { Sheets } from "@/surfaces/Sheets";
 import { IpadShell } from "@/surfaces/ipad/IpadShell";
 import { PhoneShell } from "@/surfaces/phone/PhoneShell";
 import { Label } from "./kit";
+import { useInView } from "./useInView";
 
 /** The screen the section opens on. A real, populated screen — see below. */
 export const DEFAULT_JOURNEY = "today";
@@ -80,7 +81,13 @@ export function Embed() {
    * The splash covers the gap, which is what it was built for.
    */
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const root = useRef<HTMLDivElement>(null);
+  /* once:false — this shell UNMOUNTS when you scroll well away from it, and the
+     journey re-runs deterministically when you come back. That is what keeps
+     the page from holding three live applications at the same time, which is
+     enough to stop the browser painting. */
+  const near = useInView(root, { once: false, rootMargin: "800px" });
+  useEffect(() => { setMounted(near); }, [near]);
   const host = useRef<HTMLDivElement>(null);
   const journey: Journey = journeyById(id) ?? journeyById(DEFAULT_JOURNEY) ?? FEATURED[0];
 
@@ -116,25 +123,65 @@ export function Embed() {
   const isPhone = journey.surface === "phone";
 
   return (
-    <div className="grid gap-tile lg:grid-cols-[minmax(0,1fr)_320px] lg:items-stretch">
-      {/* THE DEVICE, unboxed. No fill, no ring, no rounded container — the
-          hardware already has an edge of its own, and wrapping a drawn device in
-          a second frame gives the eye two competing borders to read. It sits
-          straight on the page with room around it.
+    <div ref={root}>
+      {/* THE CHOOSER, ABOVE THE STAGE.
+          It used to be a column beside the device, which put a tall list of
+          text next to a tall picture and left both fighting for the same
+          vertical rhythm — nothing aligned to anything. Chips across the top
+          have one baseline, one row per surface, and they leave the device the
+          full width underneath. */}
+      {SURFACE_GROUPS.map((g) => {
+        const items = FEATURED.filter((j) => j.surface === g.surface);
+        if (!items.length) return null;
+        return (
+          <div key={g.surface} className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-baseline sm:gap-4">
+            <div className="shrink-0 sm:w-[164px]">
+              <Label className="!text-white/60">{g.title}</Label>
+            </div>
+            <ul className="flex min-w-0 flex-wrap gap-1.5">
+              {items.map((j) => {
+                const on = j.id === journey.id;
+                return (
+                  <li key={j.id}>
+                    <button
+                      onClick={() => setId(j.id)}
+                      aria-current={on ? "true" : undefined}
+                      className={clsx(
+                        "rounded-pill px-3.5 py-2 text-bodysm font-medium transition-colors",
+                        on
+                          ? "bg-lemon text-ink"
+                          : "bg-white/[.07] text-white/70 hover:bg-white/[.14] hover:text-white",
+                      )}
+                    >
+                      {j.label}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
 
-          The host box is still what the frame MEASURES: it fills the grid row
-          and the device scales down to fit. Nothing here measures the device to
-          size the row, which is what keeps it from feeding back. */}
-      <div className="flex min-h-[520px] flex-col gap-3 overflow-hidden py-tile">
-        {/* In normal flow, not floated over the device. Absolutely positioned it
-            sat on the phone's own status bar as soon as the column narrowed —
-            a label about the app covering part of the app. */}
-        <span className="flex w-fit items-center gap-2 rounded-pill bg-lemon px-3 py-1.5 font-mono text-micro font-bold uppercase tracking-[0.12em] text-ink">
-          <span className="h-1.5 w-1.5 rounded-pill bg-ink" />
-          Live — the real app
-        </span>
+      {/* THE STAGE.
+          A LIGHT surface under the device, and specifically the product's own
+          `bg-room` gradient. A near-black phone on a near-black page over a
+          near-black app background was three blacks in a stack: the hardware
+          had no silhouette and the whole section read as a smudge. The device
+          now sits on the same backdrop the app sits on in its own preview,
+          which is both the fix and the honest choice of surface. */}
+      <div className="overflow-hidden rounded-card bg-room ring-1 ring-inset ring-ink/10">
+        <div className="flex items-center justify-between gap-3 px-inner pt-inner">
+          <span className="flex items-center gap-2 rounded-pill bg-ink px-3 py-1.5 font-mono text-micro font-bold uppercase tracking-[0.12em] text-lemon">
+            <span className="h-1.5 w-1.5 rounded-pill bg-lemon" />
+            Live — the real app
+          </span>
+          <span className="truncate text-micro text-sub">
+            {journey.surface === "phone" ? "iPhone 17 Pro · 402 × 874" : "iPad Pro 11\" · 1194 × 834"}
+          </span>
+        </div>
 
-        <div ref={host} className="flex min-h-0 w-full flex-1 items-center justify-center">
+        <div ref={host} className="flex h-[360px] w-full items-center justify-center px-inner py-tile sm:h-[460px]">
           <MotionConfig reducedMotion="user">
             <DeviceFrame
               kind={isPhone ? "phone" : "tablet"}
@@ -162,49 +209,11 @@ export function Embed() {
         </div>
       </div>
 
-      {/* THE JOURNEYS, grouped by SURFACE.
-          A flat list of twelve screens made the device appear to change at
-          random. Grouping by the surface each one belongs to is the product's
-          own thesis made navigable — one household, two lenses — and it means
-          the frame swapping from phone to tablet is something the reader
-          chose rather than something that happened to them. Each group's
-          per-journey `surface` tag is gone with it: the heading says it once. */}
-      <div className="flex flex-col gap-5">
-        {SURFACE_GROUPS.map((g) => {
-          const items = FEATURED.filter((j) => j.surface === g.surface);
-          if (!items.length) return null;
-          return (
-            <div key={g.surface} className="min-w-0">
-              <Label className="!text-white/60">
-                {g.title} · {items.length}
-              </Label>
-              <p className="mt-1 text-micro leading-[16px] text-white/60">{g.note}</p>
-              <ul className="mt-2.5 flex flex-col gap-1">
-                {items.map((j) => {
-                  const on = j.id === journey.id;
-                  return (
-                    <li key={j.id}>
-                      <button
-                        onClick={() => setId(j.id)}
-                        aria-current={on ? "true" : undefined}
-                        className={clsx(
-                          "w-full rounded-md px-3 py-2.5 text-left transition-colors",
-                          on ? "bg-lemon text-ink" : "text-white/70 hover:bg-white/10 hover:text-white",
-                        )}
-                      >
-                        <span className="block text-bodysm font-medium">{j.label}</span>
-                        <span className={clsx("mt-0.5 block text-micro leading-[16px]", on ? "text-ink/75" : "text-white/60")}>
-                          {j.blurb}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          );
-        })}
-      </div>
+      {/* The active journey's one line, under the stage — so the caption sits
+          with the thing it captions instead of in a list somewhere else. */}
+      <p className="mt-3 text-bodysm text-white/60">
+        <span className="font-medium text-white">{journey.label}</span> — {journey.blurb}
+      </p>
     </div>
   );
 }
