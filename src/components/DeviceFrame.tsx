@@ -156,13 +156,25 @@ export function DeviceFrame({
   /** Fit to this element instead of the window — see `useFit`. */
   host?: React.RefObject<HTMLElement | null>;
 }) {
-  return kind === "phone" ? (
-    // Centred in the leftover space — a phone floats; the tablet sits.
+  /**
+   * BOTH devices centre in the leftover space, on one wrapper.
+   *
+   * The phone used to get this treatment and the tablet didn't — "a phone
+   * floats; the tablet sits" — which reads fine when only one is ever on
+   * screen and wrong the moment you switch between them. The two fit to the
+   * same height, so sitting one at the top of the column and centring the
+   * other put the gap under the preview bar at 8px for the tablet and 37px
+   * for the phone: the chrome appeared to jump every time the surface
+   * changed. One wrapper, one rule, and the device stays put.
+   */
+  return (
     <div className="flex min-h-0 w-full flex-1 items-center justify-center">
-      <PhoneChrome chromeGap={chromeGap} host={host}>{children}</PhoneChrome>
+      {kind === "phone" ? (
+        <PhoneChrome chromeGap={chromeGap} host={host}>{children}</PhoneChrome>
+      ) : (
+        <TabletFrame chromeGap={chromeGap} orientation={orientation} host={host}>{children}</TabletFrame>
+      )}
     </div>
-  ) : (
-    <TabletFrame chromeGap={chromeGap} orientation={orientation} host={host}>{children}</TabletFrame>
   );
 }
 

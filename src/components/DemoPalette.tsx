@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/Icons";
@@ -58,6 +59,22 @@ export function DemoPalette({ floating = false }: { floating?: boolean }) {
   const listRef = useRef<HTMLDivElement>(null);
   /** Where focus came from, so closing puts it back rather than at the top. */
   const openerRef = useRef<HTMLElement | null>(null);
+  /**
+   * The overlay renders into <body>, and it MUST.
+   *
+   * `position: fixed` resolves against the viewport only while no ancestor has
+   * a transform, filter or backdrop-filter — any of those become the containing
+   * block instead. The trigger sits inside the preview bar, and that bar is
+   * `backdrop-blur`. So `fixed inset-0` measured the BAR: an 844 x 108 box at
+   * (298, 8) rather than the window. The dim layer became a translucent black
+   * rectangle sitting across the bar, and the palette's centring was accidental
+   * — it only looked right because the bar happens to be centred and wide.
+   *
+   * A portal is the fix rather than moving the trigger, because the trigger
+   * belongs in that bar and any ancestor anywhere could grow a filter later.
+   */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const results = useMemo(() => ORDERED.filter((j) => matches(j, query)), [query]);
 
@@ -129,6 +146,7 @@ export function DemoPalette({ floating = false }: { floating?: boolean }) {
         </kbd>
       </button>
 
+      {mounted && createPortal(
       <AnimatePresence>
         {open && (
           <motion.div
@@ -224,7 +242,9 @@ export function DemoPalette({ floating = false }: { floating?: boolean }) {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body,
+      )}
     </>
   );
 }
