@@ -103,9 +103,14 @@ export default function CaseStudy() {
         </div>
       </Section>
 
-      {/* ── THE PRODUCT, RUNNING ────────────────────────────────────────── */}
-      <Section id="product">
-        <Head
+      {/* ── THE PRODUCT, RUNNING ──────────────────────────────────────────
+          The one section that isn't wrapped whole. Its heading keeps the page's
+          single content width; the stage below deliberately runs edge to edge,
+          because the margin that opens either side of the centred devices is
+          where their controls stand. See the note in Embed. */}
+      <section id="product" data-section className="py-16 sm:py-24">
+        <Wrap>
+          <Head
           label="The product, running"
           title="Not a screenshot &mdash; and not one device"
           standfirst={
@@ -114,13 +119,14 @@ export default function CaseStudy() {
               and reading one store. They are not two sizes of one screen — the board answers
               &ldquo;how is the house doing&rdquo;, the phone answers &ldquo;what do I owe it
               today&rdquo;. Steer each with its own controls; the address bar follows both.
-            </>
-          }
-        />
+              </>
+            }
+          />
+        </Wrap>
         <div className="mt-10">
           <Embed />
         </div>
-      </Section>
+      </section>
 
       {/* ── TWO SURFACES — PARKED ────────────────────────────────────────
           A directed "scene" used to live here: both shells side by side with a

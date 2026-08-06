@@ -5,9 +5,10 @@ import clsx from "clsx";
 import { MotionConfig } from "framer-motion";
 import { DeviceFrame } from "@/components/DeviceFrame";
 import { Splash } from "@/components/Splash";
-import { Toast } from "@/components/ui";
-import { useHousehold } from "@/lib/store";
+import { Avatar, Toast } from "@/components/ui";
+import { doers, useHousehold } from "@/lib/store";
 import type { IpadRoute, MemberId, PhoneRoute } from "@/lib/types";
+import { ROLE_LABEL } from "@/lib/types";
 import { FEATURED, journeyById, type Journey } from "@/lib/journeys";
 import { Sheets } from "@/surfaces/Sheets";
 import { IpadShell } from "@/surfaces/ipad/IpadShell";
@@ -106,7 +107,13 @@ export function Embed() {
     // Be in the seeded household before pointing the persona at maya/sam/leo.
     if (!g0.setupComplete || !g0.members.maya) g0.skipOnboarding();
     const g = useHousehold.getState();
-    g.setPersona(j.persona === "ipad" ? "maya" : (j.persona as MemberId));
+    /* Whoever the reader picked stays picked. Only journeys that PIN a person
+       override it — handing work over needs someone with too much on, the
+       school run needs the parent doing it. Everything else is nicer to browse
+       as whoever you're currently being. */
+    const declared = j.persona === "ipad" ? "maya" : (j.persona as MemberId);
+    const held = g.persona !== "ipad" && g.members[g.persona] ? (g.persona as MemberId) : null;
+    g.setPersona(j.pinPersona || !held ? declared : held);
     g.goPhone(j.route as PhoneRoute);
     if (j.sheet) { own("phone"); g.openSheet({ type: j.sheet } as never); }
     // Only close what THIS device opened — otherwise picking a board screen
@@ -159,72 +166,20 @@ export function Embed() {
   const clearToast = useCallback(() => useHousehold.getState().notify(null), []);
 
   /**
-   * A device's two blocks — its heading-and-controls, and its hardware.
+   * Each device contributes THREE blocks, placed into explicit grid rows:
+   * a title, the hardware, and its controls.
    *
-   * They're returned SEPARATELY, and placed into explicit grid rows below,
-   * because the two columns' headings are different heights: let them share a
-   * flow and one device starts lower than the other. With headings pinned to
-   * row 1 and hardware to row 2, row 1 takes the taller heading and both
-   * devices begin on the same line — and since both hosts are given the same
-   * height, they end on one too.
+   * The controls sit BELOW the devices for a structural reason. When they were
+   * above, the two columns' control blocks were different heights — five phone
+   * doings wrap further than four board ones — so the shared row took the
+   * taller of the two and left 130 measured pixels of nothing between the iPad's
+   * caption and the iPad. Titles are short and near-identical in height, so
+   * putting them in the top row costs nothing; the variable-height half now
+   * hangs off the bottom, where being uneven is invisible.
    *
-   * Not components: called as `{head("ipad")}`, so React sees plain elements
+   * Not components: called as `{title("ipad")}`, so React sees plain elements
    * and never remounts a live app shell because a sibling's state moved.
    */
-  const head = (side: "phone" | "ipad") => {
-    const group = SURFACE_GROUPS.find((g) => g.surface === side)!;
-    const items = FEATURED.filter((j) => j.surface === side);
-    const chosen = side === "phone" ? phoneId : boardId;
-    const set = side === "phone" ? setPhoneId : setBoardId;
-
-    return (
-      <div
-        className={clsx(
-          "flex min-w-0 flex-col",
-          side === "ipad" ? "lg:col-start-1" : "lg:col-start-2",
-          "lg:row-start-1",
-        )}
-      >
-        <p className="font-mono text-micro font-bold uppercase tracking-[0.14em] text-ink">
-          {group.title}
-        </p>
-        <p className="mt-1 text-micro leading-[16px] text-sub">{group.note}</p>
-
-        {/* THINGS TO DO — not a copy of the nav. Each device already draws its
-            own tabs; these are the moments worth jumping straight to, and each
-            one either opens something or goes somewhere the tabs can't. */}
-        <ul className="mt-3 flex flex-wrap gap-1.5">
-          {items.map((j) => {
-            const on = j.id === chosen;
-            return (
-              <li key={j.id}>
-                <button
-                  onClick={() => set(on ? null : j.id)}
-                  aria-pressed={on}
-                  title={j.blurb}
-                  className={clsx(
-                    "rounded-pill px-3 py-1.5 text-bodysm font-medium transition-colors",
-                    on ? "bg-ink text-white" : "bg-white/70 text-ink hover:bg-white",
-                  )}
-                >
-                  {j.label}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-
-        {/* One line about whatever was chosen — or a reminder that the device's
-            own navigation is live, which is the point of not duplicating it. */}
-        <p className="mt-2.5 min-h-[32px] text-micro leading-[16px] text-sub">
-          {chosen
-            ? (side === "phone" ? phoneJourney : boardJourney).blurb
-            : "Resting on its home screen — its tabs are live, so you can wander it yourself."}
-        </p>
-      </div>
-    );
-  };
-
   const device = (side: "phone" | "ipad") => {
     const host = side === "phone" ? phoneHost : padHost;
     const current = side === "phone" ? phoneJourney : boardJourney;
@@ -234,13 +189,13 @@ export function Embed() {
         ref={host}
         onPointerDownCapture={() => own(side)}
         className={clsx(
-          // One height for both, so the two devices share a bottom edge as well
-          // as a top one. The columns are sized 3:1 — the ratio of the two
-          // frames' widths at equal height — so each is bound by height and
-          // fills it, rather than one floating small inside a roomy column.
-          "flex h-[380px] w-full items-center justify-center sm:h-[480px] lg:h-[560px]",
-          side === "ipad" ? "lg:col-start-1" : "lg:col-start-2",
-          "lg:row-start-2",
+          // ONE height for both, so they share a bottom edge as well as a top
+          // one, and the columns are sized 3:1 — the ratio of the two frames'
+          // widths at equal height — so each is bound by height and fills it.
+          // Where the rails leave less room, DeviceFrame falls back to being
+          // width-bound and both simply scale together.
+          "flex h-[360px] w-full items-center justify-center sm:h-[480px] lg:h-[620px]",
+          side === "ipad" ? "col-start-1" : "col-start-2",
         )}
       >
         <DeviceFrame
@@ -270,15 +225,197 @@ export function Embed() {
     );
   };
 
+  /** The person switcher — the phone's, and only the phone's. */
+  const people = (align: "start" | "end" | "inline") => (
+    <div
+      className={clsx(
+        "flex flex-wrap items-center gap-1.5",
+        align === "end" && "justify-end",
+      )}
+    >
+      {doers(s).map((m) => {
+        const on = s.persona === m.id;
+        return (
+          <button
+            key={m.id}
+            onClick={() => { own("phone"); useHousehold.getState().setPersona(m.id); }}
+            aria-pressed={on}
+            title={`${m.name} — ${ROLE_LABEL[m.role]}`}
+            className={clsx(
+              "flex items-center gap-1.5 rounded-pill py-1 pl-1 pr-2.5 text-micro font-medium transition-colors",
+              on ? "bg-ink text-white" : "bg-white/60 text-ink hover:bg-white",
+            )}
+          >
+            <Avatar member={m} size={22} />
+            {m.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const doingButton = (j: Journey, side: "phone" | "ipad", full = false) => {
+    const chosen = side === "phone" ? phoneId : boardId;
+    const set = side === "phone" ? setPhoneId : setBoardId;
+    const on = j.id === chosen;
+    return (
+      <button
+        key={j.id}
+        onClick={() => set(on ? null : j.id)}
+        aria-pressed={on}
+        title={j.blurb}
+        className={clsx(
+          /* micro, not bodysm. The scale's next step down is 14 → 12 with
+             nothing between, and 12 is what makes the longest label — "Leave
+             for the school run", 144px — sit on one line in a rail narrow
+             enough to fit the margin. It also settles an inconsistency in the
+             band below, where these sat at 14 directly beside the people pills
+             at 12. nowrap so a subpixel measurement can never re-break them.
+
+             h-30 is not a magic number: it is the height of a people pill,
+             which gets it from a 22px avatar inside py-1. These two kinds of
+             pill sit in the same column and the same inline row, so they have
+             to agree, and the one carrying a portrait is the one that can't
+             give. */
+          "inline-flex h-[30px] items-center justify-center whitespace-nowrap rounded-pill px-2 text-micro font-medium transition-colors",
+          /* In a rail every pill is stretched to the column, so the labels are
+             centred rather than ragged against one edge — the pills themselves
+             already form the straight edge the rail needs. */
+          full && "w-full",
+          on ? "bg-ink text-white" : "bg-white/70 text-ink hover:bg-white",
+        )}
+      >
+        {j.label}
+      </button>
+    );
+  };
+
+  /**
+   * A RAIL — a device's label, its doings, and its caption, standing in the
+   * margin beside it.
+   *
+   * This is what the full-bleed backdrop is for. The devices stay centred on
+   * the page's own content width; the lavender runs edge to edge past them, and
+   * the space that opens either side is exactly where these belong — each group
+   * touching the device it steers, and no grid row that has to be as tall as
+   * the taller of two unequal stacks. The left rail is right-aligned and the
+   * right rail left-aligned, so both hug their hardware.
+   *
+   * Below 1280 there isn't margin to stand in, and the band underneath takes
+   * over instead.
+   */
+  const rail = (side: "phone" | "ipad") => {
+    const group = SURFACE_GROUPS.find((g) => g.surface === side)!;
+    const items = FEATURED.filter((j) => j.surface === side);
+    const chosen = side === "phone" ? phoneId : boardId;
+    const current = side === "phone" ? phoneJourney : boardJourney;
+    const rightHand = side === "phone";
+
+    return (
+      <aside
+        className={clsx(
+          /* Absolutely placed in the bled margin, OUTSIDE the content column,
+             so the devices can hold the full content width themselves and these
+             still touch the hardware they steer.
+             THE WIDTH AND THE BREAKPOINT ARE THE SAME NUMBER. 164 is the widest
+             pill — a 144px label plus px-2 either side. The offset is negative
+             because `right-full` anchors to this box's BORDER edge while the
+             device starts one px-inner (24px) further in; -8 cancels most of
+             that back to a 16px gap off the glass itself. The rail's outer edge
+             then lands at (vw − 1194) / 2 + 8 − 164, so both rails clear the
+             viewport from 1506px up. The gate is 32 above that, which is the
+             same 16px of air outside the rail as there is inside it — at 1506
+             exactly they'd sit flush against the window. Under the gate, the
+             band beneath the stage takes over instead. */
+          "absolute top-1/2 hidden w-[164px] -translate-y-1/2 flex-col gap-2 min-[1538px]:flex",
+          rightHand ? "left-full -ml-2 items-start text-left" : "right-full -mr-2 items-end text-right",
+        )}
+      >
+        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-ink">
+          {group.title}
+        </p>
+        <p className="text-micro leading-[16px] text-sub">{group.note}</p>
+
+        {side === "phone" && (
+          <>
+            <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-sub">
+              Viewing as
+            </p>
+            {people("start")}
+          </>
+        )}
+
+        <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-sub">
+          Things to do
+        </p>
+        <div className="flex w-full flex-col gap-1.5">
+          {items.map((j) => doingButton(j, side, true))}
+        </div>
+
+        <p className="mt-1 text-micro leading-[16px] text-sub">
+          {chosen ? current.blurb : "Resting on its home screen — its own tabs are live."}
+        </p>
+      </aside>
+    );
+  };
+
+  /** The same controls, stacked under the devices, where there's no margin. */
+  const controlBand = () => {
+    const row = (side: "phone" | "ipad") => {
+      const group = SURFACE_GROUPS.find((g) => g.surface === side)!;
+      const items = FEATURED.filter((j) => j.surface === side);
+      const chosen = side === "phone" ? phoneId : boardId;
+      const current = side === "phone" ? phoneJourney : boardJourney;
+
+      return (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:gap-4">
+          <p className="shrink-0 pt-1 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-ink sm:w-[132px]">
+            {group.title}
+          </p>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {side === "phone" && (
+                <>
+                  {people("inline")}
+                  <span aria-hidden className="mx-1 h-5 w-px bg-ink/15" />
+                </>
+              )}
+              {items.map((j) => doingButton(j, side))}
+            </div>
+            <p className="mt-2 text-micro leading-[16px] text-sub">
+              {chosen ? current.blurb : "Resting on its home screen — its own tabs are live."}
+            </p>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="mx-auto mt-6 flex w-full max-w-[1194px] flex-col gap-4 border-t border-ink/10 px-inner pt-4 min-[1538px]:hidden">
+        {row("ipad")}
+        {row("phone")}
+      </div>
+    );
+  };
+
   return (
     <div ref={root}>
-      {/* THE STAGE — the product's own `bg-room` gradient. Near-black devices on
-          the near-black page had no silhouette; on the backdrop the app itself
-          sits on, the hardware reads as hardware. */}
-      <div className="overflow-hidden rounded-card bg-room p-inner ring-1 ring-inset ring-ink/10">
+      {/* THE STAGE, EDGE TO EDGE.
+          Every other section on this page holds one content width; this one
+          deliberately breaks it, and the exception buys something specific.
+          Running the product's own `bg-room` gradient past the text column
+          opens a margin either side of the centred devices — and that margin is
+          where each device's controls stand, touching the hardware they steer.
+          Boxed to the text width there was nowhere for them to go but above or
+          below, and either way one column ended up as tall as the other's
+          taller stack. (The page's text is still governed by the single width:
+          this stage simply isn't text.) */}
+      <div className="bg-room py-inner ring-1 ring-inset ring-ink/10">
         {/* One badge for the stage, not one per device: both are live, and two
-            identical labels would read as decoration rather than a claim. */}
-        <div className="mb-inner flex items-center justify-between gap-3">
+            identical labels would read as decoration rather than a claim. Held
+            to the page's text width so it lines up with the heading above it,
+            even though the lavender behind it doesn't. */}
+        <div className="mx-auto mb-inner flex w-full max-w-[1194px] items-center justify-between gap-3 px-inner">
           <span className="flex items-center gap-2 rounded-pill bg-ink px-3 py-1.5 font-mono text-micro font-bold uppercase tracking-[0.12em] text-lemon">
             <span className="h-1.5 w-1.5 rounded-pill bg-lemon" />
             Live — the real app
@@ -287,26 +424,37 @@ export function Embed() {
             iPad Pro 11&Prime; · iPhone 17 Pro
           </span>
         </div>
-        <MotionConfig reducedMotion="user">
-          <div className="grid gap-x-inner gap-y-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)] lg:grid-rows-[auto_auto]">
-            {head("ipad")}
-            {head("phone")}
+
+        {/* The devices hold the page's own content width — the iPad's left edge
+            on the text column's left edge, the phone's right edge on its right.
+            At that width the two frames are 842 and 280 across at a shared 595
+            tall, which is the 3:1 column ratio below: each is bound by WIDTH and
+            fills its column exactly, so the alignment is arithmetic rather than
+            eyeballed. The rails hang off this box into the bled margin. */}
+        <div className="relative mx-auto w-full max-w-[1194px] px-inner">
+          {rail("ipad")}
+          <div className="grid min-w-0 grid-cols-[minmax(0,3fr)_minmax(0,1fr)] gap-inner">
             {device("ipad")}
             {device("phone")}
           </div>
-        </MotionConfig>
+          {rail("phone")}
+        </div>
+
+        {controlBand()}
       </div>
 
-      <p className="mt-3 text-bodysm leading-relaxed text-white/60">
-        Both devices are live and read one store — finish something on the phone and the
-        board&rsquo;s count moves with it.{" "}
-        <span className="text-white/85">
-          {s.tasks.filter((t) => !t.done).length} open tasks right now, on both.
-        </span>{" "}
-        Each screen has a permanent link: the address bar carries{" "}
-        <code className="font-mono text-[12px] text-white/75">?screen=</code> for the phone and{" "}
-        <code className="font-mono text-[12px] text-white/75">?board=</code> for the iPad.
-      </p>
+      <div className="mx-auto mt-3 w-full max-w-[1194px] px-inner">
+        <p className="text-bodysm leading-relaxed text-white/60">
+          Both devices are live and read one store — finish something on the phone and the
+          board&rsquo;s count moves with it.{" "}
+          <span className="text-white/85">
+            {s.tasks.filter((t) => !t.done).length} open tasks right now, on both.
+          </span>{" "}
+          Each screen has a permanent link: the address bar carries{" "}
+          <code className="font-mono text-[12px] text-white/75">?screen=</code> for the phone and{" "}
+          <code className="font-mono text-[12px] text-white/75">?board=</code> for the iPad.
+        </p>
+      </div>
     </div>
   );
 }
