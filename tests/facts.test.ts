@@ -4,6 +4,9 @@ import { REPO } from "@/case-study/facts.generated";
 import { AUDIT } from "@/case-study/audit";
 import { tokenCounts } from "@/lib/tokens";
 import { FEATURED, JOURNEYS } from "@/lib/journeys";
+import { MODULES, PHASES, SCREEN_COUNT, SURFACES } from "@/case-study/product-scope";
+import { IPAD_ROUTES, PHONE_ROUTES } from "@/lib/types";
+import { SHEET_TYPES } from "@/lib/store";
 // @ts-expect-error — plain .mjs helper, shared with scripts/facts.mjs
 import { computeFacts } from "../scripts/repo-facts.mjs";
 
@@ -17,7 +20,8 @@ import { computeFacts } from "../scripts/repo-facts.mjs";
  */
 
 const fresh = computeFacts() as {
-  commits: number; lines: number; components: number; sourceFiles: number; testFiles: number;
+  commits: number; lines: number; components: number; uiComponents: number;
+  sourceFiles: number; testFiles: number;
 };
 
 describe("the figures in “At a glance”", () => {
@@ -122,5 +126,64 @@ describe("the accessibility figures", () => {
       .map((f) => parseFloat(f.ratio))
       .filter((n) => !Number.isNaN(n));
     expect(AUDIT.product.worst).toBe(Math.min(...listed));
+  });
+});
+
+/**
+ * PRODUCT SCOPE — the figures that replaced the repository statistics.
+ *
+ * "At a glance" used to print commits, lines of TypeScript and test files.
+ * True, measured, and the wrong subject: they size the effort of building
+ * rather than describing what was built. These are the replacements, and they
+ * are held to the same standard — derived from the thing they describe, never
+ * asserted, so none can quietly stop being true.
+ */
+describe("the figures in “Product at a glance”", () => {
+  it("counts the shared UI kit, not the whole repo", () => {
+    expect(
+      REPO.uiComponents,
+      `facts say ${REPO.uiComponents} kit components, the repo has ${fresh.uiComponents}. Run: npm run facts`,
+    ).toBe(fresh.uiComponents);
+    // Narrower than `components` by construction: that figure includes this
+    // page's own panels, which are article furniture, not product.
+    expect(REPO.uiComponents).toBeLessThan(REPO.components);
+  });
+
+  it("counts screens from the route unions the shells actually switch on", () => {
+    expect(SCREEN_COUNT).toBe(IPAD_ROUTES.length + PHONE_ROUTES.length);
+  });
+
+  it("places every screen the product can reach in a named module", () => {
+    // The guard that matters: add a route and forget to place it, and this says
+    // which one is homeless rather than letting the module count drift.
+    const placed = new Set(MODULES.flatMap((m) => m.routes ?? []));
+    const all = [...IPAD_ROUTES, ...PHONE_ROUTES];
+    const homeless = all.filter((r) => !placed.has(r));
+    expect(homeless, `routes in no module: ${homeless.join(", ")}`).toEqual([]);
+  });
+
+  it("places every sheet the product can open in a named module", () => {
+    // Walked against SHEET_TYPES, the app's own union-as-a-value — NOT against
+    // the sheets the journeys happen to open. The first version of this test
+    // did the latter and passed while a sheet sat in no module at all, because
+    // no featured journey opened that one.
+    const placed = new Set<string>(MODULES.flatMap((m) => m.sheets ?? []));
+    const homeless = SHEET_TYPES.filter((t) => !placed.has(t));
+    expect(homeless, `sheets in no module: ${homeless.join(", ")}`).toEqual([]);
+  });
+
+  it("says something about every module and every phase", () => {
+    // A count with nothing behind it is a claim. Each module names what it owns.
+    expect(MODULES.length).toBeGreaterThan(0);
+    for (const m of MODULES) {
+      expect(m.name.length, `${m.name} needs a name`).toBeGreaterThan(2);
+      expect(m.note.length, `${m.name} needs to say what it covers`).toBeGreaterThan(30);
+      expect(
+        (m.routes?.length ?? 0) + (m.sheets?.length ?? 0),
+        `${m.name} anchors to no real screen`,
+      ).toBeGreaterThan(0);
+    }
+    expect(PHASES.length).toBe(6);
+    expect(SURFACES.length).toBe(2);
   });
 });

@@ -3,7 +3,9 @@ import { render, screen } from "@testing-library/react";
 import CaseStudy from "../app/case-study/page";
 import { CONTENT_WIDTH } from "@/case-study/kit";
 import { DEVICES } from "@/components/DeviceFrame";
-import { FEATURED } from "@/lib/journeys";
+import { FEATURED, JOURNEYS } from "@/lib/journeys";
+import { REPO } from "@/case-study/facts.generated";
+import { MODULES, PHASES, SCREEN_COUNT } from "@/case-study/product-scope";
 import { SURFACE_GROUPS } from "@/case-study/Embed";
 
 /**
@@ -141,6 +143,48 @@ describe("code samples stay keyboard reachable", () => {
     // axe: "scrollable region must be keyboard accessible".
     for (const pre of [...container.querySelectorAll("pre")]) {
       expect(pre.getAttribute("tabindex"), `a <pre> is missing tabIndex: ${pre.textContent?.slice(0, 40)}`).toBe("0");
+    }
+  });
+});
+
+/**
+ * THE FIGURES SURVIVE WITHOUT THE ANIMATION.
+ *
+ * jsdom has no IntersectionObserver callback and no frame loop, which is the
+ * same condition as a tab opened in the background and as the server-rendered
+ * HTML. The count-up was originally written with state starting at zero, so in
+ * exactly those cases every figure on the page rendered as 0. This asserts the
+ * number is the default and the animation is only decoration on top of it.
+ */
+describe("“Product at a glance” prints real figures with no motion at all", () => {
+  it("shows each figure, not a zero", () => {
+    const glance = container.querySelector("#glance")!;
+    const text = glance.textContent ?? "";
+    for (const [label, n] of [
+      ["journeys", JOURNEYS.length],
+      ["modules", MODULES.length],
+      ["kit components", REPO.uiComponents],
+      ["screens", SCREEN_COUNT],
+      ["phases", PHASES.length],
+    ] as const) {
+      expect(text, `${label} should read ${n}`).toContain(String(n));
+    }
+    expect(text, "a zeroed figure means the count-up replaced the truth")
+      .not.toMatch(/>\s*0\s*</);
+  });
+
+  it("names the modules and the phases rather than only counting them", () => {
+    const text = container.querySelector("#glance")!.textContent ?? "";
+    expect(text).toContain(MODULES[0].name);
+    expect(text).toContain(PHASES[0]);
+    expect(text).toContain(PHASES[PHASES.length - 1]);
+  });
+
+  it("has dropped every repository statistic", () => {
+    // The point of the rewrite: scope, not effort.
+    const text = container.querySelector("#glance")!.textContent ?? "";
+    for (const banned of ["commit", "lines of", "test file", "colour value"]) {
+      expect(text.toLowerCase(), `“${banned}” is codebase trivia`).not.toContain(banned);
     }
   });
 });

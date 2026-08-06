@@ -21,6 +21,9 @@ export const REPO = {
   lines: ${f.lines},
   /** Exported React components (\`export function Name\`), excluding tests. */
   components: ${f.components},
+  /** Exported components in the SHARED UI kit (src/components) — the reusable
+   *  pieces both surfaces render from, excluding this page's own furniture. */
+  uiComponents: ${f.uiComponents},
   /** Source files counted for \`lines\`. */
   sourceFiles: ${f.sourceFiles},
   /** Test files in the suite. */

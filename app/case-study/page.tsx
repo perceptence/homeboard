@@ -5,27 +5,17 @@ import { Head, Panel, Sample, Section, Wrap } from "@/case-study/kit";
 import { Hero } from "@/case-study/Hero";
 import { Embed } from "@/case-study/Embed";
 import { Stories } from "@/case-study/Stories";
+import { Scope } from "@/case-study/Scope";
 import {
   ColourSpecimen, ComponentSpecimen, ElevationSpecimen, MotionSpecimen, SpaceSpecimen, TypeSpecimen,
 } from "@/case-study/Specimens";
 import { REPO } from "@/case-study/facts.generated";
 import { AUDIT } from "@/case-study/audit";
-import { tokenCounts } from "@/lib/tokens";
-import { FEATURED, JOURNEYS } from "@/lib/journeys";
 
 /**
  * The case study. A real route in the real app — same build, same origin, same
  * design tokens, and the product itself mounted live in the middle of it.
  */
-
-function Figure({ n, label }: { n: string; label: string }) {
-  return (
-    <div className="min-w-0">
-      <p className="font-tight text-[clamp(30px,4vw,46px)] leading-none tracking-tight text-white tabular-nums">{n}</p>
-      <p className="mt-2 text-bodysm leading-snug text-white/60">{label}</p>
-    </div>
-  );
-}
 
 /**
  * A research finding and the decision it produced.
@@ -105,27 +95,26 @@ export default function CaseStudy() {
     <main className="bg-ink">
       <Hero />
 
-      {/* ── AT A GLANCE ─────────────────────────────────────────────────── */}
+      {/* ── PRODUCT AT A GLANCE ─────────────────────────────────────────
+          This was a row of repository statistics — commits, lines of
+          TypeScript, test files. Every one of them true, and every one of them
+          answering a question nobody asked: they measure the effort of building
+          a thing rather than describing the thing. What replaced them is the
+          same discipline pointed at the product. See src/case-study/Scope.tsx;
+          the figures are still derived, never asserted. */}
       <Section id="glance">
         <Head
-          label="At a glance"
-          title="What&rsquo;s actually here"
+          label="Product at a glance"
+          title="The scope of the experience"
           standfirst={
             <>
-              Every figure below is measured from this repository at build time, not written by
-              hand — a script computes them and the test suite recomputes them on every run, so a
-              number on this page cannot quietly go stale.
+              What was designed, in six figures — the reach of the product, the ground it covers,
+              and how much of the work was mine. Each one is counted from the thing it describes
+              rather than written down, so none of them can quietly stop being true.
             </>
           }
         />
-        <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:grid-cols-6">
-          <Figure n={`${REPO.commits}`} label="commits, and counting" />
-          <Figure n={REPO.lines.toLocaleString()} label="lines of TypeScript across two surfaces" />
-          <Figure n={`${REPO.components}`} label="React components" />
-          <Figure n={`${tokenCounts.colorValues}`} label="colour values in the palette" />
-          <Figure n={`${JOURNEYS.length}`} label={`deep-linkable journeys, ${FEATURED.length} featured here`} />
-          <Figure n={`${REPO.testFiles}`} label="test files guarding the rules below" />
-        </div>
+        <Scope />
       </Section>
 
       {/* ── THE PRODUCT, RUNNING ──────────────────────────────────────────

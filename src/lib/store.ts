@@ -15,11 +15,26 @@ import {
 } from "./seed";
 import { addDays, iso, isToday, periodRange, relative, relativeInline, shiftPeriod, timeMinutes, todayIso } from "./dates";
 
+/**
+ * Every sheet the product can open, as a VALUE — the same shape IPAD_ROUTES
+ * uses, and for the same reason. Most of this product is a sheet, so the union
+ * is the closest thing it has to a map of itself; leaving it as a bare type
+ * meant nothing could walk it. The case study's module list is checked against
+ * this array, which is what catches a new sheet nobody remembered to place.
+ *
+ * No "newEvent": New task is the ONE add flow for both, and the app decides
+ * task vs event from what was typed (see `inferFixed` in parse.ts), so the
+ * person is never asked to understand the app's own internal split.
+ */
+export const SHEET_TYPES = [
+  "task", "event", "maint", "assign", "handoff", "newTask", "newShop", "activity",
+  "rebalance", "shop", "settings", "manage", "addPerson", "addAutomation", "stock",
+  "cover", "reschedule", "connectCalendar",
+] as const;
+export type SheetType = (typeof SHEET_TYPES)[number];
+
 export interface Sheet {
-  // No separate "newEvent" — New task is the ONE add flow for both; the app
-  // decides task vs event from what was typed (see `inferFixed` in parse.ts)
-  // so the person is never asked to understand the app's own internal split.
-  type: "task" | "event" | "maint" | "assign" | "handoff" | "newTask" | "newShop" | "activity" | "rebalance" | "shop" | "settings" | "manage" | "addPerson" | "addAutomation" | "stock" | "cover" | "reschedule" | "connectCalendar";
+  type: SheetType;
   /** Tasks are numbered; events and upkeep carry string ids. Each sheet looks up
    *  its own kind, so one field is honest here. */
   id?: number | string;

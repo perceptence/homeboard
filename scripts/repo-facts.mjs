@@ -66,6 +66,19 @@ export function computeFacts() {
     .filter((f) => f.endsWith(".tsx"))
     .reduce((n, f) => n + (read(f).match(/^export (?:default )?function [A-Z]/gm) || []).length, 0);
 
+  /**
+   * The REUSABLE interface kit — exported components under src/components only.
+   *
+   * Deliberately narrower than `components` above, which counts every exported
+   * component in the repo including this case study's own one-off panels. What
+   * the product's scale is actually made of is the shared kit: the pieces both
+   * surfaces render from. Counting the article's furniture alongside them would
+   * inflate a design figure with page decoration.
+   */
+  const uiComponents = appFiles
+    .filter((f) => f.includes("/components/") && f.endsWith(".tsx"))
+    .reduce((n, f) => n + (read(f).match(/^export (?:default )?function [A-Z]/gm) || []).length, 0);
+
   /** Test files, counted the same way the suite counts itself. */
   const testFiles = walk(["src", "app", "tests"], [".ts", ".tsx"]).filter((f) => f.includes(".test."));
 
@@ -79,6 +92,7 @@ export function computeFacts() {
     commits,
     lines,
     components,
+    uiComponents,
     sourceFiles: appFiles.length,
     testFiles: testFiles.length,
   };
