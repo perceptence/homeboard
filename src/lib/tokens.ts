@@ -28,10 +28,18 @@ export const colors = {
   surface: "#F5F4F8",      // light neutral fill inside light cards
   accent: "#D1D0F5",
   progress: "#C7C6F0",
-  sub: "#686B78",          // Text Secondary
+  /** Text Secondary. Darkened from #686B78, which cleared AA on white but not
+   *  on the tinted cards it also sits on — 3.28:1 on lavender, 3.99:1 on mint.
+   *  The swatch moved, not the text: dropping these captions to a lighter grey
+   *  would have hidden the failure instead of fixing it. Now ≥4.5:1 on every
+   *  surface the app puts it on. */
+  sub: "#535660",
   card: "#FFFFFF",
   /* muted, never saturated — no bright colours */
-  danger: "#E5484D",       // the "High ↗" label only
+  /** The "High ↗" label, overdue dates, and destructive actions. Darkened from
+   *  #E5484D, which was only 3.91:1 on a white card — a real AA failure on
+   *  14px text that shipped for months because nobody measured it. */
+  danger: "#C73F43",
   star: "#C9A21A",
   /** Identity colours. Assigned per member so a person is the same colour on
    *  every surface — avatar, workload bar, calendar chip. */
